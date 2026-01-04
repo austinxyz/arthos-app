@@ -17,6 +17,11 @@ app = FastAPI(title="Arthos", description="Investment Analysis Platform")
 async def startup_event():
     """Initialize database tables on application startup."""
     create_db_and_tables()
+    # Purge cache entries with invalid versions (e.g., when cache structure changes)
+    from app.services.cache_service import purge_invalid_cache_versions
+    purged_count = purge_invalid_cache_versions()
+    if purged_count > 0:
+        print(f"Purged {purged_count} cache entries with invalid versions")
 
 # Set up templates directory
 templates_dir = Path(__file__).parent / "templates"

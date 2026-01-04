@@ -9,6 +9,9 @@ import json
 
 
 CACHE_EXPIRY_HOURS = 1  # 60 minutes
+# Cache version - increment this when the cached data structure changes
+# This will cause all existing cache entries to be invalidated
+CACHE_VERSION = 2  # Incremented from 1 when dividend_yield was added
 
 
 def get_cached_data(ticker: str) -> Optional[Tuple[pd.DataFrame, datetime]]:
@@ -26,6 +29,14 @@ def get_cached_data(ticker: str) -> Optional[Tuple[pd.DataFrame, datetime]]:
         cache_entry = session.exec(statement).first()
         
         if cache_entry is None:
+            return None
+        
+        # Check cache version - if it doesn't match current version, delete the entry
+        cache_version = getattr(cache_entry, 'cache_version', None)
+        if cache_version != CACHE_VERSION:
+            # Cache structure has changed, delete this entry
+            session.delete(cache_entry)
+            session.commit()
             return None
         
         # Check if cache is expired (older than 60 minutes)
@@ -73,12 +84,14 @@ def set_cached_data(ticker: str, data: pd.DataFrame) -> None:
             # Update existing entry
             cache_entry.data = data_json
             cache_entry.cache_timestamp = datetime.now()
+            cache_entry.cache_version = CACHE_VERSION
         else:
             # Create new entry
             cache_entry = StockCache(
                 ticker=ticker.upper(),
                 data=data_json,
-                cache_timestamp=datetime.now()
+                cache_timestamp=datetime.now(),
+                cache_version=CACHE_VERSION
             )
             session.add(cache_entry)
         
@@ -100,6 +113,50 @@ def purge_expired_cache() -> int:
         count = len(expired_entries)
         for entry in expired_entries:
             session.delete(entry)
+        
+        session.commit()
+        return count
+
+
+def purge_all_cache() -> int:
+    """
+    Purge all cache entries regardless of expiry.
+    Useful when cache structure changes.
+    
+    Returns:
+        Number of entries purged
+    """
+    with Session(engine) as session:
+        statement = select(StockCache)
+        all_entries = session.exec(statement).all()
+        
+        count = len(all_entries)
+        for entry in all_entries:
+            session.delete(entry)
+        
+        session.commit()
+        return count
+
+
+def purge_invalid_cache_versions() -> int:
+    """
+    Purge all cache entries with version mismatches.
+    This is called automatically when getting cached data,
+    but can be called manually to clean up old cache entries.
+    
+    Returns:
+        Number of entries purged
+    """
+    with Session(engine) as session:
+        statement = select(StockCache)
+        all_entries = session.exec(statement).all()
+        
+        count = 0
+        for entry in all_entries:
+            cache_version = getattr(entry, 'cache_version', None)
+            if cache_version != CACHE_VERSION:
+                session.delete(entry)
+                count += 1
         
         session.commit()
         return count
