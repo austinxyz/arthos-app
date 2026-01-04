@@ -299,5 +299,9 @@ def get_portfolio_stocks_with_metrics(portfolio_id: UUID) -> List[Dict[str, Any]
             metric['sma_50_formatted'] = f"${metric['sma_50']:.2f}"
             metric['sma_200_formatted'] = f"${metric['sma_200']:.2f}"
             metric['stddev_50d_formatted'] = f"{metric['devstep']:.1f}"
+            if metric.get('dividend_yield') is not None:
+                metric['dividend_yield_formatted'] = f"{metric['dividend_yield']:.2f}%"
+            else:
+                metric['dividend_yield_formatted'] = "N/A"
     
     return metrics_list

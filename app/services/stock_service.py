@@ -120,6 +120,7 @@ def get_stock_metrics(ticker: str) -> Dict[str, Any]:
         - devstep: Number of standard deviations from 50-day SMA
         - signal: Trading signal
         - current_price: Current stock price
+        - dividend_yield: Dividend yield as a percentage
         - data_points: Number of data points fetched
         - cached: Boolean indicating if data came from cache
         - cache_timestamp: ISO timestamp of cache entry (if cached)
@@ -152,6 +153,21 @@ def get_stock_metrics(ticker: str) -> Dict[str, Any]:
     # Get current price
     current_price = float(data['Close'].iloc[-1])
     
+    # Fetch dividend yield from yfinance
+    dividend_yield = None
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        # dividendYield is typically a float (e.g., 0.025 for 2.5%)
+        # Some stocks may not have this field
+        if 'dividendYield' in info and info['dividendYield'] is not None:
+            dividend_yield = float(info['dividendYield'])
+            # Convert to percentage (multiply by 100)
+            dividend_yield = dividend_yield * 100
+    except Exception:
+        # If dividend yield cannot be fetched, leave it as None
+        dividend_yield = None
+    
     result = {
         "ticker": ticker.upper(),
         "sma_50": round(sma_50, 2),
@@ -159,6 +175,7 @@ def get_stock_metrics(ticker: str) -> Dict[str, Any]:
         "devstep": round(devstep, 4),
         "signal": signal,
         "current_price": round(current_price, 2),
+        "dividend_yield": round(dividend_yield, 2) if dividend_yield is not None else None,
         "data_points": len(data),
         "cached": cached_result
     }

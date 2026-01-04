@@ -203,6 +203,10 @@ async def results(request: Request, tickers: str = Query(..., description="Comma
                 metric['sma_50_formatted'] = f"${metric['sma_50']:.2f}"
                 metric['sma_200_formatted'] = f"${metric['sma_200']:.2f}"
                 metric['stddev_50d_formatted'] = f"{metric['devstep']:.1f}"
+                if metric.get('dividend_yield') is not None:
+                    metric['dividend_yield_formatted'] = f"{metric['dividend_yield']:.2f}%"
+                else:
+                    metric['dividend_yield_formatted'] = "N/A"
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching stock data: {str(e)}")
     
@@ -230,6 +234,7 @@ async def get_stock_data(q: str = Query(..., description="Stock ticker symbol"))
         - devstep: Number of standard deviations from 50-day SMA (50D STDDEV)
         - signal: Trading signal (Neutral, Overbought, etc.)
         - current_price: Current stock price
+        - dividend_yield: Dividend yield as a percentage (None if not available)
         - data_points: Number of data points fetched
         - cached: Boolean indicating if data came from cache
         - cache_timestamp: ISO timestamp of cache entry (only if cached=true)

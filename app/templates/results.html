@@ -79,6 +79,7 @@
                         <th>Current Price</th>
                         <th>SMA 50</th>
                         <th>SMA 200</th>
+                        <th>Dividend Yield</th>
                         <th>Signal</th>
                         <th>Trading Range</th>
                     </tr>
@@ -96,11 +97,12 @@
                             {% endif %}
                         </td>
                         {% if 'error' in metric %}
-                            <td colspan="6" class="text-danger fw-bold">{{ metric.error }}</td>
+                            <td colspan="7" class="text-danger fw-bold">{{ metric.error }}</td>
                         {% else %}
                             <td>{{ metric.current_price_formatted }}</td>
                             <td>{{ metric.sma_50_formatted }}</td>
                             <td>{{ metric.sma_200_formatted }}</td>
+                            <td>{{ metric.dividend_yield_formatted }}</td>
                             <td data-sort="{% if metric.signal == 'Extreme Oversold' %}5{% elif metric.signal == 'Oversold' %}4{% elif metric.signal == 'Neutral' %}3{% elif metric.signal == 'Overbought' %}2{% elif metric.signal == 'Extreme Overbought' %}1{% else %}0{% endif %}">
                                 {% if metric.signal == "Extreme Oversold" %}
                                     <span class="badge bg-success">Extreme OS</span>
@@ -158,15 +160,15 @@
             
             $('#metricsTable').DataTable({
                 "pageLength": 100,
-                "order": [[4, "desc"]], // Sort by Signal column descending (Extreme Oversold=5 first)
+                "order": [[5, "desc"]], // Sort by Signal column descending (Extreme Oversold=5 first)
                 "columnDefs": [
                     { 
                         "type": "dom-data-sort",
-                        "targets": [4] // Signal column (0-indexed)
+                        "targets": [5] // Signal column (0-indexed)
                     },
                     { 
                         "orderable": false, 
-                        "targets": [5] // Trading Range column (0-indexed) - not sortable
+                        "targets": [6] // Trading Range column (0-indexed) - not sortable
                     },
                     { 
                         "orderable": true, 
