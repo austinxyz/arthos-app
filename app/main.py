@@ -209,8 +209,13 @@ async def results(request: Request, tickers: str = Query(..., description="Comma
                 metric['sma_50_formatted'] = f"${metric['sma_50']:.2f}"
                 metric['sma_200_formatted'] = f"${metric['sma_200']:.2f}"
                 metric['stddev_50d_formatted'] = f"{metric['devstep']:.1f}"
-                if metric.get('dividend_yield') is not None:
-                    metric['dividend_yield_formatted'] = f"{metric['dividend_yield']:.2f}%"
+                # Always set dividend_yield_formatted, even if dividend_yield is missing or None
+                dividend_yield = metric.get('dividend_yield')
+                if dividend_yield is not None and dividend_yield != '':
+                    try:
+                        metric['dividend_yield_formatted'] = f"{float(dividend_yield):.2f}%"
+                    except (ValueError, TypeError):
+                        metric['dividend_yield_formatted'] = "N/A"
                 else:
                     metric['dividend_yield_formatted'] = "N/A"
     except Exception as e:

@@ -267,9 +267,11 @@ class TestPortfolioBrowser:
         # Check that dividend yield values are formatted correctly (should be percentage or N/A)
         for i in range(count):
             cell_text = dividend_yield_cells.nth(i).inner_text().strip()
+            # Cell should not be empty
+            assert cell_text != "", f"Dividend yield cell {i} is empty"
             # Should be either "N/A" or a percentage (e.g., "2.66%")
             assert cell_text == "N/A" or cell_text.endswith("%"), \
-                f"Dividend yield cell {i} has invalid format: {cell_text}"
+                f"Dividend yield cell {i} has invalid format: '{cell_text}'"
             # If it's a percentage, it should be a reasonable value (not > 100%)
             if cell_text != "N/A":
                 value = float(cell_text.replace("%", ""))
