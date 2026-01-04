@@ -146,6 +146,12 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         # Get metrics for display
         metrics = get_stock_metrics(ticker)
         
+        # Format dividend yield for display
+        if metrics.get('dividend_yield') is not None:
+            metrics['dividend_yield_formatted'] = f"{metrics['dividend_yield']:.2f}%"
+        else:
+            metrics['dividend_yield_formatted'] = "N/A"
+        
         return templates.TemplateResponse("stock_detail.html", {
             "request": request,
             "ticker": ticker,

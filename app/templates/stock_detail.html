@@ -123,13 +123,7 @@
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Dividend Yield</div>
-                        <div class="metric-value">
-                            {% if metrics.dividend_yield is not none %}
-                                {{ "%.2f"|format(metrics.dividend_yield) }}%
-                            {% else %}
-                                N/A
-                            {% endif %}
-                        </div>
+                        <div class="metric-value">{{ metrics.dividend_yield_formatted }}</div>
                     </div>
                     <div class="metric-item">
                         <div class="metric-label">Signal</div>

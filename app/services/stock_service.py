@@ -158,12 +158,18 @@ def get_stock_metrics(ticker: str) -> Dict[str, Any]:
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
-        # dividendYield is typically a float (e.g., 0.025 for 2.5%)
-        # Some stocks may not have this field
+        # dividendYield from yfinance can be in different formats:
+        # - As a decimal (e.g., 0.0266 for 2.66%)
+        # - As a percentage (e.g., 2.66 for 2.66%)
+        # We check if it's > 1 to determine if it's already a percentage
         if 'dividendYield' in info and info['dividendYield'] is not None:
-            dividend_yield = float(info['dividendYield'])
-            # Convert to percentage (multiply by 100)
-            dividend_yield = dividend_yield * 100
+            raw_value = float(info['dividendYield'])
+            # If value is > 1, assume it's already a percentage, otherwise convert from decimal
+            if raw_value > 1:
+                dividend_yield = raw_value
+            else:
+                # Convert from decimal to percentage (multiply by 100)
+                dividend_yield = raw_value * 100
     except Exception:
         # If dividend yield cannot be fetched, leave it as None
         dividend_yield = None

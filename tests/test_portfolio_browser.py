@@ -240,3 +240,77 @@ class TestPortfolioBrowser:
         # Should navigate to portfolios page
         page.wait_for_url("**/portfolios", timeout=5000)
         expect(page).to_have_title("Portfolios - Arthos")
+    
+    def test_dividend_yield_display_in_portfolio(self, page: Page, live_server_url):
+        """Test that dividend yield is displayed correctly in portfolio table."""
+        portfolio = create_portfolio("Test Portfolio")
+        add_stocks_to_portfolio(portfolio.portfolio_id, ["HD", "AAPL"])
+        
+        page.goto(f"{live_server_url}/portfolio/{portfolio.portfolio_id}")
+        
+        # Wait for table to load
+        page.wait_for_selector('#stocksTable', state='visible', timeout=10000)
+        page.wait_for_timeout(3000)  # Give time for data to load
+        
+        # Check that Dividend Yield column header exists
+        dividend_yield_header = page.locator('#stocksTable thead th:has-text("Dividend Yield")')
+        expect(dividend_yield_header).to_be_visible()
+        
+        # Check that dividend yield values are displayed (not empty)
+        # Find all dividend yield cells (should be in the 5th column, 0-indexed as 4)
+        dividend_yield_cells = page.locator('#stocksTable tbody tr td:nth-child(5)')
+        count = dividend_yield_cells.count()
+        
+        # At least one stock should have dividend yield data
+        assert count > 0, "No dividend yield cells found in table"
+        
+        # Check that dividend yield values are formatted correctly (should be percentage or N/A)
+        for i in range(count):
+            cell_text = dividend_yield_cells.nth(i).inner_text().strip()
+            # Should be either "N/A" or a percentage (e.g., "2.66%")
+            assert cell_text == "N/A" or cell_text.endswith("%"), \
+                f"Dividend yield cell {i} has invalid format: {cell_text}"
+            # If it's a percentage, it should be a reasonable value (not > 100%)
+            if cell_text != "N/A":
+                value = float(cell_text.replace("%", ""))
+                assert 0 <= value <= 100, \
+                    f"Dividend yield value {value}% is out of reasonable range"
+    
+    def test_dividend_yield_display_in_stock_detail(self, page: Page, live_server_url):
+        """Test that dividend yield is displayed correctly on stock detail page."""
+        # Test with HD stock (should have dividend yield around 2.66%)
+        page.goto(f"{live_server_url}/stock/HD")
+        
+        # Wait for page to load
+        page.wait_for_selector('.metrics-card', state='visible', timeout=10000)
+        page.wait_for_timeout(3000)  # Give time for data to load
+        
+        # Check that Dividend Yield label exists
+        dividend_yield_label = page.locator('.metric-label:has-text("Dividend Yield")')
+        expect(dividend_yield_label).to_be_visible()
+        
+        # Check that dividend yield value is displayed
+        # Find the metric item for Dividend Yield
+        metric_items = page.locator('.metric-item')
+        dividend_yield_found = False
+        
+        for i in range(metric_items.count()):
+            item = metric_items.nth(i)
+            label = item.locator('.metric-label').inner_text().strip()
+            if label == "Dividend Yield":
+                value = item.locator('.metric-value').inner_text().strip()
+                # Should be either "N/A" or a percentage (e.g., "2.66%")
+                assert value == "N/A" or value.endswith("%"), \
+                    f"Dividend yield has invalid format: {value}"
+                # If it's a percentage, it should be a reasonable value (not > 100%)
+                if value != "N/A":
+                    value_num = float(value.replace("%", ""))
+                    assert 0 <= value_num <= 100, \
+                        f"Dividend yield value {value_num}% is out of reasonable range"
+                    # For HD, it should be around 2.66%, not 266%
+                    assert value_num < 10, \
+                        f"Dividend yield {value_num}% seems too high for HD (expected ~2.66%)"
+                dividend_yield_found = True
+                break
+        
+        assert dividend_yield_found, "Dividend Yield metric not found on stock detail page"
