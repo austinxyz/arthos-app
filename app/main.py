@@ -118,6 +118,15 @@ async def portfolio_details_page(request: Request, portfolio_id: UUID = FPath(..
                     metric['sma_50_formatted'] = f"${metric['sma_50']:.2f}"
                     metric['sma_200_formatted'] = f"${metric['sma_200']:.2f}"
                     metric['stddev_50d_formatted'] = f"{metric['devstep']:.1f}"
+                    # Always set dividend_yield_formatted, even if dividend_yield is missing or None
+                    dividend_yield = metric.get('dividend_yield')
+                    if dividend_yield is not None and dividend_yield != '':
+                        try:
+                            metric['dividend_yield_formatted'] = f"{float(dividend_yield):.2f}%"
+                        except (ValueError, TypeError):
+                            metric['dividend_yield_formatted'] = "N/A"
+                    else:
+                        metric['dividend_yield_formatted'] = "N/A"
         except Exception as e:
             # If there's an error fetching metrics, still show the page with error messages
             pass
