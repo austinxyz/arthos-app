@@ -18,10 +18,16 @@ async def startup_event():
     """Initialize database tables on application startup."""
     create_db_and_tables()
     # Purge cache entries with invalid versions (e.g., when cache structure changes)
-    from app.services.cache_service import purge_invalid_cache_versions
-    purged_count = purge_invalid_cache_versions()
-    if purged_count > 0:
-        print(f"Purged {purged_count} cache entries with invalid versions")
+    # This is done in a try-except to handle cases where the cache_version column
+    # doesn't exist yet in the database (will be created on next cache write)
+    try:
+        from app.services.cache_service import purge_invalid_cache_versions
+        purged_count = purge_invalid_cache_versions()
+        if purged_count > 0:
+            print(f"Purged {purged_count} cache entries with invalid versions")
+    except Exception as e:
+        # Don't crash startup if cache purging fails
+        print(f"Warning: Could not purge invalid cache versions on startup: {e}")
 
 # Set up templates directory
 templates_dir = Path(__file__).parent / "templates"

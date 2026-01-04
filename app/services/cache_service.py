@@ -147,17 +147,29 @@ def purge_invalid_cache_versions() -> int:
     Returns:
         Number of entries purged
     """
-    with Session(engine) as session:
-        statement = select(StockCache)
-        all_entries = session.exec(statement).all()
-        
-        count = 0
-        for entry in all_entries:
-            cache_version = getattr(entry, 'cache_version', None)
-            if cache_version != CACHE_VERSION:
-                session.delete(entry)
-                count += 1
-        
-        session.commit()
-        return count
+    try:
+        with Session(engine) as session:
+            statement = select(StockCache)
+            all_entries = session.exec(statement).all()
+            
+            count = 0
+            for entry in all_entries:
+                # Use getattr with default None to handle cases where column doesn't exist yet
+                # or entry doesn't have cache_version set
+                try:
+                    cache_version = getattr(entry, 'cache_version', None)
+                    if cache_version != CACHE_VERSION:
+                        session.delete(entry)
+                        count += 1
+                except (AttributeError, KeyError):
+                    # If cache_version column doesn't exist in DB yet, treat as invalid
+                    session.delete(entry)
+                    count += 1
+            
+            session.commit()
+            return count
+    except Exception as e:
+        # If there's any error (e.g., column doesn't exist), log it but don't crash
+        print(f"Warning: Error purging invalid cache versions: {e}")
+        return 0
 
