@@ -228,7 +228,8 @@
                 {% endif %}
                 
                 {% if options_expiration and options_data and options_data|length > 0 %}
-                    
+                    {# Debug info - remove after testing #}
+                    <p class="mb-1 text-muted small">Debug: Current Price = ${{ "%.2f"|format(current_price) }}, Min Distance = {{ min_distance }}</p>
                     <p class="mb-3"><strong>Expiration:</strong> {{ options_expiration }}</p>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover table-bordered">
@@ -258,7 +259,10 @@
                                 {% for strike in sorted_strikes %}
                                 {% set strike_data = options_data[strike] %}
                                 {# Check if this strike is closest to current price #}
-                                {% if min_distance is not none %}
+                                {% set is_closest = false %}
+                                {% set distance = none %}
+                                {% set diff = none %}
+                                {% if min_distance is not none and current_price is not none and strike is not none %}
                                     {% if strike > current_price %}
                                         {% set distance = strike - current_price %}
                                     {% else %}
@@ -272,13 +276,9 @@
                                     {% endif %}
                                     {% if diff <= 0.01 %}
                                         {% set is_closest = true %}
-                                    {% else %}
-                                        {% set is_closest = false %}
                                     {% endif %}
-                                {% else %}
-                                    {% set is_closest = false %}
                                 {% endif %}
-                                <tr{% if is_closest %} class="table-warning"{% endif %}>
+                                <tr{% if is_closest %} class="table-warning"{% endif %} data-strike="{{ strike }}" data-distance="{{ distance }}" data-min-distance="{{ min_distance }}" data-diff="{{ diff }}" data-is-closest="{{ is_closest }}">
                                     {# Put columns #}
                                     {% if strike_data.put %}
                                     <td>
@@ -399,7 +399,10 @@
                             <tbody>
                                 {% for cc in covered_calls %}
                                 {# Check if this strike is closest to current price #}
-                                {% if min_distance is not none %}
+                                {% set is_closest = false %}
+                                {% set distance = none %}
+                                {% set diff = none %}
+                                {% if min_distance is not none and current_price is not none and cc.strike is not none %}
                                     {% if cc.strike > current_price %}
                                         {% set distance = cc.strike - current_price %}
                                     {% else %}
@@ -413,13 +416,9 @@
                                     {% endif %}
                                     {% if diff <= 0.01 %}
                                         {% set is_closest = true %}
-                                    {% else %}
-                                        {% set is_closest = false %}
                                     {% endif %}
-                                {% else %}
-                                    {% set is_closest = false %}
                                 {% endif %}
-                                <tr{% if is_closest %} class="table-warning"{% endif %}>
+                                <tr{% if is_closest %} class="table-warning"{% endif %} data-strike="{{ cc.strike }}" data-distance="{{ distance }}" data-min-distance="{{ min_distance }}" data-diff="{{ diff }}" data-is-closest="{{ is_closest }}">
                                     <td class="fw-bold">${{ "%.2f"|format(cc.strike) }}</td>
                                     <td>${{ "%.2f"|format(cc.callPremium) }}</td>
                                     <td>
