@@ -210,6 +210,20 @@
             <div class="col-12">
                 <h4 class="mb-3">Option Data</h4>
                 {% if options_expiration and options_data and options_data|length > 0 %}
+                    {# Calculate minimum distance to current price to find closest strike(s) #}
+                    {# This will be used for both Options Data and Covered Calls tables #}
+                    {% set min_distance = none %}
+                    {% for strike in sorted_strikes %}
+                        {% if strike > current_price %}
+                            {% set distance = strike - current_price %}
+                        {% else %}
+                            {% set distance = current_price - strike %}
+                        {% endif %}
+                        {% if min_distance is none or distance < min_distance %}
+                            {% set min_distance = distance %}
+                        {% endif %}
+                    {% endfor %}
+                    
                     <p class="mb-3"><strong>Expiration:</strong> {{ options_expiration }}</p>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover table-bordered">
@@ -238,7 +252,17 @@
                             <tbody>
                                 {% for strike in sorted_strikes %}
                                 {% set strike_data = options_data[strike] %}
-                                <tr>
+                                {# Check if this strike is closest to current price #}
+                                {% if strike > current_price %}
+                                    {% set distance = strike - current_price %}
+                                {% else %}
+                                    {% set distance = current_price - strike %}
+                                {% endif %}
+                                {# Use rounded comparison to handle floating point precision #}
+                                {% set distance_rounded = (distance * 100)|round / 100 %}
+                                {% set min_distance_rounded = (min_distance * 100)|round / 100 %}
+                                {% set is_closest = (distance_rounded == min_distance_rounded) %}
+                                <tr{% if is_closest %} class="table-warning"{% endif %}>
                                     {# Put columns #}
                                     {% if strike_data.put %}
                                     <td>
@@ -331,18 +355,21 @@
             <div class="col-12">
                 <h4 class="mb-3">Covered Calls</h4>
                 {% if covered_calls and covered_calls|length > 0 %}
-                    {# Calculate minimum distance to current price to find closest strike(s) #}
-                    {% set min_distance = none %}
-                    {% for cc in covered_calls %}
-                        {% if cc.strike > current_price %}
-                            {% set distance = cc.strike - current_price %}
-                        {% else %}
-                            {% set distance = current_price - cc.strike %}
-                        {% endif %}
-                        {% if min_distance is none or distance < min_distance %}
-                            {% set min_distance = distance %}
-                        {% endif %}
-                    {% endfor %}
+                    {# min_distance was already calculated in Option Data section above #}
+                    {# If not available (edge case), calculate it here #}
+                    {% if min_distance is none %}
+                        {% set min_distance = none %}
+                        {% for cc in covered_calls %}
+                            {% if cc.strike > current_price %}
+                                {% set distance = cc.strike - current_price %}
+                            {% else %}
+                                {% set distance = current_price - cc.strike %}
+                            {% endif %}
+                            {% if min_distance is none or distance < min_distance %}
+                                {% set min_distance = distance %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
                     
                     <div class="table-responsive">
                         <table class="table table-striped table-hover table-bordered">
@@ -363,7 +390,10 @@
                                 {% else %}
                                     {% set distance = current_price - cc.strike %}
                                 {% endif %}
-                                {% set is_closest = (distance == min_distance) %}
+                                {# Use rounded comparison to handle floating point precision #}
+                                {% set distance_rounded = (distance * 100)|round / 100 %}
+                                {% set min_distance_rounded = (min_distance * 100)|round / 100 %}
+                                {% set is_closest = (distance_rounded == min_distance_rounded) %}
                                 <tr{% if is_closest %} class="table-warning"{% endif %}>
                                     <td class="fw-bold">${{ "%.2f"|format(cc.strike) }}</td>
                                     <td>${{ "%.2f"|format(cc.callPremium) }}</td>

@@ -117,4 +117,204 @@ class TestStockDetailBrowser:
         # If there are console errors, fail the test
         if console_errors:
             pytest.fail(f"Console errors found: {console_errors}")
+    
+    def test_closest_strike_highlighted_in_options_table(self, page: Page, live_server_url):
+        """Test that the closest strike price row is highlighted in Options Data table."""
+        tickers = ["AAPL", "TSLA", "SHOP"]
+        
+        for ticker in tickers:
+            page.goto(f"{live_server_url}/stock/{ticker}")
+            page.wait_for_load_state("networkidle", timeout=30000)
+            
+            # Check if options table exists
+            option_table = page.locator("table").filter(has_text="Put")
+            if option_table.count() == 0:
+                # Skip if no options data available
+                continue
+            
+            # Get current price from metrics
+            current_price_elem = page.locator(".metric-value").filter(has_text="$")
+            if current_price_elem.count() == 0:
+                continue
+            
+            # Find all strike price cells in options table
+            strike_cells = page.locator("table").filter(has_text="Put").locator("td.fw-bold")
+            if strike_cells.count() == 0:
+                continue
+            
+            # Get all strike prices and find minimum distance
+            strikes = []
+            for i in range(strike_cells.count()):
+                strike_text = strike_cells.nth(i).inner_text().strip()
+                if strike_text.startswith("$"):
+                    try:
+                        strike_value = float(strike_text.replace("$", "").replace(",", ""))
+                        strikes.append(strike_value)
+                    except ValueError:
+                        continue
+            
+            if len(strikes) == 0:
+                continue
+            
+            # Get current price
+            current_price_text = current_price_elem.first().inner_text().strip()
+            try:
+                current_price = float(current_price_text.replace("$", "").replace(",", ""))
+            except ValueError:
+                continue
+            
+            # Calculate minimum distance
+            min_distance = min(abs(strike - current_price) for strike in strikes)
+            
+            # Find rows with closest strikes
+            closest_strikes = [s for s in strikes if abs(s - current_price) == min_distance]
+            
+            # Check that at least one row is highlighted
+            highlighted_rows = page.locator("table").filter(has_text="Put").locator("tr.table-warning")
+            assert highlighted_rows.count() > 0, f"No highlighted rows found in Options Data table for {ticker}"
+            
+            # Verify that highlighted rows contain closest strikes
+            highlighted_strikes = []
+            for i in range(highlighted_rows.count()):
+                row = highlighted_rows.nth(i)
+                strike_cell = row.locator("td.fw-bold")
+                if strike_cell.count() > 0:
+                    strike_text = strike_cell.inner_text().strip()
+                    if strike_text.startswith("$"):
+                        try:
+                            strike_value = float(strike_text.replace("$", "").replace(",", ""))
+                            highlighted_strikes.append(strike_value)
+                        except ValueError:
+                            pass
+            
+            # At least one highlighted strike should be in the closest strikes list
+            assert any(abs(hs - current_price) == min_distance for hs in highlighted_strikes), \
+                f"Highlighted strikes {highlighted_strikes} don't match closest strikes {closest_strikes} for {ticker}"
+    
+    def test_closest_strike_highlighted_in_covered_calls_table(self, page: Page, live_server_url):
+        """Test that the closest strike price row is highlighted in Covered Calls table."""
+        tickers = ["AAPL", "TSLA", "SHOP"]
+        
+        for ticker in tickers:
+            page.goto(f"{live_server_url}/stock/{ticker}")
+            page.wait_for_load_state("networkidle", timeout=30000)
+            
+            # Check if covered calls table exists
+            covered_calls_heading = page.locator("h4:has-text('Covered Calls')")
+            if covered_calls_heading.count() == 0:
+                continue
+            
+            # Find covered calls table
+            covered_calls_table = page.locator("table").filter(has_text="Strike Price")
+            if covered_calls_table.count() == 0:
+                # Skip if no covered calls data
+                continue
+            
+            # Get current price from metrics
+            current_price_elem = page.locator(".metric-value").filter(has_text="$")
+            if current_price_elem.count() == 0:
+                continue
+            
+            current_price_text = current_price_elem.first().inner_text().strip()
+            try:
+                current_price = float(current_price_text.replace("$", "").replace(",", ""))
+            except ValueError:
+                continue
+            
+            # Get all strike prices from covered calls table
+            strike_cells = covered_calls_table.locator("tbody tr td.fw-bold")
+            if strike_cells.count() == 0:
+                continue
+            
+            strikes = []
+            for i in range(strike_cells.count()):
+                strike_text = strike_cells.nth(i).inner_text().strip()
+                if strike_text.startswith("$"):
+                    try:
+                        strike_value = float(strike_text.replace("$", "").replace(",", ""))
+                        strikes.append(strike_value)
+                    except ValueError:
+                        continue
+            
+            if len(strikes) == 0:
+                continue
+            
+            # Calculate minimum distance
+            min_distance = min(abs(strike - current_price) for strike in strikes)
+            closest_strikes = [s for s in strikes if abs(s - current_price) == min_distance]
+            
+            # Check that at least one row is highlighted
+            highlighted_rows = covered_calls_table.locator("tbody tr.table-warning")
+            assert highlighted_rows.count() > 0, f"No highlighted rows found in Covered Calls table for {ticker}"
+            
+            # Verify that highlighted rows contain closest strikes
+            highlighted_strikes = []
+            for i in range(highlighted_rows.count()):
+                row = highlighted_rows.nth(i)
+                strike_cell = row.locator("td.fw-bold")
+                if strike_cell.count() > 0:
+                    strike_text = strike_cell.inner_text().strip()
+                    if strike_text.startswith("$"):
+                        try:
+                            strike_value = float(strike_text.replace("$", "").replace(",", ""))
+                            highlighted_strikes.append(strike_value)
+                        except ValueError:
+                            pass
+            
+            # At least one highlighted strike should be in the closest strikes list
+            assert any(abs(hs - current_price) == min_distance for hs in highlighted_strikes), \
+                f"Highlighted strikes {highlighted_strikes} don't match closest strikes {closest_strikes} for {ticker}"
+    
+    def test_equidistant_strikes_both_highlighted(self, page: Page, live_server_url):
+        """Test that if two strikes are equidistant from current price, both are highlighted."""
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        
+        # Get current price
+        current_price_elem = page.locator(".metric-value").filter(has_text="$")
+        if current_price_elem.count() == 0:
+            pytest.skip("Could not find current price")
+        
+        current_price_text = current_price_elem.first().inner_text().strip()
+        try:
+            current_price = float(current_price_text.replace("$", "").replace(",", ""))
+        except ValueError:
+            pytest.skip("Could not parse current price")
+        
+        # Check covered calls table
+        covered_calls_table = page.locator("table").filter(has_text="Strike Price")
+        if covered_calls_table.count() == 0:
+            pytest.skip("No covered calls table found")
+        
+        # Get all strike prices
+        strike_cells = covered_calls_table.locator("tbody tr td.fw-bold")
+        if strike_cells.count() < 2:
+            pytest.skip("Not enough strikes to test equidistant case")
+        
+        strikes = []
+        for i in range(strike_cells.count()):
+            strike_text = strike_cells.nth(i).inner_text().strip()
+            if strike_text.startswith("$"):
+                try:
+                    strike_value = float(strike_text.replace("$", "").replace(",", ""))
+                    strikes.append(strike_value)
+                except ValueError:
+                    continue
+        
+        if len(strikes) < 2:
+            pytest.skip("Not enough valid strikes")
+        
+        # Calculate distances
+        distances = {strike: abs(strike - current_price) for strike in strikes}
+        min_distance = min(distances.values())
+        
+        # Count how many strikes have minimum distance
+        closest_count = sum(1 for d in distances.values() if d == min_distance)
+        
+        # If there are multiple closest strikes, verify all are highlighted
+        if closest_count > 1:
+            highlighted_rows = covered_calls_table.locator("tbody tr.table-warning")
+            assert highlighted_rows.count() >= closest_count, \
+                f"Expected at least {closest_count} highlighted rows for {closest_count} equidistant strikes, but found {highlighted_rows.count()}"
 
