@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portfolios - Arthos</title>
+    <title>WatchLists - Arthos</title>
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
     <!-- Bootstrap 5 CSS -->
@@ -25,30 +25,30 @@
         <div class="header mb-4">
             <a href="/" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Home</a>
             <div class="d-flex justify-content-between align-items-center">
-                <h1>My Portfolios</h1>
-                <a href="/create-portfolio" class="btn btn-primary">Create New Portfolio</a>
+                <h1>My WatchLists</h1>
+                <a href="/create-watchlist" class="btn btn-primary">Create New WatchList</a>
             </div>
         </div>
         
         <div class="table-responsive">
-            <table id="portfoliosTable" class="table table-striped table-hover table-bordered">
+            <table id="watchlistsTable" class="table table-striped table-hover table-bordered">
                 <thead class="table-dark">
                     <tr>
-                        <th>Portfolio Name</th>
+                        <th>WatchList Name</th>
                         <th>Date Added</th>
                         <th>Last Modified</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for portfolio in portfolios %}
+                    {% for watchlist in watchlists %}
                     <tr>
                         <td>
-                            <a href="/portfolio/{{ portfolio.portfolio_id }}" class="text-decoration-none">
-                                <strong>{{ portfolio.portfolio_name }}</strong>
+                            <a href="/watchlist/{{ watchlist.watchlist_id }}" class="text-decoration-none">
+                                <strong>{{ watchlist.watchlist_name }}</strong>
                             </a>
                         </td>
-                        <td>{{ portfolio.date_added }}</td>
-                        <td>{{ portfolio.date_modified }}</td>
+                        <td>{{ watchlist.date_added }}</td>
+                        <td>{{ watchlist.date_modified }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -65,7 +65,7 @@
     
     <script>
         $(document).ready(function() {
-            $('#portfoliosTable').DataTable({
+            $('#watchlistsTable').DataTable({
                 "pageLength": 25,
                 "order": [[2, "desc"]], // Sort by last modified descending
                 "columnDefs": [

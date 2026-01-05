@@ -11,8 +11,8 @@ Arthos is a Python web application for investment analysis, built with FastAPI, 
 - 🎯 **Trading Signals**: Generate trading signals based on standard deviation analysis
 - 📉 **Interactive Charts**: Candlestick charts with SMA overlays for detailed stock analysis
 - 💾 **Intelligent Caching**: 60-minute cache to reduce API calls to yfinance
-- 📁 **Portfolio Management**: Create and manage stock portfolios with multiple stocks
-- ✏️ **Portfolio Editing**: Edit portfolio names and manage stocks within portfolios
+- 📁 **WatchList Management**: Create and manage stock watchlists with multiple stocks
+- ✏️ **WatchList Editing**: Edit watchlist names and manage stocks within watchlists
 - 🔗 **Stock Detail Pages**: Click any ticker to view detailed charts and metrics
 - 🧪 **Comprehensive Testing**: Full test coverage with pytest (unit, API, and browser tests)
 - 🚀 **FastAPI Backend**: Modern, fast, and async-capable API
@@ -34,18 +34,18 @@ View comprehensive stock metrics in a sortable, searchable table with custom sig
 
 Interactive candlestick chart with 50-day and 200-day SMAs, plus standard deviation bands for detailed analysis.
 
-### Portfolio Management
-![Portfolios List](docs/screenshots/portfolios-list.png)
+### WatchList Management
+![Portfolios List](docs/screenshots/watchlists-list.png)
 
-View all your portfolios in one place.
+View all your watchlists in one place.
 
-![Create Portfolio](docs/screenshots/create-portfolio.png)
+![Create WatchList](docs/screenshots/create-watchlist.png)
 
-Create new portfolios with a simple form.
+Create new watchlists with a simple form.
 
-![Portfolio Details](docs/screenshots/portfolio-details.png)
+![WatchList Details](docs/screenshots/watchlist-details.png)
 
-Manage stocks within a portfolio, view metrics, and add or remove stocks.
+Manage stocks within a watchlist, view metrics, and add or remove stocks.
 
 ## Prerequisites
 
@@ -118,11 +118,11 @@ Open your browser and navigate to:
 http://localhost:8000
 ```
 
-### Portfolio Management Pages
+### WatchList Management Pages
 
-- **Create Portfolio**: http://localhost:8000/create-portfolio
-- **List All Portfolios**: http://localhost:8000/portfolios
-- **Portfolio Details**: http://localhost:8000/portfolio/{portfolio_id}
+- **Create WatchList**: http://localhost:8000/create-watchlist
+- **List All Portfolios**: http://localhost:8000/watchlists
+- **WatchList Details**: http://localhost:8000/watchlist/{watchlist_id}
 
 ### Stock Detail Page
 
@@ -130,7 +130,7 @@ http://localhost:8000
   - Interactive candlestick chart showing 365 days of price data
   - 50-day and 200-day SMA lines overlaid on the chart
   - Current metrics display panel
-  - Accessible by clicking any ticker symbol in results or portfolio tables
+  - Accessible by clicking any ticker symbol in results or watchlist tables
 
 ## API Endpoints
 
@@ -228,24 +228,24 @@ Returns an HTML page with:
 - 50-day and 200-day SMA lines overlaid on the chart
 - Current metrics panel with price, SMAs, 50D STDDEV, and signal
 
-## Portfolio API Endpoints
+## WatchList API Endpoints
 
-### GET `/v1/portfolio`
+### GET `/v1/watchlist`
 
-List all portfolios.
+List all watchlists.
 
 **Example Request:**
 ```bash
-curl "http://localhost:8000/v1/portfolio"
+curl "http://localhost:8000/v1/watchlist"
 ```
 
 **Example Response:**
 ```json
 {
-  "portfolios": [
+  "watchlists": [
     {
-      "portfolio_id": "550e8400-e29b-41d4-a716-446655440000",
-      "portfolio_name": "My Portfolio",
+      "watchlist_id": "550e8400-e29b-41d4-a716-446655440000",
+      "watchlist_name": "My WatchList",
       "date_added": "2025-12-25T21:44:22.981176",
       "date_modified": "2025-12-25T21:44:22.981176"
     }
@@ -253,20 +253,20 @@ curl "http://localhost:8000/v1/portfolio"
 }
 ```
 
-### GET `/v1/portfolio/{portfolio_id}`
+### GET `/v1/watchlist/{watchlist_id}`
 
-Get portfolio details including all stocks.
+Get watchlist details including all stocks.
 
 **Example Request:**
 ```bash
-curl "http://localhost:8000/v1/portfolio/550e8400-e29b-41d4-a716-446655440000"
+curl "http://localhost:8000/v1/watchlist/550e8400-e29b-41d4-a716-446655440000"
 ```
 
 **Example Response:**
 ```json
 {
-  "portfolio_id": "550e8400-e29b-41d4-a716-446655440000",
-  "portfolio_name": "My Portfolio",
+  "watchlist_id": "550e8400-e29b-41d4-a716-446655440000",
+  "watchlist_name": "My WatchList",
   "date_added": "2025-12-25T21:44:22.981176",
   "date_modified": "2025-12-25T21:44:22.981176",
   "stocks": [
@@ -278,54 +278,54 @@ curl "http://localhost:8000/v1/portfolio/550e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
-### POST `/v1/portfolio`
+### POST `/v1/watchlist`
 
-Create a new portfolio.
+Create a new watchlist.
 
 **Request Body:**
 ```json
 {
-  "portfolio_name": "My New Portfolio"
+  "watchlist_name": "My New WatchList"
 }
 ```
 
 **Example Request:**
 ```bash
-curl -X POST "http://localhost:8000/v1/portfolio" \
+curl -X POST "http://localhost:8000/v1/watchlist" \
   -H "Content-Type: application/json" \
-  -d '{"portfolio_name": "My New Portfolio"}'
+  -d '{"watchlist_name": "My New WatchList"}'
 ```
 
-### PUT `/v1/portfolio/{portfolio_id}`
+### PUT `/v1/watchlist/{watchlist_id}`
 
-Update portfolio name.
+Update watchlist name.
 
 **Request Body:**
 ```json
 {
-  "portfolio_name": "Updated Portfolio Name"
+  "watchlist_name": "Updated WatchList Name"
 }
 ```
 
 **Example Request:**
 ```bash
-curl -X PUT "http://localhost:8000/v1/portfolio/550e8400-e29b-41d4-a716-446655440000" \
+curl -X PUT "http://localhost:8000/v1/watchlist/550e8400-e29b-41d4-a716-446655440000" \
   -H "Content-Type: application/json" \
-  -d '{"portfolio_name": "Updated Portfolio Name"}'
+  -d '{"watchlist_name": "Updated WatchList Name"}'
 ```
 
-### DELETE `/v1/portfolio/{portfolio_id}`
+### DELETE `/v1/watchlist/{watchlist_id}`
 
-Delete a portfolio and all its stocks (cascade delete).
+Delete a watchlist and all its stocks (cascade delete).
 
 **Example Request:**
 ```bash
-curl -X DELETE "http://localhost:8000/v1/portfolio/550e8400-e29b-41d4-a716-446655440000"
+curl -X DELETE "http://localhost:8000/v1/watchlist/550e8400-e29b-41d4-a716-446655440000"
 ```
 
-### POST `/v1/portfolio/{portfolio_id}/stocks`
+### POST `/v1/watchlist/{watchlist_id}/stocks`
 
-Add stocks to a portfolio. Duplicate stocks are automatically ignored.
+Add stocks to a watchlist. Duplicate stocks are automatically ignored.
 
 **Request Body:**
 ```json
@@ -336,18 +336,18 @@ Add stocks to a portfolio. Duplicate stocks are automatically ignored.
 
 **Example Request:**
 ```bash
-curl -X POST "http://localhost:8000/v1/portfolio/550e8400-e29b-41d4-a716-446655440000/stocks" \
+curl -X POST "http://localhost:8000/v1/watchlist/550e8400-e29b-41d4-a716-446655440000/stocks" \
   -H "Content-Type: application/json" \
   -d '{"tickers": "AAPL,MSFT,GOOGL"}'
 ```
 
-### DELETE `/v1/portfolio/{portfolio_id}/stocks/{ticker}`
+### DELETE `/v1/watchlist/{watchlist_id}/stocks/{ticker}`
 
-Remove a stock from a portfolio.
+Remove a stock from a watchlist.
 
 **Example Request:**
 ```bash
-curl -X DELETE "http://localhost:8000/v1/portfolio/550e8400-e29b-41d4-a716-446655440000/stocks/AAPL"
+curl -X DELETE "http://localhost:8000/v1/watchlist/550e8400-e29b-41d4-a716-446655440000/stocks/AAPL"
 ```
 
 ## Testing
@@ -377,10 +377,10 @@ pytest --cov=app --cov-report=html
 - `tests/test_ticker_validator.py` - Ticker validation tests
 - `tests/test_validation_api.py` - Validation API endpoint tests
 - `tests/test_results_page.py` - Results page tests
-- `tests/test_portfolio_models.py` - Portfolio model tests
-- `tests/test_portfolio_service.py` - Portfolio service unit tests
-- `tests/test_portfolio_api.py` - Portfolio API endpoint tests
-- `tests/test_portfolio_browser.py` - Portfolio browser tests (Playwright)
+- `tests/test_watchlist_models.py` - WatchList model tests
+- `tests/test_watchlist_service.py` - WatchList service unit tests
+- `tests/test_watchlist_api.py` - WatchList API endpoint tests
+- `tests/test_watchlist_browser.py` - WatchList browser tests (Playwright)
 - `tests/test_stock_chart_service.py` - Stock chart service tests
 - `tests/test_stock_detail_api.py` - Stock detail page API tests
 
@@ -395,21 +395,21 @@ arthos-app/
 │   ├── models/
 │   │   ├── __init__.py
 │   │   ├── stock_cache.py    # StockCache SQLModel
-│   │   └── portfolio.py      # Portfolio and PortfolioStock SQLModels
+│   │   └── watchlist.py      # WatchList and PortfolioStock SQLModels
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── stock_service.py  # Stock data fetching and metrics
 │   │   ├── stock_chart_service.py  # Stock chart data preparation
 │   │   ├── cache_service.py  # Caching operations
 │   │   ├── ticker_validator.py  # Ticker format validation
-│   │   └── portfolio_service.py  # Portfolio management operations
+│   │   └── watchlist_service.py  # WatchList management operations
 │   └── templates/
 │       ├── index.html        # Homepage template
 │       ├── results.html      # Results page template
 │       ├── stock_detail.html  # Stock detail page with chart
-│       ├── create_portfolio.html  # Create portfolio page
-│       ├── portfolios.html    # List portfolios page
-│       └── portfolio_details.html  # Portfolio details page
+│       ├── create_watchlist.html  # Create watchlist page
+│       ├── watchlists.html    # List watchlists page
+│       └── watchlist_details.html  # WatchList details page
 ├── static/
 │   └── arthos-favicon.svg    # Favicon
 ├── tests/
@@ -422,10 +422,10 @@ arthos-app/
 │   ├── test_ticker_validator.py  # Ticker validation tests
 │   ├── test_validation_api.py  # Validation API endpoint tests
 │   ├── test_results_page.py  # Results page tests
-│   ├── test_portfolio_models.py  # Portfolio model tests
-│   ├── test_portfolio_service.py  # Portfolio service tests
-│   ├── test_portfolio_api.py  # Portfolio API endpoint tests
-│   └── test_portfolio_browser.py  # Portfolio browser tests (Playwright)
+│   ├── test_watchlist_models.py  # WatchList model tests
+│   ├── test_watchlist_service.py  # WatchList service tests
+│   ├── test_watchlist_api.py  # WatchList API endpoint tests
+│   └── test_watchlist_browser.py  # WatchList browser tests (Playwright)
 ├── run.py                    # Application startup script
 ├── pytest.ini                # Pytest configuration
 ├── requirements.txt           # Python dependencies
@@ -447,21 +447,21 @@ When a request is made:
 2. If cache exists, return cached data
 3. If cache is missing or expired, fetch from yfinance and cache the response
 
-## Portfolio Management
+## WatchList Management
 
-The application includes a comprehensive portfolio management system:
+The application includes a comprehensive watchlist management system:
 
 ### Features
 
-- **Create Portfolios**: Create named portfolios to organize your stock analysis
-- **Add Stocks**: Add multiple stocks to a portfolio using comma-separated tickers
-- **Edit Portfolio Names**: Update portfolio names after creation
-- **Remove Stocks**: Delete individual stocks from portfolios
-- **View Portfolio Details**: See all stocks in a portfolio with their current metrics
-- **Cascade Delete**: Deleting a portfolio automatically removes all associated stocks
-- **Duplicate Prevention**: Adding the same stock twice to a portfolio is automatically ignored
+- **Create Portfolios**: Create named watchlists to organize your stock analysis
+- **Add Stocks**: Add multiple stocks to a watchlist using comma-separated tickers
+- **Edit WatchList Names**: Update watchlist names after creation
+- **Remove Stocks**: Delete individual stocks from watchlists
+- **View WatchList Details**: See all stocks in a watchlist with their current metrics
+- **Cascade Delete**: Deleting a watchlist automatically removes all associated stocks
+- **Duplicate Prevention**: Adding the same stock twice to a watchlist is automatically ignored
 
-### Portfolio Name Validation
+### WatchList Name Validation
 
 - Alphanumeric characters and spaces only
 - Maximum 128 characters
@@ -470,7 +470,7 @@ The application includes a comprehensive portfolio management system:
 ### Stock Management
 
 - Stocks are validated using the same ticker validation rules as the main search
-- Each portfolio can contain unique stocks only (no duplicates)
+- Each watchlist can contain unique stocks only (no duplicates)
 - Stock metrics are displayed in a DataTable with the same columns as the results page
 - Custom sorting by Signal column (Extreme Oversold → Extreme Overbought)
 

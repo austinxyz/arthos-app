@@ -1,10 +1,10 @@
-"""Browser tests for portfolio functionality using Playwright."""
+"""Browser tests for watchlist functionality using Playwright."""
 import pytest
 from playwright.sync_api import Page, expect
-from app.services.portfolio_service import create_portfolio, add_stocks_to_portfolio
+from app.services.watchlist_service import create_watchlist, add_stocks_to_watchlist
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session
-from app.models.portfolio import Portfolio, PortfolioStock
+from app.models.watchlist import WatchList, WatchListStock
 
 
 @pytest.fixture(autouse=True)
@@ -15,15 +15,15 @@ def setup_database():
     # Cleanup before test
     with Session(engine) as session:
         from sqlmodel import select
-        statement = select(PortfolioStock)
+        statement = select(WatchListStock)
         all_stocks = session.exec(statement).all()
         for stock in all_stocks:
             session.delete(stock)
         
-        statement = select(Portfolio)
-        all_portfolios = session.exec(statement).all()
-        for portfolio in all_portfolios:
-            session.delete(portfolio)
+        statement = select(WatchList)
+        all_watchlists = session.exec(statement).all()
+        for watchlist in all_watchlists:
+            session.delete(watchlist)
         
         session.commit()
     
@@ -32,15 +32,15 @@ def setup_database():
     # Cleanup after test
     with Session(engine) as session:
         from sqlmodel import select
-        statement = select(PortfolioStock)
+        statement = select(WatchListStock)
         all_stocks = session.exec(statement).all()
         for stock in all_stocks:
             session.delete(stock)
         
-        statement = select(Portfolio)
-        all_portfolios = session.exec(statement).all()
-        for portfolio in all_portfolios:
-            session.delete(portfolio)
+        statement = select(WatchList)
+        all_watchlists = session.exec(statement).all()
+        for watchlist in all_watchlists:
+            session.delete(watchlist)
         
         session.commit()
 
@@ -51,43 +51,43 @@ def live_server_url():
     return "http://localhost:8000"
 
 
-class TestPortfolioBrowser:
-    """Browser tests for portfolio pages."""
+class TestWatchListBrowser:
+    """Browser tests for watchlist pages."""
     
     def test_create_portfolio_page_loads(self, page: Page, live_server_url):
-        """Test that the create portfolio page loads correctly."""
-        page.goto(f"{live_server_url}/create-portfolio")
+        """Test that the create watchlist page loads correctly."""
+        page.goto(f"{live_server_url}/create-watchlist")
         
         # Check page title
-        expect(page).to_have_title("Create Portfolio - Arthos")
+        expect(page).to_have_title("Create WatchList - Arthos")
         
         # Check form elements
-        expect(page.locator("#portfolioName")).to_be_visible()
+        expect(page.locator("#watchlistName")).to_be_visible()
         expect(page.locator("button[type='submit']")).to_be_visible()
-        expect(page.locator("text=Create Portfolio")).to_be_visible()
+        expect(page.locator("text=Create WatchList")).to_be_visible()
     
     def test_create_portfolio_success(self, page: Page, live_server_url):
-        """Test creating a portfolio through the UI."""
-        page.goto(f"{live_server_url}/create-portfolio")
+        """Test creating a watchlist through the UI."""
+        page.goto(f"{live_server_url}/create-watchlist")
         
-        # Fill in portfolio name
-        page.fill("#portfolioName", "My Test Portfolio")
+        # Fill in watchlist name
+        page.fill("#watchlistName", "My Test WatchList")
         
         # Submit form
         page.click("button[type='submit']")
         
-        # Should redirect to portfolio details page
-        page.wait_for_url(r"**/portfolio/**", timeout=5000)
+        # Should redirect to watchlist details page
+        page.wait_for_url(r"**/watchlist/**", timeout=5000)
         
-        # Check that portfolio name is displayed
-        expect(page.locator("h1")).to_contain_text("My Test Portfolio")
+        # Check that watchlist name is displayed
+        expect(page.locator("h1")).to_contain_text("My Test WatchList")
     
     def test_create_portfolio_invalid_name(self, page: Page, live_server_url):
-        """Test creating portfolio with invalid name."""
-        page.goto(f"{live_server_url}/create-portfolio")
+        """Test creating watchlist with invalid name."""
+        page.goto(f"{live_server_url}/create-watchlist")
         
         # Try invalid name with special characters
-        page.fill("#portfolioName", "Invalid-Name!")
+        page.fill("#watchlistName", "Invalid-Name!")
         page.click("button[type='submit']")
         
         # Should show error message
@@ -97,44 +97,44 @@ class TestPortfolioBrowser:
     def test_list_portfolios_page(self, page: Page, live_server_url):
         """Test the portfolios list page."""
         # Create some portfolios
-        portfolio1 = create_portfolio("Portfolio 1")
-        portfolio2 = create_portfolio("Portfolio 2")
+        watchlist1 = create_watchlist("WatchList 1")
+        watchlist2 = create_watchlist("WatchList 2")
         
-        page.goto(f"{live_server_url}/portfolios")
+        page.goto(f"{live_server_url}/watchlists")
         
         # Check page title
-        expect(page).to_have_title("Portfolios - Arthos")
+        expect(page).to_have_title("WatchLists - Arthos")
         
         # Check that portfolios are listed
-        expect(page.locator("text=Portfolio 1")).to_be_visible()
-        expect(page.locator("text=Portfolio 2")).to_be_visible()
+        expect(page.locator("text=WatchList 1")).to_be_visible()
+        expect(page.locator("text=WatchList 2")).to_be_visible()
         
-        # Check that portfolio names are links
-        portfolio_link = page.locator(f"a[href='/portfolio/{portfolio1.portfolio_id}']")
+        # Check that watchlist names are links
+        portfolio_link = page.locator(f"a[href='/watchlist/{watchlist1.watchlist_id}']")
         expect(portfolio_link).to_be_visible()
-        expect(portfolio_link).to_contain_text("Portfolio 1")
+        expect(portfolio_link).to_contain_text("WatchList 1")
     
     def test_portfolio_details_page(self, page: Page, live_server_url):
-        """Test the portfolio details page."""
-        portfolio = create_portfolio("Test Portfolio")
+        """Test the watchlist details page."""
+        watchlist = create_watchlist("Test WatchList")
         
-        page.goto(f"{live_server_url}/portfolio/{portfolio.portfolio_id}")
+        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
         # Check page title
-        expect(page).to_have_title("Portfolio: Test Portfolio - Arthos")
+        expect(page).to_have_title("WatchList: Test WatchList - Arthos")
         
-        # Check portfolio name is displayed
-        expect(page.locator("h1")).to_contain_text("Test Portfolio")
+        # Check watchlist name is displayed
+        expect(page.locator("h1")).to_contain_text("Test WatchList")
         
         # Check add stocks form is visible
         expect(page.locator("#tickersInput")).to_be_visible()
-        expect(page.locator("text=Add Stocks to Portfolio")).to_be_visible()
+        expect(page.locator("text=Add Stocks to WatchList")).to_be_visible()
     
     def test_add_stocks_to_portfolio(self, page: Page, live_server_url):
-        """Test adding stocks to a portfolio through the UI."""
-        portfolio = create_portfolio("Test Portfolio")
+        """Test adding stocks to a watchlist through the UI."""
+        watchlist = create_watchlist("Test WatchList")
         
-        page.goto(f"{live_server_url}/portfolio/{portfolio.portfolio_id}")
+        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
         # Add stocks
         page.fill("#tickersInput", "AAPL, MSFT")
@@ -149,10 +149,10 @@ class TestPortfolioBrowser:
         expect(page.locator("text=AAPL")).to_be_visible(timeout=10000)
     
     def test_add_stocks_invalid_ticker(self, page: Page, live_server_url):
-        """Test adding invalid ticker to portfolio."""
-        portfolio = create_portfolio("Test Portfolio")
+        """Test adding invalid ticker to watchlist."""
+        watchlist = create_watchlist("Test WatchList")
         
-        page.goto(f"{live_server_url}/portfolio/{portfolio.portfolio_id}")
+        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
         # Try invalid ticker
         page.fill("#tickersInput", "INVALID12345")
@@ -162,20 +162,20 @@ class TestPortfolioBrowser:
         expect(page.locator("#errorMessage")).to_be_visible()
         expect(page.locator("#errorMessage")).to_contain_text("Invalid ticker format")
     
-    def test_edit_portfolio_name(self, page: Page, live_server_url):
-        """Test editing portfolio name."""
-        portfolio = create_portfolio("Old Name")
+    def test_edit_watchlist_name(self, page: Page, live_server_url):
+        """Test editing watchlist name."""
+        watchlist = create_watchlist("Old Name")
         
-        page.goto(f"{live_server_url}/portfolio/{portfolio.portfolio_id}")
+        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
         # Click edit button
         page.click("button:has(svg.bi-pencil)")
         
         # Check that edit input is visible
-        expect(page.locator("#portfolioNameInput")).to_be_visible()
+        expect(page.locator("#watchlistNameInput")).to_be_visible()
         
         # Update name
-        page.fill("#portfolioNameInput", "New Name")
+        page.fill("#watchlistNameInput", "New Name")
         page.click("button:has-text('Save')")
         
         # Wait for page to reload
@@ -185,11 +185,11 @@ class TestPortfolioBrowser:
         expect(page.locator("h1")).to_contain_text("New Name")
     
     def test_remove_stock_from_portfolio(self, page: Page, live_server_url):
-        """Test removing a stock from portfolio."""
-        portfolio = create_portfolio("Test Portfolio")
-        add_stocks_to_portfolio(portfolio.portfolio_id, ["AAPL", "MSFT"])
+        """Test removing a stock from watchlist."""
+        watchlist = create_watchlist("Test WatchList")
+        add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"])
         
-        page.goto(f"{live_server_url}/portfolio/{portfolio.portfolio_id}")
+        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
         # Wait for stocks to load
         page.wait_for_timeout(2000)
@@ -199,11 +199,11 @@ class TestPortfolioBrowser:
         # We'll need to check if the stock row exists first
         delete_buttons = page.locator("button.btn-danger")
         if delete_buttons.count() > 0:
-            # Click first delete button
-            delete_buttons.first().click()
+            # Set up dialog handler before clicking
+            page.once("dialog", lambda dialog: dialog.accept())
             
-            # Confirm deletion
-            page.on("dialog", lambda dialog: dialog.accept())
+            # Click first delete button (use nth(0) instead of first() if first() is not callable)
+            delete_buttons.nth(0).click()
             
             # Wait for page to reload
             page.wait_for_timeout(2000)
@@ -212,41 +212,41 @@ class TestPortfolioBrowser:
             # This is a basic check - in practice, we'd verify the specific stock is gone
             expect(page.locator("text=MSFT")).to_be_visible(timeout=5000)
     
-    def test_portfolio_name_link_navigation(self, page: Page, live_server_url):
-        """Test that clicking portfolio name navigates to details page."""
-        portfolio = create_portfolio("Test Portfolio")
+    def test_watchlist_name_link_navigation(self, page: Page, live_server_url):
+        """Test that clicking watchlist name navigates to details page."""
+        watchlist = create_watchlist("Test WatchList")
         
-        page.goto(f"{live_server_url}/portfolios")
+        page.goto(f"{live_server_url}/watchlists")
         
-        # Click on portfolio name link
-        page.click(f"a[href='/portfolio/{portfolio.portfolio_id}']")
+        # Click on watchlist name link
+        page.click(f"a[href='/watchlist/{watchlist.watchlist_id}']")
         
-        # Should navigate to portfolio details page
-        page.wait_for_url(f"**/portfolio/{portfolio.portfolio_id}", timeout=5000)
-        expect(page.locator("h1")).to_contain_text("Test Portfolio")
+        # Should navigate to watchlist details page
+        page.wait_for_url(f"**/watchlist/{watchlist.watchlist_id}", timeout=5000)
+        expect(page.locator("h1")).to_contain_text("Test WatchList")
     
-    def test_homepage_portfolio_link(self, page: Page, live_server_url):
-        """Test that homepage has link to portfolios."""
+    def test_homepage_watchlist_link(self, page: Page, live_server_url):
+        """Test that homepage has link to watchlists."""
         page.goto(f"{live_server_url}/")
         
-        # Check for portfolio link
-        portfolio_link = page.locator("a[href='/portfolios']")
-        expect(portfolio_link).to_be_visible()
-        expect(portfolio_link).to_contain_text("View My Portfolios")
+        # Check for watchlist link
+        watchlist_link = page.locator("a[href='/watchlists']")
+        expect(watchlist_link).to_be_visible()
+        expect(watchlist_link).to_contain_text("View My WatchLists")
         
         # Click link
-        portfolio_link.click()
+        watchlist_link.click()
         
-        # Should navigate to portfolios page
-        page.wait_for_url("**/portfolios", timeout=5000)
-        expect(page).to_have_title("Portfolios - Arthos")
+        # Should navigate to watchlists page
+        page.wait_for_url("**/watchlists", timeout=5000)
+        expect(page).to_have_title("WatchLists - Arthos")
     
     def test_dividend_yield_display_in_portfolio(self, page: Page, live_server_url):
-        """Test that dividend yield is displayed correctly in portfolio table."""
-        portfolio = create_portfolio("Test Portfolio")
-        add_stocks_to_portfolio(portfolio.portfolio_id, ["HD", "AAPL"])
+        """Test that dividend yield is displayed correctly in watchlist table."""
+        watchlist = create_watchlist("Test WatchList")
+        add_stocks_to_watchlist(watchlist.watchlist_id, ["HD", "AAPL"])
         
-        page.goto(f"{live_server_url}/portfolio/{portfolio.portfolio_id}")
+        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
         # Wait for table to load
         page.wait_for_selector('#stocksTable', state='visible', timeout=10000)

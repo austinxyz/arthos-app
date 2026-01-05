@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portfolio: {{ portfolio.portfolio_name }} - Arthos</title>
+    <title>WatchList: {{ watchlist.watchlist_name }} - Arthos</title>
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
     <!-- Bootstrap 5 CSS -->
@@ -30,10 +30,10 @@
             margin-top: 10px;
             display: none;
         }
-        .portfolio-name-display {
+        .watchlist-name-display {
             display: inline-block;
         }
-        .portfolio-name-edit {
+        .watchlist-name-edit {
             display: none;
         }
         .trading-range-container {
@@ -93,22 +93,22 @@
 <body>
     <div class="container">
         <div class="header mb-4">
-            <a href="/portfolios" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Portfolios</a>
+            <a href="/watchlists" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to WatchLists</a>
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <span class="portfolio-name-display" id="portfolioNameDisplay">
-                        <h1 class="d-inline">{{ portfolio.portfolio_name }}</h1>
-                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="editPortfolioName()">
+                    <span class="watchlist-name-display" id="watchlistNameDisplay">
+                        <h1 class="d-inline">{{ watchlist.watchlist_name }}</h1>
+                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="editWatchListName()">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
                                 <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
                             </svg>
                         </button>
                     </span>
-                    <span class="portfolio-name-edit" id="portfolioNameEdit">
-                        <input type="text" class="form-control d-inline-block" id="portfolioNameInput" 
-                               value="{{ portfolio.portfolio_name }}" maxlength="128" style="width: 300px;">
-                        <button class="btn btn-sm btn-success ms-2" onclick="savePortfolioName()">Save</button>
-                        <button class="btn btn-sm btn-secondary ms-2" onclick="cancelEditPortfolioName()">Cancel</button>
+                    <span class="watchlist-name-edit" id="watchlistNameEdit">
+                        <input type="text" class="form-control d-inline-block" id="watchlistNameInput" 
+                               value="{{ watchlist.watchlist_name }}" maxlength="128" style="width: 300px;">
+                        <button class="btn btn-sm btn-success ms-2" onclick="saveWatchListName()">Save</button>
+                        <button class="btn btn-sm btn-secondary ms-2" onclick="cancelEditWatchListName()">Cancel</button>
                     </span>
                 </div>
             </div>
@@ -116,7 +116,7 @@
         
         <div class="card mb-4">
             <div class="card-body">
-                <h5 class="card-title">Add Stocks to Portfolio</h5>
+                <h5 class="card-title">Add Stocks to WatchList</h5>
                 <form id="addStocksForm" onsubmit="handleAddStocks(event)">
                     <div class="mb-3">
                         <label for="tickersInput" class="form-label">Stock Tickers</label>
@@ -255,7 +255,7 @@
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
     
     <script>
-        const portfolioId = '{{ portfolio.portfolio_id }}';
+        const watchlistId = '{{ watchlist.watchlist_id }}';
         
         // Ticker format validation
         function validateTickerFormat(ticker) {
@@ -315,7 +315,7 @@
             submitButton.textContent = 'Adding...';
             
             try {
-                const response = await fetch(`/v1/portfolio/${portfolioId}/stocks`, {
+                const response = await fetch(`/v1/watchlist/${watchlistId}/stocks`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -351,12 +351,12 @@
         }
         
         async function removeStock(ticker) {
-            if (!confirm(`Are you sure you want to remove ${ticker} from this portfolio?`)) {
+            if (!confirm(`Are you sure you want to remove ${ticker} from this watchlist?`)) {
                 return;
             }
             
             try {
-                const response = await fetch(`/v1/portfolio/${portfolioId}/stocks/${ticker}`, {
+                const response = await fetch(`/v1/watchlist/${watchlistId}/stocks/${ticker}`, {
                     method: 'DELETE'
                 });
                 
@@ -373,62 +373,62 @@
             }
         }
         
-        function editPortfolioName() {
-            document.getElementById('portfolioNameDisplay').style.display = 'none';
-            document.getElementById('portfolioNameEdit').style.display = 'inline-block';
-            document.getElementById('portfolioNameInput').focus();
+        function editWatchListName() {
+            document.getElementById('watchlistNameDisplay').style.display = 'none';
+            document.getElementById('watchlistNameEdit').style.display = 'inline-block';
+            document.getElementById('watchlistNameInput').focus();
         }
         
-        function cancelEditPortfolioName() {
-            document.getElementById('portfolioNameInput').value = '{{ portfolio.portfolio_name }}';
-            document.getElementById('portfolioNameDisplay').style.display = 'inline-block';
-            document.getElementById('portfolioNameEdit').style.display = 'none';
+        function cancelEditWatchListName() {
+            document.getElementById('watchlistNameInput').value = '{{ watchlist.watchlist_name }}';
+            document.getElementById('watchlistNameDisplay').style.display = 'inline-block';
+            document.getElementById('watchlistNameEdit').style.display = 'none';
         }
         
-        async function savePortfolioName() {
-            const newName = document.getElementById('portfolioNameInput').value.trim();
-            const oldName = '{{ portfolio.portfolio_name }}';
+        async function saveWatchListName() {
+            const newName = document.getElementById('watchlistNameInput').value.trim();
+            const oldName = '{{ watchlist.watchlist_name }}';
             
             if (!newName) {
-                alert('Portfolio name cannot be empty');
+                alert('WatchList name cannot be empty');
                 return;
             }
             
             if (newName.length > 128) {
-                alert('Portfolio name cannot exceed 128 characters');
+                alert('WatchList name cannot exceed 128 characters');
                 return;
             }
             
             if (!/^[a-zA-Z0-9\s]+$/.test(newName)) {
-                alert('Portfolio name can only contain alphanumeric characters and spaces');
+                alert('WatchList name can only contain alphanumeric characters and spaces');
                 return;
             }
             
             if (newName === oldName) {
-                cancelEditPortfolioName();
+                cancelEditWatchListName();
                 return;
             }
             
             try {
-                const response = await fetch(`/v1/portfolio/${portfolioId}`, {
+                const response = await fetch(`/v1/watchlist/${watchlistId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        portfolio_name: newName
+                        watchlist_name: newName
                     })
                 });
                 
                 const data = await response.json();
                 
                 if (!response.ok) {
-                    throw new Error(data.detail || 'Failed to update portfolio name');
+                    throw new Error(data.detail || 'Failed to update watchlist name');
                 }
                 
                 // Update display
-                document.querySelector('#portfolioNameDisplay h1').textContent = newName;
-                cancelEditPortfolioName();
+                document.querySelector('#watchlistNameDisplay h1').textContent = newName;
+                cancelEditWatchListName();
                 
                 // Refresh page to show updated name in title
                 window.location.reload();

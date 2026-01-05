@@ -1,8 +1,8 @@
-"""Tests for portfolio models."""
+"""Tests for watchlist models."""
 import pytest
 from datetime import datetime
 from uuid import uuid4
-from app.models.portfolio import Portfolio, PortfolioStock
+from app.models.watchlist import WatchList, WatchListStock
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session
 
@@ -15,75 +15,75 @@ def setup_database():
     # Cleanup: delete all entries after each test
     with Session(engine) as session:
         from sqlmodel import select
-        statement = select(PortfolioStock)
+        statement = select(WatchListStock)
         all_stocks = session.exec(statement).all()
         for stock in all_stocks:
             session.delete(stock)
         
-        statement = select(Portfolio)
+        statement = select(WatchList)
         all_portfolios = session.exec(statement).all()
-        for portfolio in all_portfolios:
-            session.delete(portfolio)
+        for watchlist in all_portfolios:
+            session.delete(watchlist)
         
         session.commit()
 
 
-class TestPortfolio:
-    """Tests for Portfolio model."""
+class TestWatchList:
+    """Tests for WatchList model."""
     
-    def test_create_portfolio(self):
-        """Test creating a portfolio."""
+    def test_create_watchlist(self):
+        """Test creating a watchlist."""
         with Session(engine) as session:
-            portfolio = Portfolio(
-                portfolio_name="Test Portfolio",
+            watchlist = WatchList(
+                watchlist_name="Test WatchList",
                 date_added=datetime.now(),
                 date_modified=datetime.now()
             )
-            session.add(portfolio)
+            session.add(watchlist)
             session.commit()
-            session.refresh(portfolio)
+            session.refresh(watchlist)
             
-            assert portfolio.portfolio_id is not None
-            assert portfolio.portfolio_name == "Test Portfolio"
-            assert isinstance(portfolio.date_added, datetime)
-            assert isinstance(portfolio.date_modified, datetime)
+            assert watchlist.watchlist_id is not None
+            assert watchlist.watchlist_name == "Test WatchList"
+            assert isinstance(watchlist.date_added, datetime)
+            assert isinstance(watchlist.date_modified, datetime)
     
-    def test_portfolio_name_max_length(self):
-        """Test portfolio name respects max length."""
+    def test_watchlist_name_max_length(self):
+        """Test watchlist name respects max length."""
         with Session(engine) as session:
             # 128 characters should work
             long_name = "A" * 128
-            portfolio = Portfolio(
-                portfolio_name=long_name,
+            watchlist = WatchList(
+                watchlist_name=long_name,
                 date_added=datetime.now(),
                 date_modified=datetime.now()
             )
-            session.add(portfolio)
+            session.add(watchlist)
             session.commit()
-            session.refresh(portfolio)
+            session.refresh(watchlist)
             
-            assert len(portfolio.portfolio_name) == 128
+            assert len(watchlist.watchlist_name) == 128
 
 
-class TestPortfolioStock:
-    """Tests for PortfolioStock model."""
+class TestWatchListStock:
+    """Tests for WatchListStock model."""
     
     def test_create_portfolio_stock(self):
-        """Test creating a portfolio stock."""
+        """Test creating a watchlist stock."""
         with Session(engine) as session:
-            # Create portfolio first
-            portfolio = Portfolio(
-                portfolio_name="Test Portfolio",
+            # Create watchlist first
+            watchlist = WatchList(
+                watchlist_name="Test WatchList",
                 date_added=datetime.now(),
                 date_modified=datetime.now()
             )
-            session.add(portfolio)
+            session.add(watchlist)
             session.commit()
-            session.refresh(portfolio)
+            session.refresh(watchlist)
             
-            # Create portfolio stock
-            stock = PortfolioStock(
-                portfolio_id=portfolio.portfolio_id,
+            # Create watchlist stock
+            stock = WatchListStock(
+                watchlist_id=watchlist.watchlist_id,
                 ticker="AAPL",
                 date_added=datetime.now()
             )
@@ -91,36 +91,36 @@ class TestPortfolioStock:
             session.commit()
             session.refresh(stock)
             
-            assert stock.portfolio_id == portfolio.portfolio_id
+            assert stock.watchlist_id == watchlist.watchlist_id
             assert stock.ticker == "AAPL"
             assert isinstance(stock.date_added, datetime)
     
     def test_portfolio_stock_composite_key(self):
-        """Test that portfolio_id and ticker form composite primary key."""
+        """Test that watchlist_id and ticker form composite primary key."""
         with Session(engine) as session:
-            # Create portfolio
-            portfolio = Portfolio(
-                portfolio_name="Test Portfolio",
+            # Create watchlist
+            watchlist = WatchList(
+                watchlist_name="Test WatchList",
                 date_added=datetime.now(),
                 date_modified=datetime.now()
             )
-            session.add(portfolio)
+            session.add(watchlist)
             session.commit()
-            session.refresh(portfolio)
+            session.refresh(watchlist)
             
             # Create first stock
-            stock1 = PortfolioStock(
-                portfolio_id=portfolio.portfolio_id,
+            stock1 = WatchListStock(
+                watchlist_id=watchlist.watchlist_id,
                 ticker="AAPL",
                 date_added=datetime.now()
             )
             session.add(stock1)
             session.commit()
             
-            # Try to create duplicate (same portfolio_id and ticker)
+            # Try to create duplicate (same watchlist_id and ticker)
             # This should fail due to primary key constraint
-            stock2 = PortfolioStock(
-                portfolio_id=portfolio.portfolio_id,
+            stock2 = WatchListStock(
+                watchlist_id=watchlist.watchlist_id,
                 ticker="AAPL",
                 date_added=datetime.now()
             )

@@ -45,99 +45,73 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/portfolios")
-async def list_portfolios_page(request: Request):
+@app.get("/watchlists")
+async def list_watchlists_page(request: Request):
     """
-    Display list of all portfolios.
+    Display list of all watchlists.
     
     Returns:
-        HTML page with list of portfolios
+        HTML page with list of watchlists
     """
-    from app.services.portfolio_service import get_all_portfolios
+    from app.services.watchlist_service import get_all_watchlists
     
-    portfolios = get_all_portfolios()
+    watchlists = get_all_watchlists()
     
     # Format dates for display
-    portfolios_data = []
-    for p in portfolios:
-        portfolios_data.append({
-            "portfolio_id": str(p.portfolio_id),
-            "portfolio_name": p.portfolio_name,
-            "date_added": p.date_added.strftime("%Y-%m-%d %H:%M:%S"),
-            "date_modified": p.date_modified.strftime("%Y-%m-%d %H:%M:%S")
+    watchlists_data = []
+    for w in watchlists:
+        watchlists_data.append({
+            "watchlist_id": str(w.watchlist_id),
+            "watchlist_name": w.watchlist_name,
+            "date_added": w.date_added.strftime("%Y-%m-%d %H:%M:%S"),
+            "date_modified": w.date_modified.strftime("%Y-%m-%d %H:%M:%S")
         })
     
-    return templates.TemplateResponse("portfolios.html", {
+    return templates.TemplateResponse("watchlists.html", {
         "request": request,
-        "portfolios": portfolios_data
+        "watchlists": watchlists_data
     })
 
 
-@app.get("/create-portfolio")
-async def create_portfolio_page(request: Request):
+@app.get("/create-watchlist")
+async def create_watchlist_page(request: Request):
     """
-    Display create portfolio page.
+    Display create watchlist page.
     
     Returns:
-        HTML page for creating a new portfolio
+        HTML page for creating a new watchlist
     """
-    return templates.TemplateResponse("create_portfolio.html", {"request": request})
+    return templates.TemplateResponse("create_watchlist.html", {"request": request})
 
 
-@app.get("/portfolio/{portfolio_id}")
-async def portfolio_details_page(request: Request, portfolio_id: UUID = FPath(...)):
+@app.get("/watchlist/{watchlist_id}")
+async def watchlist_details_page(request: Request, watchlist_id: UUID = FPath(...)):
     """
-    Display portfolio details page with stocks.
+    Display watchlist details page with stocks.
     
     Args:
-        portfolio_id: UUID of the portfolio
+        watchlist_id: UUID of the watchlist
         
     Returns:
-        HTML page with portfolio details and stocks
+        HTML page with watchlist details and stocks
     """
-    from app.services.portfolio_service import get_portfolio, get_portfolio_stocks
-    from app.services.stock_service import get_multiple_stock_metrics
+    from app.services.watchlist_service import get_watchlist, get_watchlist_stocks_with_metrics
     
-    portfolio = get_portfolio(portfolio_id)
-    if not portfolio:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
+    try:
+        watchlist = get_watchlist(watchlist_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="WatchList not found")
     
-    # Get stocks in portfolio
-    portfolio_stocks = get_portfolio_stocks(portfolio_id)
-    ticker_list = [s.ticker for s in portfolio_stocks]
+    # Get stocks in watchlist with metrics
+    metrics_list = get_watchlist_stocks_with_metrics(watchlist_id)
     
-    # Fetch metrics for all tickers
-    metrics_list = []
-    if ticker_list:
-        try:
-            metrics_list = get_multiple_stock_metrics(ticker_list)
-            # Format numbers for display
-            for metric in metrics_list:
-                if 'error' not in metric:
-                    metric['current_price_formatted'] = f"${metric['current_price']:.2f}"
-                    metric['sma_50_formatted'] = f"${metric['sma_50']:.2f}"
-                    metric['sma_200_formatted'] = f"${metric['sma_200']:.2f}"
-                    metric['stddev_50d_formatted'] = f"{metric['devstep']:.1f}"
-                    # Always set dividend_yield_formatted, even if dividend_yield is missing or None
-                    dividend_yield = metric.get('dividend_yield')
-                    if dividend_yield is not None and dividend_yield != '':
-                        try:
-                            metric['dividend_yield_formatted'] = f"{float(dividend_yield):.2f}%"
-                        except (ValueError, TypeError):
-                            metric['dividend_yield_formatted'] = "N/A"
-                    else:
-                        metric['dividend_yield_formatted'] = "N/A"
-        except Exception as e:
-            # If there's an error fetching metrics, still show the page with error messages
-            pass
-    
-    return templates.TemplateResponse("portfolio_details.html", {
+    return templates.TemplateResponse("watchlist_details.html", {
         "request": request,
-        "portfolio": {
-            "portfolio_id": str(portfolio.portfolio_id),
-            "portfolio_name": portfolio.portfolio_name,
-            "date_added": portfolio.date_added.strftime("%Y-%m-%d %H:%M:%S"),
-            "date_modified": portfolio.date_modified.strftime("%Y-%m-%d %H:%M:%S")
+        "watchlist": {
+            "watchlist_id": str(watchlist.watchlist_id),
+            "watchlist_name": watchlist.watchlist_name,
+            "date_added": watchlist.date_added.strftime("%Y-%m-%d %H:%M:%S"),
+            "date_modified": watchlist.date_modified.strftime("%Y-%m-%d %H:%M:%S")
         },
         "metrics": metrics_list
     })
@@ -374,68 +348,68 @@ async def validate_tickers(tickers: str = Query(..., description="Comma-separate
     }
 
 
-# Portfolio API Models
-class PortfolioCreate(BaseModel):
-    portfolio_name: str
+# WatchList API Models
+class WatchListCreate(BaseModel):
+    watchlist_name: str
 
 
-class PortfolioUpdate(BaseModel):
-    portfolio_name: str
+class WatchListUpdate(BaseModel):
+    watchlist_name: str
 
 
 class AddStocksRequest(BaseModel):
     tickers: str  # Comma-separated tickers
 
 
-# Portfolio API Endpoints
-@app.get("/v1/portfolio")
-async def list_portfolios():
+# WatchList API Endpoints
+@app.get("/v1/watchlist")
+async def list_watchlists():
     """
-    List all portfolios.
+    List all watchlists.
     
     Returns:
-        JSON response with list of portfolios
+        JSON response with list of watchlists
     """
-    from app.services.portfolio_service import get_all_portfolios
+    from app.services.watchlist_service import get_all_watchlists
     
-    portfolios = get_all_portfolios()
+    watchlists = get_all_watchlists()
     return {
-        "portfolios": [
+        "watchlists": [
             {
-                "portfolio_id": str(p.portfolio_id),
-                "portfolio_name": p.portfolio_name,
-                "date_added": p.date_added.isoformat(),
-                "date_modified": p.date_modified.isoformat()
+                "watchlist_id": str(w.watchlist_id),
+                "watchlist_name": w.watchlist_name,
+                "date_added": w.date_added.isoformat(),
+                "date_modified": w.date_modified.isoformat()
             }
-            for p in portfolios
+            for w in watchlists
         ]
     }
 
 
-@app.get("/v1/portfolio/{portfolio_id}")
-async def get_portfolio(portfolio_id: UUID = FPath(...)):
+@app.get("/v1/watchlist/{watchlist_id}")
+async def get_watchlist(watchlist_id: UUID = FPath(...)):
     """
-    Get portfolio details.
+    Get watchlist details.
     
     Args:
-        portfolio_id: UUID of the portfolio
+        watchlist_id: UUID of the watchlist
         
     Returns:
-        JSON response with portfolio details and stocks
+        JSON response with watchlist details and stocks
     """
-    from app.services.portfolio_service import get_portfolio, get_portfolio_stocks
+    from app.services.watchlist_service import get_watchlist, get_watchlist_stocks
     
     try:
-        portfolio = get_portfolio(portfolio_id)
-        stocks = get_portfolio_stocks(portfolio_id)
+        watchlist = get_watchlist(watchlist_id)
+        stocks = get_watchlist_stocks(watchlist_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     
     return {
-        "portfolio_id": str(portfolio.portfolio_id),
-        "portfolio_name": portfolio.portfolio_name,
-        "date_added": portfolio.date_added.isoformat(),
-        "date_modified": portfolio.date_modified.isoformat(),
+        "watchlist_id": str(watchlist.watchlist_id),
+        "watchlist_name": watchlist.watchlist_name,
+        "date_added": watchlist.date_added.isoformat(),
+        "date_modified": watchlist.date_modified.isoformat(),
         "stocks": [
             {
                 "ticker": s.ticker,
@@ -446,96 +420,96 @@ async def get_portfolio(portfolio_id: UUID = FPath(...)):
     }
 
 
-@app.post("/v1/portfolio")
-async def create_portfolio(portfolio: PortfolioCreate):
+@app.post("/v1/watchlist")
+async def create_watchlist(watchlist: WatchListCreate):
     """
-    Create a new portfolio.
+    Create a new watchlist.
     
     Args:
-        portfolio: Portfolio creation request with portfolio_name
+        watchlist: WatchList creation request with watchlist_name
         
     Returns:
-        JSON response with created portfolio
+        JSON response with created watchlist
     """
-    from app.services.portfolio_service import create_portfolio
+    from app.services.watchlist_service import create_watchlist
     
     try:
-        new_portfolio = create_portfolio(portfolio.portfolio_name)
+        new_watchlist = create_watchlist(watchlist.watchlist_name)
         return {
-            "portfolio_id": str(new_portfolio.portfolio_id),
-            "portfolio_name": new_portfolio.portfolio_name,
-            "date_added": new_portfolio.date_added.isoformat(),
-            "date_modified": new_portfolio.date_modified.isoformat()
+            "watchlist_id": str(new_watchlist.watchlist_id),
+            "watchlist_name": new_watchlist.watchlist_name,
+            "date_added": new_watchlist.date_added.isoformat(),
+            "date_modified": new_watchlist.date_modified.isoformat()
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.put("/v1/portfolio/{portfolio_id}")
-async def update_portfolio(portfolio_id: UUID = FPath(...), portfolio: PortfolioUpdate = None):
+@app.put("/v1/watchlist/{watchlist_id}")
+async def update_watchlist(watchlist_id: UUID = FPath(...), watchlist: WatchListUpdate = None):
     """
-    Update portfolio name.
+    Update watchlist name.
     
     Args:
-        portfolio_id: UUID of the portfolio
-        portfolio: Portfolio update request with portfolio_name
+        watchlist_id: UUID of the watchlist
+        watchlist: WatchList update request with watchlist_name
         
     Returns:
-        JSON response with updated portfolio
+        JSON response with updated watchlist
     """
-    from app.services.portfolio_service import update_portfolio_name
+    from app.services.watchlist_service import update_watchlist_name
     
-    if not portfolio:
-        raise HTTPException(status_code=400, detail="Portfolio name is required")
+    if not watchlist:
+        raise HTTPException(status_code=400, detail="WatchList name is required")
     
     try:
-        updated_portfolio = update_portfolio_name(portfolio_id, portfolio.portfolio_name)
-        if not updated_portfolio:
-            raise HTTPException(status_code=404, detail="Portfolio not found")
+        updated_watchlist = update_watchlist_name(watchlist_id, watchlist.watchlist_name)
+        if not updated_watchlist:
+            raise HTTPException(status_code=404, detail="WatchList not found")
         
         return {
-            "portfolio_id": str(updated_portfolio.portfolio_id),
-            "portfolio_name": updated_portfolio.portfolio_name,
-            "date_added": updated_portfolio.date_added.isoformat(),
-            "date_modified": updated_portfolio.date_modified.isoformat()
+            "watchlist_id": str(updated_watchlist.watchlist_id),
+            "watchlist_name": updated_watchlist.watchlist_name,
+            "date_added": updated_watchlist.date_added.isoformat(),
+            "date_modified": updated_watchlist.date_modified.isoformat()
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.delete("/v1/portfolio/{portfolio_id}")
-async def delete_portfolio(portfolio_id: UUID = FPath(...)):
+@app.delete("/v1/watchlist/{watchlist_id}")
+async def delete_watchlist(watchlist_id: UUID = FPath(...)):
     """
-    Delete a portfolio and all its stocks (cascade delete).
+    Delete a watchlist and all its stocks (cascade delete).
     
     Args:
-        portfolio_id: UUID of the portfolio
+        watchlist_id: UUID of the watchlist
         
     Returns:
         JSON response with deletion status
     """
-    from app.services.portfolio_service import delete_portfolio
+    from app.services.watchlist_service import delete_watchlist
     
     try:
-        delete_portfolio(portfolio_id)
-        return {"message": "Portfolio deleted successfully"}
+        delete_watchlist(watchlist_id)
+        return {"message": "WatchList deleted successfully"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@app.post("/v1/portfolio/{portfolio_id}/stocks")
-async def add_stocks_to_portfolio(portfolio_id: UUID = FPath(...), request: AddStocksRequest = None):
+@app.post("/v1/watchlist/{watchlist_id}/stocks")
+async def add_stocks_to_watchlist(watchlist_id: UUID = FPath(...), request: AddStocksRequest = None):
     """
-    Add stocks to a portfolio.
+    Add stocks to a watchlist.
     
     Args:
-        portfolio_id: UUID of the portfolio
+        watchlist_id: UUID of the watchlist
         request: Request with comma-separated tickers
         
     Returns:
         JSON response with added stocks
     """
-    from app.services.portfolio_service import add_stocks_to_portfolio
+    from app.services.watchlist_service import add_stocks_to_watchlist
     
     if not request or not request.tickers:
         raise HTTPException(status_code=400, detail="Tickers are required")
@@ -547,9 +521,9 @@ async def add_stocks_to_portfolio(portfolio_id: UUID = FPath(...), request: AddS
         raise HTTPException(status_code=400, detail="At least one ticker is required")
     
     try:
-        added_stocks = add_stocks_to_portfolio(portfolio_id, ticker_list)
+        added_stocks = add_stocks_to_watchlist(watchlist_id, ticker_list)
         return {
-            "message": f"Added {len(added_stocks)} stock(s) to portfolio",
+            "message": f"Added {len(added_stocks)} stock(s) to watchlist",
             "added_stocks": [
                 {
                     "ticker": s.ticker,
@@ -562,23 +536,23 @@ async def add_stocks_to_portfolio(portfolio_id: UUID = FPath(...), request: AddS
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.delete("/v1/portfolio/{portfolio_id}/stocks/{ticker}")
-async def remove_stock_from_portfolio(portfolio_id: UUID = FPath(...), ticker: str = FPath(...)):
+@app.delete("/v1/watchlist/{watchlist_id}/stocks/{ticker}")
+async def remove_stock_from_watchlist(watchlist_id: UUID = FPath(...), ticker: str = FPath(...)):
     """
-    Remove a stock from a portfolio.
+    Remove a stock from a watchlist.
     
     Args:
-        portfolio_id: UUID of the portfolio
+        watchlist_id: UUID of the watchlist
         ticker: Stock ticker symbol
         
     Returns:
         JSON response with deletion status
     """
-    from app.services.portfolio_service import remove_stock_from_portfolio
+    from app.services.watchlist_service import remove_stock_from_watchlist
     
     try:
-        remove_stock_from_portfolio(portfolio_id, ticker)
-        return {"message": f"Stock {ticker} removed from portfolio"}
+        remove_stock_from_watchlist(watchlist_id, ticker)
+        return {"message": f"Stock {ticker} removed from watchlist"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
