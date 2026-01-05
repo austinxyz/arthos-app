@@ -213,24 +213,19 @@
                 {# This will be used for both Options Data and Covered Calls tables #}
                 {% set min_distance = none %}
                 
-                {# Calculate from sorted_strikes - use first strike to initialize #}
+                {# Calculate from sorted_strikes - find true minimum across all strikes #}
                 {% if sorted_strikes and sorted_strikes|length > 0 and current_price and current_price > 0 %}
-                    {# Initialize with first strike's distance #}
-                    {% set first_strike = sorted_strikes[0] %}
-                    {% if first_strike > current_price %}
-                        {% set min_distance = first_strike - current_price %}
-                    {% else %}
-                        {% set min_distance = current_price - first_strike %}
-                    {% endif %}
-                    
-                    {# Check remaining strikes #}
+                    {# Loop through all strikes to find the minimum distance #}
                     {% for strike in sorted_strikes %}
                         {% if strike > current_price %}
                             {% set distance = strike - current_price %}
                         {% else %}
                             {% set distance = current_price - strike %}
                         {% endif %}
-                        {% if distance < min_distance %}
+                        {# Initialize min_distance with first strike, then update if smaller #}
+                        {% if min_distance is none %}
+                            {% set min_distance = distance %}
+                        {% elif distance < min_distance %}
                             {% set min_distance = distance %}
                         {% endif %}
                     {% endfor %}
