@@ -209,10 +209,10 @@
         <div class="row mt-4">
             <div class="col-12">
                 <h4 class="mb-3">Option Data</h4>
-                {% if options_expiration and options_data and options_data|length > 0 %}
-                    {# Calculate minimum distance to current price to find closest strike(s) #}
-                    {# This will be used for both Options Data and Covered Calls tables #}
-                    {% set min_distance = none %}
+                {# Calculate minimum distance to current price to find closest strike(s) #}
+                {# This will be used for both Options Data and Covered Calls tables #}
+                {% set min_distance = none %}
+                {% if sorted_strikes and sorted_strikes|length > 0 %}
                     {% for strike in sorted_strikes %}
                         {% if strike > current_price %}
                             {% set distance = strike - current_price %}
@@ -223,6 +223,9 @@
                             {% set min_distance = distance %}
                         {% endif %}
                     {% endfor %}
+                {% endif %}
+                
+                {% if options_expiration and options_data and options_data|length > 0 %}
                     
                     <p class="mb-3"><strong>Expiration:</strong> {{ options_expiration }}</p>
                     <div class="table-responsive">
@@ -259,10 +262,13 @@
                                     {% else %}
                                         {% set distance = current_price - strike %}
                                     {% endif %}
-                                    {# Use rounded comparison to handle floating point precision #}
-                                    {% set distance_rounded = (distance * 100)|round / 100 %}
-                                    {% set min_distance_rounded = (min_distance * 100)|round / 100 %}
-                                    {% set is_closest = (distance_rounded == min_distance_rounded) %}
+                                    {# Compare with small epsilon to handle floating point precision #}
+                                    {# If distance is within 0.01 of min_distance, consider it closest #}
+                                    {% if distance <= min_distance + 0.01 %}
+                                        {% set is_closest = true %}
+                                    {% else %}
+                                        {% set is_closest = false %}
+                                    {% endif %}
                                 {% else %}
                                     {% set is_closest = false %}
                                 {% endif %}
@@ -359,10 +365,8 @@
             <div class="col-12">
                 <h4 class="mb-3">Covered Calls</h4>
                 {% if covered_calls and covered_calls|length > 0 %}
-                    {# min_distance was already calculated in Option Data section above #}
-                    {# If not available (edge case), calculate it here #}
+                    {# min_distance was already calculated above, but recalculate from covered_calls if needed #}
                     {% if min_distance is none %}
-                        {% set min_distance = none %}
                         {% for cc in covered_calls %}
                             {% if cc.strike > current_price %}
                                 {% set distance = cc.strike - current_price %}
@@ -395,10 +399,13 @@
                                     {% else %}
                                         {% set distance = current_price - cc.strike %}
                                     {% endif %}
-                                    {# Use rounded comparison to handle floating point precision #}
-                                    {% set distance_rounded = (distance * 100)|round / 100 %}
-                                    {% set min_distance_rounded = (min_distance * 100)|round / 100 %}
-                                    {% set is_closest = (distance_rounded == min_distance_rounded) %}
+                                    {# Compare with small epsilon to handle floating point precision #}
+                                    {# If distance is within 0.01 of min_distance, consider it closest #}
+                                    {% if distance <= min_distance + 0.01 %}
+                                        {% set is_closest = true %}
+                                    {% else %}
+                                        {% set is_closest = false %}
+                                    {% endif %}
                                 {% else %}
                                     {% set is_closest = false %}
                                 {% endif %}
