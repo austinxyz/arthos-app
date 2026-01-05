@@ -172,15 +172,37 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         else:
             metrics['dividend_yield_formatted'] = "N/A"
         
-        # Get options data
-        from app.services.stock_service import get_options_data, calculate_covered_call_returns
-        options_expiration, options_data = get_options_data(ticker, metrics['current_price'])
+        # Get options data with error handling
+        options_expiration = None
+        options_data = {}
+        sorted_strikes = []
+        covered_calls = []
         
-        # Sort strikes in descending order for display (highest strike first)
-        sorted_strikes = sorted(options_data.keys(), reverse=True) if options_data else []
-        
-        # Calculate covered call returns
-        covered_calls = calculate_covered_call_returns(options_data, metrics['current_price']) if options_data else []
+        try:
+            from app.services.stock_service import get_options_data, calculate_covered_call_returns
+            options_expiration, options_data = get_options_data(ticker, metrics['current_price'])
+            
+            # Sort strikes in descending order for display (highest strike first)
+            if options_data:
+                sorted_strikes = sorted(options_data.keys(), reverse=True)
+                
+                # Calculate covered call returns
+                try:
+                    covered_calls = calculate_covered_call_returns(options_data, metrics['current_price'])
+                except Exception as e:
+                    print(f"Error calculating covered call returns for {ticker}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    covered_calls = []
+        except Exception as e:
+            # If options data fails, continue without it
+            print(f"Error fetching options data for {ticker}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            options_expiration = None
+            options_data = {}
+            sorted_strikes = []
+            covered_calls = []
         
         return templates.TemplateResponse("stock_detail.html", {
             "request": request,
@@ -196,6 +218,8 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error fetching stock data: {str(e)}")
 
 

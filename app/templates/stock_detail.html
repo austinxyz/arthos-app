@@ -209,7 +209,7 @@
         <div class="row mt-4">
             <div class="col-12">
                 <h4 class="mb-3">Option Data</h4>
-                {% if options_expiration and options_data %}
+                {% if options_expiration and options_data and options_data|length > 0 %}
                     <p class="mb-3"><strong>Expiration:</strong> {{ options_expiration }}</p>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover table-bordered">

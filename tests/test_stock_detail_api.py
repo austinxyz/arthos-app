@@ -39,6 +39,24 @@ class TestStockDetailAPI:
         assert "SMA 50" in response.text
         assert "SMA 200" in response.text
     
+    def test_stock_detail_page_with_options_and_covered_calls(self, client):
+        """Test that stock detail page loads with options data and covered calls section."""
+        response = client.get("/stock/AAPL")
+        
+        assert response.status_code == status.HTTP_200_OK
+        assert "AAPL" in response.text
+        assert "Stock Details" in response.text
+        
+        # Check for Option Data section
+        assert "Option Data" in response.text or "No options data available" in response.text
+        
+        # Check for Covered Calls section
+        assert "Covered Calls" in response.text or "No covered call data available" in response.text
+        
+        # Check that page rendered without errors
+        assert "Internal Server Error" not in response.text
+        assert "Error" not in response.text or "Error fetching" not in response.text
+    
     def test_stock_detail_page_ticker_case_insensitive(self, client):
         """Test that ticker is case-insensitive."""
         response1 = client.get("/stock/aapl")

@@ -374,7 +374,9 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
         
     except Exception as e:
         # If options data cannot be fetched, return empty
+        import traceback
         print(f"Error fetching options data for {ticker}: {str(e)}")
+        traceback.print_exc()
         return (None, {})
 
 
@@ -391,14 +393,27 @@ def calculate_covered_call_returns(options_data: Dict[float, Dict[str, Any]], cu
     """
     covered_calls = []
     
-    for strike in sorted(options_data.keys()):
-        strike_data = options_data[strike]
-        
-        # Only process strikes that have call options
-        if strike_data.get('call') is None:
-            continue
-        
-        call_data = strike_data['call']
+    # Handle empty or None options_data
+    if not options_data or not isinstance(options_data, dict):
+        return covered_calls
+    
+    # Ensure current_price is valid
+    if current_price is None or current_price <= 0:
+        return covered_calls
+    
+    try:
+        for strike in sorted(options_data.keys()):
+            strike_data = options_data.get(strike)
+            if not strike_data or not isinstance(strike_data, dict):
+                continue
+            
+            # Only process strikes that have call options
+            if strike_data.get('call') is None:
+                continue
+            
+            call_data = strike_data['call']
+            if not isinstance(call_data, dict):
+                continue
         
         # Calculate call premium: max(Last Price, (Bid + Ask) / 2)
         last_price = call_data.get('lastPrice')
@@ -460,6 +475,11 @@ def calculate_covered_call_returns(options_data: Dict[float, Dict[str, Any]], cu
             'stockAppreciationPct': round(stock_appreciation_pct, 2),
             'callPremiumPct': round(call_premium_pct, 2),
         })
+    except Exception as e:
+        # If there's an error processing options, log it and return what we have
+        print(f"Error processing covered call returns: {str(e)}")
+        import traceback
+        traceback.print_exc()
     
     return covered_calls
 
