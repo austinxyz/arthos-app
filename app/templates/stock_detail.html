@@ -331,6 +331,19 @@
             <div class="col-12">
                 <h4 class="mb-3">Covered Calls</h4>
                 {% if covered_calls and covered_calls|length > 0 %}
+                    {# Calculate minimum distance to current price to find closest strike(s) #}
+                    {% set min_distance = none %}
+                    {% for cc in covered_calls %}
+                        {% if cc.strike > current_price %}
+                            {% set distance = cc.strike - current_price %}
+                        {% else %}
+                            {% set distance = current_price - cc.strike %}
+                        {% endif %}
+                        {% if min_distance is none or distance < min_distance %}
+                            {% set min_distance = distance %}
+                        {% endif %}
+                    {% endfor %}
+                    
                     <div class="table-responsive">
                         <table class="table table-striped table-hover table-bordered">
                             <thead class="table-dark">
@@ -344,7 +357,14 @@
                             </thead>
                             <tbody>
                                 {% for cc in covered_calls %}
-                                <tr>
+                                {# Check if this strike is closest to current price #}
+                                {% if cc.strike > current_price %}
+                                    {% set distance = cc.strike - current_price %}
+                                {% else %}
+                                    {% set distance = current_price - cc.strike %}
+                                {% endif %}
+                                {% set is_closest = (distance == min_distance) %}
+                                <tr{% if is_closest %} class="table-warning"{% endif %}>
                                     <td class="fw-bold">${{ "%.2f"|format(cc.strike) }}</td>
                                     <td>${{ "%.2f"|format(cc.callPremium) }}</td>
                                     <td>
