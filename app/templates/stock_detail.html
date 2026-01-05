@@ -209,64 +209,90 @@
         <div class="row mt-4">
             <div class="col-12">
                 <h4 class="mb-3">Option Data</h4>
-                {% if options_data and options_data|length > 0 %}
+                {% if options_expiration and options_data %}
+                    <p class="mb-3"><strong>Expiration:</strong> {{ options_expiration }}</p>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover table-bordered">
                             <thead class="table-dark">
                                 <tr>
-                                    <th>Type</th>
-                                    <th>Strike</th>
-                                    <th>Last Price</th>
+                                    <th colspan="4" class="text-center">Put</th>
+                                    <th class="text-center">Strike</th>
+                                    <th colspan="4" class="text-center">Call</th>
+                                </tr>
+                                <tr>
+                                    <th>Last</th>
                                     <th>Bid</th>
                                     <th>Ask</th>
-                                    <th>Volume</th>
-                                    <th>Open Interest</th>
-                                    <th>In The Money</th>
-                                    <th>Expiration</th>
+                                    <th>Vol/OI</th>
+                                    <th>Price</th>
+                                    <th>Last</th>
+                                    <th>Bid</th>
+                                    <th>Ask</th>
+                                    <th>Vol/OI</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for option in options_data %}
+                                {% for strike in sorted_strikes %}
+                                {% set strike_data = options_data[strike] %}
                                 <tr>
+                                    {# Put columns #}
+                                    {% if strike_data.put %}
                                     <td>
-                                        {% if option.type == 'Call' %}
-                                            <span class="badge bg-primary">Call</span>
+                                        {% if strike_data.put.lastPrice is not none %}
+                                            ${{ "%.2f"|format(strike_data.put.lastPrice) }}
                                         {% else %}
-                                            <span class="badge bg-danger">Put</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>${{ "%.2f"|format(option.strike) }}</td>
-                                    <td>
-                                        {% if option.lastPrice is not none %}
-                                            ${{ "%.2f"|format(option.lastPrice) }}
-                                        {% else %}
-                                            <span class="text-muted">N/A</span>
+                                            <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if option.bid is not none %}
-                                            ${{ "%.2f"|format(option.bid) }}
+                                        {% if strike_data.put.bid is not none %}
+                                            ${{ "%.2f"|format(strike_data.put.bid) }}
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                            <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if option.ask is not none %}
-                                            ${{ "%.2f"|format(option.ask) }}
+                                        {% if strike_data.put.ask is not none %}
+                                            ${{ "%.2f"|format(strike_data.put.ask) }}
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                            <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ option.volume }}</td>
-                                    <td>{{ option.openInterest }}</td>
+                                    <td>{{ strike_data.put.volume }}/{{ strike_data.put.openInterest }}</td>
+                                    {% else %}
+                                    <td colspan="4" class="text-muted text-center">-</td>
+                                    {% endif %}
+                                    
+                                    {# Strike price (center) #}
+                                    <td class="text-center fw-bold">${{ "%.2f"|format(strike) }}</td>
+                                    
+                                    {# Call columns #}
+                                    {% if strike_data.call %}
                                     <td>
-                                        {% if option.inTheMoney %}
-                                            <span class="badge bg-success">Yes</span>
+                                        {% if strike_data.call.lastPrice is not none %}
+                                            ${{ "%.2f"|format(strike_data.call.lastPrice) }}
                                         {% else %}
-                                            <span class="badge bg-secondary">No</span>
+                                            <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ option.expiration }}</td>
+                                    <td>
+                                        {% if strike_data.call.bid is not none %}
+                                            ${{ "%.2f"|format(strike_data.call.bid) }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if strike_data.call.ask is not none %}
+                                            ${{ "%.2f"|format(strike_data.call.ask) }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ strike_data.call.volume }}/{{ strike_data.call.openInterest }}</td>
+                                    {% else %}
+                                    <td colspan="4" class="text-muted text-center">-</td>
+                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             </tbody>

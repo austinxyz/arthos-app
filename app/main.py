@@ -174,14 +174,19 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         
         # Get options data
         from app.services.stock_service import get_options_data
-        options_data = get_options_data(ticker, metrics['current_price'])
+        options_expiration, options_data = get_options_data(ticker, metrics['current_price'])
+        
+        # Sort strikes in descending order for display (highest strike first)
+        sorted_strikes = sorted(options_data.keys(), reverse=True) if options_data else []
         
         return templates.TemplateResponse("stock_detail.html", {
             "request": request,
             "ticker": ticker,
             "chart_data": chart_data,
             "metrics": metrics,
-            "options_data": options_data
+            "options_expiration": options_expiration,
+            "options_data": options_data,
+            "sorted_strikes": sorted_strikes
         })
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
