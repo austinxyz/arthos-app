@@ -171,7 +171,17 @@ class TestStockDetailBrowser:
             
             # Check that at least one row is highlighted
             highlighted_rows = page.locator("table").filter(has_text="Put").locator("tr.table-warning")
-            assert highlighted_rows.count() > 0, f"No highlighted rows found in Options Data table for {ticker}"
+            highlighted_count = highlighted_rows.count()
+            
+            # Debug output
+            print(f"\n=== Debug Options Table for {ticker} ===")
+            print(f"Current price: {current_price}")
+            print(f"Strikes: {strikes}")
+            print(f"Min distance: {min_distance}")
+            print(f"Closest strikes: {closest_strikes}")
+            print(f"Highlighted rows count: {highlighted_count}")
+            
+            assert highlighted_count > 0, f"No highlighted rows found in Options Data table for {ticker}. Current price: {current_price}, Strikes: {strikes}, Min distance: {min_distance}"
             
             # Verify that highlighted rows contain closest strikes
             highlighted_strikes = []
@@ -187,9 +197,11 @@ class TestStockDetailBrowser:
                         except ValueError:
                             pass
             
-            # At least one highlighted strike should be in the closest strikes list
-            assert any(abs(hs - current_price) == min_distance for hs in highlighted_strikes), \
-                f"Highlighted strikes {highlighted_strikes} don't match closest strikes {closest_strikes} for {ticker}"
+            # Use epsilon comparison for floating point precision
+            epsilon = 0.01
+            assert any(abs(abs(hs - current_price) - min_distance) < epsilon for hs in highlighted_strikes), \
+                f"Highlighted strikes {highlighted_strikes} don't match closest strikes {closest_strikes} for {ticker}. " \
+                f"Current price: {current_price}, Min distance: {min_distance}"
     
     def test_closest_strike_highlighted_in_covered_calls_table(self, page: Page, live_server_url):
         """Test that the closest strike price row is highlighted in Covered Calls table."""
@@ -245,7 +257,31 @@ class TestStockDetailBrowser:
             
             # Check that at least one row is highlighted
             highlighted_rows = covered_calls_table.locator("tbody tr.table-warning")
-            assert highlighted_rows.count() > 0, f"No highlighted rows found in Covered Calls table for {ticker}"
+            highlighted_count = highlighted_rows.count()
+            
+            # Debug output
+            print(f"\n=== Debug for {ticker} ===")
+            print(f"Current price: {current_price}")
+            print(f"Strikes: {strikes}")
+            print(f"Min distance: {min_distance}")
+            print(f"Closest strikes: {closest_strikes}")
+            print(f"Highlighted rows count: {highlighted_count}")
+            
+            # Get all rows to see what's there
+            all_rows = covered_calls_table.locator("tbody tr")
+            print(f"Total rows: {all_rows.count()}")
+            
+            # Check each row for the class
+            for i in range(all_rows.count()):
+                row = all_rows.nth(i)
+                classes = row.get_attribute("class") or ""
+                has_warning = "table-warning" in classes
+                strike_cell = row.locator("td.fw-bold")
+                if strike_cell.count() > 0:
+                    strike_text = strike_cell.inner_text().strip()
+                    print(f"  Row {i}: strike={strike_text}, has_warning={has_warning}, classes={classes}")
+            
+            assert highlighted_count > 0, f"No highlighted rows found in Covered Calls table for {ticker}. Current price: {current_price}, Strikes: {strikes}, Min distance: {min_distance}"
             
             # Verify that highlighted rows contain closest strikes
             highlighted_strikes = []
@@ -261,9 +297,13 @@ class TestStockDetailBrowser:
                         except ValueError:
                             pass
             
-            # At least one highlighted strike should be in the closest strikes list
-            assert any(abs(hs - current_price) == min_distance for hs in highlighted_strikes), \
-                f"Highlighted strikes {highlighted_strikes} don't match closest strikes {closest_strikes} for {ticker}"
+            print(f"Highlighted strikes: {highlighted_strikes}")
+            
+            # Use epsilon comparison for floating point precision
+            epsilon = 0.01
+            assert any(abs(abs(hs - current_price) - min_distance) < epsilon for hs in highlighted_strikes), \
+                f"Highlighted strikes {highlighted_strikes} don't match closest strikes {closest_strikes} for {ticker}. " \
+                f"Current price: {current_price}, Min distance: {min_distance}"
     
     def test_equidistant_strikes_both_highlighted(self, page: Page, live_server_url):
         """Test that if two strikes are equidistant from current price, both are highlighted."""
