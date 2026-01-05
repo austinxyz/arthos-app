@@ -74,11 +74,31 @@ class TestStockDetailBrowser:
         hr_elements = page.locator("hr")
         expect(hr_elements.first()).to_be_visible()
         
-        # Check Option Data section exists
-        expect(page.locator("h4:has-text('Option Data')")).to_be_visible(timeout=15000)
+        # Check that tabs exist
+        expect(page.locator("ul.nav-tabs")).to_be_visible(timeout=15000)
+        expect(page.locator("button#option-data-tab")).to_be_visible()
+        expect(page.locator("button#covered-calls-tab")).to_be_visible()
         
-        # Check Covered Calls section exists
-        expect(page.locator("h4:has-text('Covered Calls')")).to_be_visible(timeout=15000)
+        # Check Option Data tab is active by default
+        option_data_tab = page.locator("button#option-data-tab")
+        option_data_tab_classes = option_data_tab.get_attribute("class") or ""
+        assert "active" in option_data_tab_classes, f"Option Data tab should be active, but has classes: {option_data_tab_classes}"
+        
+        # Check Option Data tab content is visible
+        option_data_pane = page.locator("#option-data.tab-pane")
+        expect(option_data_pane).to_be_visible()
+        option_data_pane_classes = option_data_pane.get_attribute("class") or ""
+        assert "active" in option_data_pane_classes and "show" in option_data_pane_classes, \
+            f"Option Data pane should have 'active' and 'show' classes, but has: {option_data_pane_classes}"
+        
+        # Check Covered Calls tab content exists but is not active initially
+        covered_calls_tab_pane = page.locator("#covered-calls.tab-pane")
+        expect(covered_calls_tab_pane).to_be_attached()  # Element exists in DOM
+        # Should not have 'show active' classes initially (Bootstrap hides inactive tabs)
+        classes = covered_calls_tab_pane.get_attribute("class") or ""
+        # Initially, it should not have both 'show' and 'active' classes
+        has_both = "show" in classes and "active" in classes
+        assert not has_both, f"Covered Calls tab should not be active initially, but has classes: {classes}"
         
         # Check that option data table exists (even if empty)
         option_table = page.locator("table").filter(has_text="Put")
@@ -90,12 +110,14 @@ class TestStockDetailBrowser:
             expect(page.locator("th:has-text('Bid')")).to_be_visible()
             expect(page.locator("th:has-text('Ask')")).to_be_visible()
         
-        # Check that covered calls table exists
-        covered_calls_table = page.locator("table").filter(has_text="Covered Calls")
-        covered_calls_heading = page.locator("h4:has-text('Covered Calls')")
-        if covered_calls_heading.count() > 0:
+        # Check that covered calls table exists (need to switch to that tab first)
+        covered_calls_tab = page.locator("button#covered-calls-tab")
+        if covered_calls_tab.count() > 0:
+            covered_calls_tab.click()
+            page.wait_for_timeout(500)  # Wait for tab switch animation
+            
             # Check table headers for covered calls
-            expect(page.locator("th:has-text('Strike Price')")).to_be_visible()
+            expect(page.locator("th:has-text('Strike Price')")).to_be_visible(timeout=5000)
             expect(page.locator("th:has-text('Call Premium')")).to_be_visible()
             expect(page.locator("th:has-text('Total Return Exercised')")).to_be_visible()
             expect(page.locator("th:has-text('Total Return Not Exercised')")).to_be_visible()
@@ -126,8 +148,14 @@ class TestStockDetailBrowser:
             page.goto(f"{live_server_url}/stock/{ticker}")
             page.wait_for_load_state("networkidle", timeout=30000)
             
+            # Make sure we're on the Option Data tab
+            option_data_tab = page.locator("button#option-data-tab")
+            if option_data_tab.count() > 0:
+                option_data_tab.click()
+                page.wait_for_timeout(500)  # Wait for tab switch
+            
             # Check if options table exists
-            option_table = page.locator("table").filter(has_text="Put")
+            option_table = page.locator("#option-data table").filter(has_text="Put")
             if option_table.count() == 0:
                 # Skip if no options data available
                 continue
@@ -138,7 +166,7 @@ class TestStockDetailBrowser:
                 continue
             
             # Find all strike price cells in options table
-            strike_cells = page.locator("table").filter(has_text="Put").locator("td.fw-bold")
+            strike_cells = page.locator("#option-data table").filter(has_text="Put").locator("td.fw-bold")
             if strike_cells.count() == 0:
                 continue
             
@@ -170,7 +198,7 @@ class TestStockDetailBrowser:
             closest_strikes = [s for s in strikes if abs(s - current_price) == min_distance]
             
             # Check that at least one row is highlighted
-            highlighted_rows = page.locator("table").filter(has_text="Put").locator("tr.table-warning")
+            highlighted_rows = page.locator("#option-data table").filter(has_text="Put").locator("tr.table-warning")
             highlighted_count = highlighted_rows.count()
             
             # Debug output
@@ -211,13 +239,16 @@ class TestStockDetailBrowser:
             page.goto(f"{live_server_url}/stock/{ticker}")
             page.wait_for_load_state("networkidle", timeout=30000)
             
-            # Check if covered calls table exists
-            covered_calls_heading = page.locator("h4:has-text('Covered Calls')")
-            if covered_calls_heading.count() == 0:
+            # Switch to Covered Calls tab
+            covered_calls_tab = page.locator("button#covered-calls-tab")
+            if covered_calls_tab.count() == 0:
                 continue
             
+            covered_calls_tab.click()
+            page.wait_for_timeout(500)  # Wait for tab switch animation
+            
             # Find covered calls table
-            covered_calls_table = page.locator("table").filter(has_text="Strike Price")
+            covered_calls_table = page.locator("#covered-calls table").filter(has_text="Strike Price")
             if covered_calls_table.count() == 0:
                 # Skip if no covered calls data
                 continue
@@ -322,8 +353,16 @@ class TestStockDetailBrowser:
         except ValueError:
             pytest.skip("Could not parse current price")
         
+        # Switch to Covered Calls tab
+        covered_calls_tab = page.locator("button#covered-calls-tab")
+        if covered_calls_tab.count() == 0:
+            pytest.skip("Covered Calls tab not found")
+        
+        covered_calls_tab.click()
+        page.wait_for_timeout(500)  # Wait for tab switch animation
+        
         # Check covered calls table
-        covered_calls_table = page.locator("table").filter(has_text="Strike Price")
+        covered_calls_table = page.locator("#covered-calls table").filter(has_text="Strike Price")
         if covered_calls_table.count() == 0:
             pytest.skip("No covered calls table found")
         
@@ -357,4 +396,106 @@ class TestStockDetailBrowser:
             highlighted_rows = covered_calls_table.locator("tbody tr.table-warning")
             assert highlighted_rows.count() >= closest_count, \
                 f"Expected at least {closest_count} highlighted rows for {closest_count} equidistant strikes, but found {highlighted_rows.count()}"
+    
+    def test_tabs_functionality(self, page: Page, live_server_url):
+        """Test that Bootstrap tabs work correctly for Option Data and Covered Calls."""
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        
+        # Check tabs exist
+        expect(page.locator("ul.nav-tabs")).to_be_visible()
+        option_data_tab = page.locator("button#option-data-tab")
+        covered_calls_tab = page.locator("button#covered-calls-tab")
+        
+        expect(option_data_tab).to_be_visible()
+        expect(covered_calls_tab).to_be_visible()
+        
+        # Check Option Data tab is active by default
+        option_data_tab_classes = option_data_tab.get_attribute("class") or ""
+        assert "active" in option_data_tab_classes, f"Option Data tab should be active, but has classes: {option_data_tab_classes}"
+        
+        option_data_pane = page.locator("#option-data.tab-pane")
+        option_data_pane_classes = option_data_pane.get_attribute("class") or ""
+        assert "active" in option_data_pane_classes and "show" in option_data_pane_classes, \
+            f"Option Data pane should have 'active' and 'show' classes, but has: {option_data_pane_classes}"
+        
+        # Check Covered Calls tab is not active initially
+        covered_calls_pane = page.locator("#covered-calls.tab-pane")
+        classes = covered_calls_pane.get_attribute("class") or ""
+        has_both = "show" in classes and "active" in classes
+        assert not has_both, f"Covered Calls should not be active initially, but has classes: {classes}"
+        
+        # Click Covered Calls tab
+        covered_calls_tab.click()
+        page.wait_for_timeout(500)  # Wait for Bootstrap tab animation
+        
+        # Check Covered Calls tab is now active
+        covered_calls_tab_classes = covered_calls_tab.get_attribute("class") or ""
+        assert "active" in covered_calls_tab_classes, f"Covered Calls tab should be active, but has classes: {covered_calls_tab_classes}"
+        
+        covered_calls_pane_classes = covered_calls_pane.get_attribute("class") or ""
+        assert "active" in covered_calls_pane_classes and "show" in covered_calls_pane_classes, \
+            f"Covered Calls pane should have 'active' and 'show' classes, but has: {covered_calls_pane_classes}"
+        
+        # Check Option Data tab is no longer active
+        option_data_pane = page.locator("#option-data.tab-pane")
+        classes = option_data_pane.get_attribute("class") or ""
+        # Should not have both 'show' and 'active' classes after switching
+        has_both = "show" in classes and "active" in classes
+        assert not has_both, f"Option Data should not be active after switching tabs, but has classes: {classes}"
+        
+        # Click back to Option Data tab
+        option_data_tab.click()
+        page.wait_for_timeout(500)  # Wait for Bootstrap tab animation
+        
+        # Check Option Data tab is active again
+        option_data_tab_classes = option_data_tab.get_attribute("class") or ""
+        assert "active" in option_data_tab_classes, f"Option Data tab should be active again, but has classes: {option_data_tab_classes}"
+        
+        option_data_pane_classes = option_data_pane.get_attribute("class") or ""
+        assert "active" in option_data_pane_classes and "show" in option_data_pane_classes, \
+            f"Option Data pane should have 'active' and 'show' classes again, but has: {option_data_pane_classes}"
+        
+        # Check Covered Calls tab is no longer active
+        classes = covered_calls_pane.get_attribute("class") or ""
+        # Should not have both 'show' and 'active' classes after switching back
+        has_both = "show" in classes and "active" in classes
+        assert not has_both, f"Covered Calls should not be active after switching back, but has classes: {classes}"
+    
+    def test_tab_content_visibility(self, page: Page, live_server_url):
+        """Test that tab content is only visible when the tab is active."""
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        
+        # Initially, Option Data content should be visible
+        option_data_pane = page.locator("#option-data.tab-pane")
+        expect(option_data_pane).to_be_visible()
+        
+        # Check if Option Data table exists and is visible
+        option_table = page.locator("#option-data table")
+        if option_table.count() > 0:
+            expect(option_table.first()).to_be_visible()
+        
+        # Covered Calls content should exist but may not be visible initially (depends on Bootstrap)
+        covered_calls_pane = page.locator("#covered-calls.tab-pane")
+        expect(covered_calls_pane).to_be_attached()  # Element exists in DOM
+        # Initially it should not be visible (Bootstrap hides inactive tabs)
+        classes = covered_calls_pane.get_attribute("class") or ""
+        has_both = "show" in classes and "active" in classes
+        assert not has_both, f"Covered Calls should not be visible initially, but has classes: {classes}"
+        
+        # Switch to Covered Calls tab
+        covered_calls_tab = page.locator("button#covered-calls-tab")
+        covered_calls_tab.click()
+        page.wait_for_timeout(500)
+        
+        # Covered Calls content should now be visible
+        expect(covered_calls_pane).to_be_visible()
+        
+        # Check if Covered Calls table exists and is visible
+        covered_calls_table = page.locator("#covered-calls table")
+        if covered_calls_table.count() > 0:
+            expect(covered_calls_table.first()).to_be_visible()
 

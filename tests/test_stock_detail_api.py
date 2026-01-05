@@ -47,10 +47,17 @@ class TestStockDetailAPI:
         assert "AAPL" in response.text
         assert "Stock Details" in response.text
         
-        # Check for Option Data section
+        # Check for Bootstrap tabs structure
+        assert 'nav-tabs' in response.text
+        assert 'option-data-tab' in response.text
+        assert 'covered-calls-tab' in response.text
+        assert 'tab-pane' in response.text
+        assert 'data-bs-toggle="tab"' in response.text
+        
+        # Check for Option Data tab content
         assert "Option Data" in response.text or "No options data available" in response.text
         
-        # Check for Covered Calls section
+        # Check for Covered Calls tab content
         assert "Covered Calls" in response.text or "No covered call data available" in response.text
         
         # Check that page rendered without errors
