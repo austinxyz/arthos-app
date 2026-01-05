@@ -364,7 +364,11 @@
                                         {# Progress bar showing return breakdown for exercised scenario #}
                                         {% if stock_app_pct < 0 %}
                                             {# Negative stock appreciation (ITM calls) - show red for negative portion #}
-                                            {% set abs_stock = abs(stock_app_pct) %}
+                                            {% if stock_app_pct < 0 %}
+                                                {% set abs_stock = -stock_app_pct %}
+                                            {% else %}
+                                                {% set abs_stock = stock_app_pct %}
+                                            {% endif %}
                                             {% set abs_total = abs_stock + call_prem_pct %}
                                             {% if abs_total > 0 %}
                                                 {% set stock_width = (abs_stock / abs_total) * 100 %}
