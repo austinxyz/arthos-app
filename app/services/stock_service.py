@@ -338,6 +338,7 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
                 strike = round(float(row.get('strike', 0)), 2)
                 if strike not in options_by_strike:
                     options_by_strike[strike] = {'put': None, 'call': None}
+                implied_vol = row.get('impliedVolatility')
                 options_by_strike[strike]['call'] = {
                     'contractSymbol': row.get('contractSymbol', ''),
                     'lastPrice': round(float(row.get('lastPrice', 0)), 2) if pd.notna(row.get('lastPrice')) else None,
@@ -345,6 +346,7 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
                     'ask': round(float(row.get('ask', 0)), 2) if pd.notna(row.get('ask')) else None,
                     'volume': int(row.get('volume', 0)) if pd.notna(row.get('volume')) else 0,
                     'openInterest': int(row.get('openInterest', 0)) if pd.notna(row.get('openInterest')) else 0,
+                    'impliedVolatility': round(float(implied_vol) * 100, 2) if pd.notna(implied_vol) and implied_vol is not None else None,
                 }
         
         # Process puts
@@ -357,6 +359,7 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
                 strike = round(float(row.get('strike', 0)), 2)
                 if strike not in options_by_strike:
                     options_by_strike[strike] = {'put': None, 'call': None}
+                implied_vol = row.get('impliedVolatility')
                 options_by_strike[strike]['put'] = {
                     'contractSymbol': row.get('contractSymbol', ''),
                     'lastPrice': round(float(row.get('lastPrice', 0)), 2) if pd.notna(row.get('lastPrice')) else None,
@@ -364,6 +367,7 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
                     'ask': round(float(row.get('ask', 0)), 2) if pd.notna(row.get('ask')) else None,
                     'volume': int(row.get('volume', 0)) if pd.notna(row.get('volume')) else 0,
                     'openInterest': int(row.get('openInterest', 0)) if pd.notna(row.get('openInterest')) else 0,
+                    'impliedVolatility': round(float(implied_vol) * 100, 2) if pd.notna(implied_vol) and implied_vol is not None else None,
                 }
         
         return (last_expiration, options_by_strike)

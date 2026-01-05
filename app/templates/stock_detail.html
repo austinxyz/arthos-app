@@ -215,20 +215,24 @@
                         <table class="table table-striped table-hover table-bordered">
                             <thead class="table-dark">
                                 <tr>
-                                    <th colspan="4" class="text-center">Put</th>
+                                    <th colspan="6" class="text-center">Put</th>
                                     <th class="text-center">Strike</th>
-                                    <th colspan="4" class="text-center">Call</th>
+                                    <th colspan="6" class="text-center">Call</th>
                                 </tr>
                                 <tr>
                                     <th>Last</th>
                                     <th>Bid</th>
                                     <th>Ask</th>
-                                    <th>Vol/OI</th>
+                                    <th>Volume</th>
+                                    <th>Open Int</th>
+                                    <th>IV</th>
                                     <th>Price</th>
                                     <th>Last</th>
                                     <th>Bid</th>
                                     <th>Ask</th>
-                                    <th>Vol/OI</th>
+                                    <th>Volume</th>
+                                    <th>Open Int</th>
+                                    <th>IV</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -258,9 +262,17 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ strike_data.put.volume }}/{{ strike_data.put.openInterest }}</td>
+                                    <td>{{ strike_data.put.volume }}</td>
+                                    <td>{{ strike_data.put.openInterest }}</td>
+                                    <td>
+                                        {% if strike_data.put.impliedVolatility is not none %}
+                                            {{ "%.2f"|format(strike_data.put.impliedVolatility) }}%
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
                                     {% else %}
-                                    <td colspan="4" class="text-muted text-center">-</td>
+                                    <td colspan="6" class="text-muted text-center">-</td>
                                     {% endif %}
                                     
                                     {# Strike price (center) #}
@@ -289,9 +301,17 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ strike_data.call.volume }}/{{ strike_data.call.openInterest }}</td>
+                                    <td>{{ strike_data.call.volume }}</td>
+                                    <td>{{ strike_data.call.openInterest }}</td>
+                                    <td>
+                                        {% if strike_data.call.impliedVolatility is not none %}
+                                            {{ "%.2f"|format(strike_data.call.impliedVolatility) }}%
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
                                     {% else %}
-                                    <td colspan="4" class="text-muted text-center">-</td>
+                                    <td colspan="6" class="text-muted text-center">-</td>
                                     {% endif %}
                                 </tr>
                                 {% endfor %}
