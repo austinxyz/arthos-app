@@ -263,8 +263,8 @@
                                         {% set distance = current_price - strike %}
                                     {% endif %}
                                     {# Compare with small epsilon to handle floating point precision #}
-                                    {# If distance is within 0.01 of min_distance, consider it closest #}
-                                    {% if distance <= min_distance + 0.01 %}
+                                    {# Check if distance equals min_distance (within 0.01 tolerance) #}
+                                    {% if distance >= min_distance - 0.01 and distance <= min_distance + 0.01 %}
                                         {% set is_closest = true %}
                                     {% else %}
                                         {% set is_closest = false %}
@@ -400,8 +400,8 @@
                                         {% set distance = current_price - cc.strike %}
                                     {% endif %}
                                     {# Compare with small epsilon to handle floating point precision #}
-                                    {# If distance is within 0.01 of min_distance, consider it closest #}
-                                    {% if distance <= min_distance + 0.01 %}
+                                    {# Check if distance equals min_distance (within 0.01 tolerance) #}
+                                    {% if distance >= min_distance - 0.01 and distance <= min_distance + 0.01 %}
                                         {% set is_closest = true %}
                                     {% else %}
                                         {% set is_closest = false %}
