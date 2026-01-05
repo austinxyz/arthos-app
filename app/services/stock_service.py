@@ -80,6 +80,49 @@ def calculate_devstep(data: pd.DataFrame, sma_50: float) -> float:
     return devstep
 
 
+def calculate_5day_price_movement(data: pd.DataFrame, sma_50: float) -> Tuple[float, bool]:
+    """
+    Calculate the 5-day price movement in terms of standard deviations.
+    
+    Args:
+        data: DataFrame with 'Close' prices
+        sma_50: 50-day Simple Moving Average
+        
+    Returns:
+        Tuple of (movement_in_stddev, is_positive)
+        - movement_in_stddev: Price movement over 5 days in standard deviations
+        - is_positive: True if price moved up, False if price moved down
+    """
+    if len(data) < 6:  # Need at least 6 days (5 days ago + current)
+        return (0.0, True)
+    
+    # Get prices
+    current_price = data['Close'].iloc[-1]
+    price_5days_ago = data['Close'].iloc[-6]  # 5 days before last day
+    
+    # Calculate price change
+    price_change = current_price - price_5days_ago
+    
+    # Calculate standard deviation for conversion
+    if len(data) < 50:
+        window = len(data)
+    else:
+        window = 50
+    
+    recent_prices = data['Close'].tail(window)
+    std_dev = recent_prices.std()
+    
+    if std_dev == 0:
+        return (0.0, True)
+    
+    # Convert price change to standard deviations
+    movement_in_stddev = price_change / std_dev
+    
+    is_positive = price_change >= 0
+    
+    return (movement_in_stddev, is_positive)
+
+
 def calculate_signal(devstep: float) -> str:
     """
     Calculate trading signal based on devstep value.
@@ -147,6 +190,9 @@ def get_stock_metrics(ticker: str) -> Dict[str, Any]:
     # Calculate devstep
     devstep = calculate_devstep(data, sma_50)
     
+    # Calculate 5-day price movement in standard deviations
+    movement_5day, is_price_positive = calculate_5day_price_movement(data, sma_50)
+    
     # Calculate signal
     signal = calculate_signal(devstep)
     
@@ -189,6 +235,8 @@ def get_stock_metrics(ticker: str) -> Dict[str, Any]:
         "signal": signal,
         "current_price": round(current_price, 2),
         "dividend_yield": round(dividend_yield, 2) if dividend_yield is not None else None,
+        "movement_5day_stddev": round(movement_5day, 4),
+        "is_price_positive_5day": is_price_positive,
         "data_points": len(data),
         "cached": cached_result
     }

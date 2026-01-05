@@ -80,6 +80,14 @@
             z-index: 2;
             box-shadow: 0 0 2px rgba(0,0,0,0.3);
         }
+        .trading-range-tail {
+            position: absolute;
+            top: 50%;
+            height: 2px;
+            background-color: #000;
+            z-index: 1;
+            transform: translateY(-50%);
+        }
     </style>
 </head>
 <body>
@@ -184,10 +192,41 @@
                                 {% elif dot_position > 100 %}
                                     {% set dot_position = 100 %}
                                 {% endif %}
-                                {% set dot_color = "#28a745" if metric.devstep < -1 else ("#6c757d" if metric.devstep <= 1 else "#dc3545") %}
+                                
+                                {# Calculate 5-days-ago position #}
+                                {% if metric.movement_5day_stddev is defined %}
+                                    {% set devstep_5days_ago = metric.devstep - metric.movement_5day_stddev %}
+                                    {% set dot_position_5days_ago = (50 + (devstep_5days_ago / 3) * 50) %}
+                                    {% if dot_position_5days_ago < 0 %}
+                                        {% set dot_position_5days_ago = 0 %}
+                                    {% elif dot_position_5days_ago > 100 %}
+                                        {% set dot_position_5days_ago = 100 %}
+                                    {% endif %}
+                                    
+                                    {# Dot color based on 5-day price movement #}
+                                    {% set dot_color = "#28a745" if metric.is_price_positive_5day else "#dc3545" %}
+                                    
+                                    {# Calculate tail line position and width #}
+                                    {% set tail_start = dot_position_5days_ago %}
+                                    {% set tail_end = dot_position %}
+                                    {% if tail_start < tail_end %}
+                                        {% set tail_left = tail_start %}
+                                        {% set tail_width = tail_end - tail_start %}
+                                    {% else %}
+                                        {% set tail_left = tail_end %}
+                                        {% set tail_width = tail_start - tail_end %}
+                                    {% endif %}
+                                {% else %}
+                                    {# Fallback for old data without movement_5day_stddev #}
+                                    {% set dot_color = "#28a745" if metric.devstep < -1 else ("#6c757d" if metric.devstep <= 1 else "#dc3545") %}
+                                {% endif %}
+                                
                                 <div class="trading-range-container">
                                     <div class="trading-range-bar">
                                         <div class="trading-range-dma-line"></div>
+                                        {% if metric.movement_5day_stddev is defined and metric.movement_5day_stddev != 0 %}
+                                        <div class="trading-range-tail" style="left: {{ tail_left|round(1) }}%; width: {{ tail_width|round(1) }}%;"></div>
+                                        {% endif %}
                                         <div class="trading-range-dot" style="left: {{ dot_position|round(1) }}%; background-color: {{ dot_color }};"></div>
                                     </div>
                                 </div>
