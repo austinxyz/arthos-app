@@ -212,15 +212,17 @@
                 {# Calculate minimum distance to current price to find closest strike(s) #}
                 {# This will be used for both Options Data and Covered Calls tables #}
                 {% set min_distance = none %}
-                {% if sorted_strikes and sorted_strikes|length > 0 %}
+                {% if sorted_strikes and sorted_strikes|length > 0 and current_price is not none and current_price > 0 %}
                     {% for strike in sorted_strikes %}
-                        {% if strike > current_price %}
-                            {% set distance = strike - current_price %}
-                        {% else %}
-                            {% set distance = current_price - strike %}
-                        {% endif %}
-                        {% if min_distance is none or distance < min_distance %}
-                            {% set min_distance = distance %}
+                        {% if strike is not none %}
+                            {% if strike > current_price %}
+                                {% set distance = strike - current_price %}
+                            {% else %}
+                                {% set distance = current_price - strike %}
+                            {% endif %}
+                            {% if min_distance is none or distance < min_distance %}
+                                {% set min_distance = distance %}
+                            {% endif %}
                         {% endif %}
                     {% endfor %}
                 {% endif %}
