@@ -1,7 +1,7 @@
 """Stock data fetching and metric calculation service."""
 import yfinance as yf
 import pandas as pd
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, List, Optional
 from datetime import datetime, timedelta
 from app.services.cache_service import get_cached_data, set_cached_data
 
@@ -276,4 +276,104 @@ def get_multiple_stock_metrics(tickers: list) -> list:
             })
     
     return results
+
+
+def get_options_data(ticker: str, current_price: float) -> List[Dict[str, Any]]:
+    """
+    Fetch options data for a stock with expiration ~3 months out and strikes within 10% of current price.
+    
+    Args:
+        ticker: Stock ticker symbol
+        current_price: Current stock price
+        
+    Returns:
+        List of dictionaries containing options data (both calls and puts)
+        Each dict contains: contractSymbol, strike, lastPrice, bid, ask, volume, openInterest, 
+        inTheMoney, expiration date
+    """
+    try:
+        stock = yf.Ticker(ticker)
+        
+        # Get all available expiration dates
+        expirations = stock.options
+        
+        if not expirations:
+            return []
+        
+        # Find expiration date closest to 3 months from now
+        target_date = datetime.now() + timedelta(days=90)  # ~3 months
+        closest_expiration = None
+        min_diff = float('inf')
+        
+        for exp_str in expirations:
+            try:
+                exp_date = datetime.strptime(exp_str, '%Y-%m-%d')
+                diff = abs((exp_date - target_date).days)
+                if diff < min_diff:
+                    min_diff = diff
+                    closest_expiration = exp_str
+            except ValueError:
+                continue
+        
+        if not closest_expiration:
+            return []
+        
+        # Get options chain for the closest expiration
+        opt_chain = stock.option_chain(closest_expiration)
+        
+        # Filter strikes within 10% of current price
+        price_range_low = current_price * 0.9  # 10% below
+        price_range_high = current_price * 1.1  # 10% above
+        
+        options_list = []
+        
+        # Process calls
+        if opt_chain.calls is not None and not opt_chain.calls.empty:
+            calls_filtered = opt_chain.calls[
+                (opt_chain.calls['strike'] >= price_range_low) & 
+                (opt_chain.calls['strike'] <= price_range_high)
+            ]
+            for _, row in calls_filtered.iterrows():
+                options_list.append({
+                    'type': 'Call',
+                    'contractSymbol': row.get('contractSymbol', ''),
+                    'strike': round(float(row.get('strike', 0)), 2),
+                    'lastPrice': round(float(row.get('lastPrice', 0)), 2) if pd.notna(row.get('lastPrice')) else None,
+                    'bid': round(float(row.get('bid', 0)), 2) if pd.notna(row.get('bid')) else None,
+                    'ask': round(float(row.get('ask', 0)), 2) if pd.notna(row.get('ask')) else None,
+                    'volume': int(row.get('volume', 0)) if pd.notna(row.get('volume')) else 0,
+                    'openInterest': int(row.get('openInterest', 0)) if pd.notna(row.get('openInterest')) else 0,
+                    'inTheMoney': bool(row.get('inTheMoney', False)) if pd.notna(row.get('inTheMoney')) else False,
+                    'expiration': closest_expiration
+                })
+        
+        # Process puts
+        if opt_chain.puts is not None and not opt_chain.puts.empty:
+            puts_filtered = opt_chain.puts[
+                (opt_chain.puts['strike'] >= price_range_low) & 
+                (opt_chain.puts['strike'] <= price_range_high)
+            ]
+            for _, row in puts_filtered.iterrows():
+                options_list.append({
+                    'type': 'Put',
+                    'contractSymbol': row.get('contractSymbol', ''),
+                    'strike': round(float(row.get('strike', 0)), 2),
+                    'lastPrice': round(float(row.get('lastPrice', 0)), 2) if pd.notna(row.get('lastPrice')) else None,
+                    'bid': round(float(row.get('bid', 0)), 2) if pd.notna(row.get('bid')) else None,
+                    'ask': round(float(row.get('ask', 0)), 2) if pd.notna(row.get('ask')) else None,
+                    'volume': int(row.get('volume', 0)) if pd.notna(row.get('volume')) else 0,
+                    'openInterest': int(row.get('openInterest', 0)) if pd.notna(row.get('openInterest')) else 0,
+                    'inTheMoney': bool(row.get('inTheMoney', False)) if pd.notna(row.get('inTheMoney')) else False,
+                    'expiration': closest_expiration
+                })
+        
+        # Sort by strike price
+        options_list.sort(key=lambda x: x['strike'])
+        
+        return options_list
+        
+    except Exception as e:
+        # If options data cannot be fetched, return empty list
+        print(f"Error fetching options data for {ticker}: {str(e)}")
+        return []
 

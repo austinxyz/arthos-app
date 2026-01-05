@@ -172,11 +172,16 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         else:
             metrics['dividend_yield_formatted'] = "N/A"
         
+        # Get options data
+        from app.services.stock_service import get_options_data
+        options_data = get_options_data(ticker, metrics['current_price'])
+        
         return templates.TemplateResponse("stock_detail.html", {
             "request": request,
             "ticker": ticker,
             "chart_data": chart_data,
-            "metrics": metrics
+            "metrics": metrics,
+            "options_data": options_data
         })
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
