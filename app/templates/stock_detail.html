@@ -209,28 +209,7 @@
         <div class="row mt-4">
             <div class="col-12">
                 <h4 class="mb-3">Option Data</h4>
-                {# min_distance is now calculated in Python and passed to template #}
-                {# No need to calculate it here in Jinja2 #}
-                
-                {# If still none, try to calculate from options_data keys #}
-                {% if min_distance is none and options_data is defined and options_data and current_price is not none and current_price > 0 %}
-                    {% for strike, strike_data in options_data.items() %}
-                        {% if strike is not none %}
-                            {% if strike > current_price %}
-                                {% set distance = strike - current_price %}
-                            {% else %}
-                                {% set distance = current_price - strike %}
-                            {% endif %}
-                            {% if min_distance is none or distance < min_distance %}
-                                {% set min_distance = distance %}
-                            {% endif %}
-                        {% endif %}
-                    {% endfor %}
-                {% endif %}
-                
                 {% if options_expiration and options_data and options_data|length > 0 %}
-                    {# Debug info - remove after testing #}
-                    <p class="mb-1 text-muted small">Debug: Current Price = ${{ "%.2f"|format(current_price) }}, Min Distance = {{ "%.4f"|format(min_distance) if min_distance is not none else 'None' }}, sorted_strikes = {{ sorted_strikes|join(', ') if sorted_strikes else 'None' }}</p>
                     <p class="mb-3"><strong>Expiration:</strong> {{ options_expiration }}</p>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover table-bordered">
@@ -279,7 +258,7 @@
                                         {% set is_closest = true %}
                                     {% endif %}
                                 {% endif %}
-                                <tr{% if is_closest %} class="table-warning"{% endif %} data-strike="{{ strike }}" data-distance="{{ distance }}" data-min-distance="{{ min_distance }}" data-diff="{{ diff }}" data-is-closest="{{ is_closest }}">
+                                <tr{% if is_closest %} class="table-warning"{% endif %}>
                                     {# Put columns #}
                                     {% if strike_data.put %}
                                     <td>
@@ -419,7 +398,7 @@
                                         {% set is_closest = true %}
                                     {% endif %}
                                 {% endif %}
-                                <tr{% if is_closest %} class="table-warning"{% endif %} data-strike="{{ cc.strike }}" data-distance="{{ distance }}" data-min-distance="{{ min_distance }}" data-diff="{{ diff }}" data-is-closest="{{ is_closest }}">
+                                <tr{% if is_closest %} class="table-warning"{% endif %}>
                                     <td class="fw-bold">${{ "%.2f"|format(cc.strike) }}</td>
                                     <td>${{ "%.2f"|format(cc.callPremium) }}</td>
                                     <td>
