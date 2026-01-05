@@ -11,7 +11,7 @@ import json
 CACHE_EXPIRY_HOURS = 1  # 60 minutes
 # Cache version - increment this when the cached data structure changes
 # This will cause all existing cache entries to be invalidated
-CACHE_VERSION = 2  # Incremented from 1 when dividend_yield was added
+CACHE_VERSION = 3  # Incremented from 2 when options data was added to stock detail page
 
 
 def get_cached_data(ticker: str) -> Optional[Tuple[pd.DataFrame, datetime]]:
