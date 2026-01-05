@@ -173,11 +173,14 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             metrics['dividend_yield_formatted'] = "N/A"
         
         # Get options data
-        from app.services.stock_service import get_options_data
+        from app.services.stock_service import get_options_data, calculate_covered_call_returns
         options_expiration, options_data = get_options_data(ticker, metrics['current_price'])
         
         # Sort strikes in descending order for display (highest strike first)
         sorted_strikes = sorted(options_data.keys(), reverse=True) if options_data else []
+        
+        # Calculate covered call returns
+        covered_calls = calculate_covered_call_returns(options_data, metrics['current_price']) if options_data else []
         
         return templates.TemplateResponse("stock_detail.html", {
             "request": request,
@@ -186,7 +189,9 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             "metrics": metrics,
             "options_expiration": options_expiration,
             "options_data": options_data,
-            "sorted_strikes": sorted_strikes
+            "sorted_strikes": sorted_strikes,
+            "covered_calls": covered_calls,
+            "current_price": metrics['current_price']
         })
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

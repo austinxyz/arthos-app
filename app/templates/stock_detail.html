@@ -325,6 +325,105 @@
                 {% endif %}
             </div>
         </div>
+        
+        <!-- Covered Calls Strategy Section -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <h4 class="mb-3">Covered Calls</h4>
+                {% if covered_calls and covered_calls|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover table-bordered">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Strike Price</th>
+                                    <th>Call Premium</th>
+                                    <th>Total Return Exercised</th>
+                                    <th>Total Return Not Exercised</th>
+                                    <th>Return Breakdown</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for cc in covered_calls %}
+                                <tr>
+                                    <td class="fw-bold">${{ "%.2f"|format(cc.strike) }}</td>
+                                    <td>${{ "%.2f"|format(cc.callPremium) }}</td>
+                                    <td>
+                                        ${{ "%.2f"|format(cc.totalReturnExercised) }} 
+                                        <span class="text-muted">({{ "%.2f"|format(cc.totalReturnPctExercised) }}%)</span>
+                                    </td>
+                                    <td>
+                                        ${{ "%.2f"|format(cc.totalReturnNotExercised) }} 
+                                        <span class="text-muted">({{ "%.2f"|format(cc.totalReturnPctNotExercised) }}%)</span>
+                                    </td>
+                                    <td>
+                                        {# Progress bar showing return breakdown #}
+                                        {% set stock_app_pct = cc.stockAppreciationPct %}
+                                        {% set call_prem_pct = cc.callPremiumPct %}
+                                        {% set total_pct = cc.totalReturnPctExercised %}
+                                        
+                                        {# Calculate widths based on total return % #}
+                                        {% if total_pct != 0 %}
+                                            {# Calculate what portion of total return comes from each component #}
+                                            {% if stock_app_pct < 0 %}
+                                                {# Negative stock appreciation - show red for negative portion #}
+                                                {% set abs_total = abs(stock_app_pct) + call_prem_pct %}
+                                                {% if abs_total > 0 %}
+                                                    {% set stock_width = (abs(stock_app_pct) / abs_total) * 100 %}
+                                                    {% set call_width = (call_prem_pct / abs_total) * 100 %}
+                                                    
+                                                    <div class="progress" style="height: 30px; position: relative;">
+                                                        <div class="progress-bar bg-danger" role="progressbar" 
+                                                             style="width: {{ stock_width|round(1) }}%;" 
+                                                             title="Stock Appreciation: {{ "%.2f"|format(stock_app_pct) }}%">
+                                                            <span style="color: white; font-weight: bold;">{{ "%.2f"|format(stock_app_pct) }}%</span>
+                                                        </div>
+                                                        <div class="progress-bar bg-success" role="progressbar" 
+                                                             style="width: {{ call_width|round(1) }}%;" 
+                                                             title="Call Premium: {{ "%.2f"|format(call_prem_pct) }}%">
+                                                            <span style="color: white; font-weight: bold;">{{ "%.2f"|format(call_prem_pct) }}%</span>
+                                                        </div>
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            {% else %}
+                                                {# Both positive - show proportional breakdown #}
+                                                {% if total_pct > 0 %}
+                                                    {% set stock_width = (stock_app_pct / total_pct) * 100 %}
+                                                    {% set call_width = (call_prem_pct / total_pct) * 100 %}
+                                                    
+                                                    <div class="progress" style="height: 30px;">
+                                                        <div class="progress-bar bg-info" role="progressbar" 
+                                                             style="width: {{ stock_width|round(1) }}%;" 
+                                                             title="Stock Appreciation: {{ "%.2f"|format(stock_app_pct) }}%">
+                                                            <span style="color: white; font-weight: bold;">{{ "%.2f"|format(stock_app_pct) }}%</span>
+                                                        </div>
+                                                        <div class="progress-bar bg-success" role="progressbar" 
+                                                             style="width: {{ call_width|round(1) }}%;" 
+                                                             title="Call Premium: {{ "%.2f"|format(call_prem_pct) }}%">
+                                                            <span style="color: white; font-weight: bold;">{{ "%.2f"|format(call_prem_pct) }}%</span>
+                                                        </div>
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        No covered call data available. Call options are required for covered call strategy.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
 
     <!-- Bootstrap 5 JS -->

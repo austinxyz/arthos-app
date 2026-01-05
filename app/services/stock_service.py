@@ -377,3 +377,65 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
         print(f"Error fetching options data for {ticker}: {str(e)}")
         return (None, {})
 
+
+def calculate_covered_call_returns(options_data: Dict[float, Dict[str, Any]], current_price: float) -> List[Dict[str, Any]]:
+    """
+    Calculate covered call strategy returns for each strike price.
+    
+    Args:
+        options_data: Dictionary mapping strike prices to put/call data
+        current_price: Current stock price (used as purchase price)
+        
+    Returns:
+        List of dictionaries containing covered call return calculations for each strike
+    """
+    covered_calls = []
+    
+    for strike in sorted(options_data.keys()):
+        strike_data = options_data[strike]
+        
+        # Only process strikes that have call options
+        if strike_data.get('call') is None:
+            continue
+        
+        call_data = strike_data['call']
+        
+        # Calculate call premium: max(Last Price, (Bid + Ask) / 2)
+        last_price = call_data.get('lastPrice') if call_data.get('lastPrice') is not None else 0
+        bid = call_data.get('bid') if call_data.get('bid') is not None else 0
+        ask = call_data.get('ask') if call_data.get('ask') is not None else 0
+        avg_bid_ask = (bid + ask) / 2 if (bid > 0 and ask > 0) else 0
+        call_premium = max(last_price, avg_bid_ask) if (last_price > 0 or avg_bid_ask > 0) else 0
+        
+        if call_premium == 0:
+            continue  # Skip if no valid premium
+        
+        # Calculate returns for exercised scenario
+        # Total Return = Strike Price + Call Premium - Stock Purchase Price
+        total_return_exercised = strike + call_premium - current_price
+        total_return_pct_exercised = (total_return_exercised / current_price) * 100 if current_price > 0 else 0
+        
+        # Stock appreciation return % = (Strike Price - Stock Purchase Price) / Stock Purchase Price
+        stock_appreciation_pct = ((strike - current_price) / current_price) * 100 if current_price > 0 else 0
+        
+        # Call premium return % = Call Premium / Stock Purchase Price
+        call_premium_pct = (call_premium / current_price) * 100 if current_price > 0 else 0
+        
+        # Calculate returns for not exercised scenario
+        # Total Return = Call Premium
+        total_return_not_exercised = call_premium
+        total_return_pct_not_exercised = (total_return_not_exercised / current_price) * 100 if current_price > 0 else 0
+        
+        covered_calls.append({
+            'strike': strike,
+            'callPremium': round(call_premium, 2),
+            'totalReturnExercised': round(total_return_exercised, 2),
+            'totalReturnPctExercised': round(total_return_pct_exercised, 2),
+            'totalReturnNotExercised': round(total_return_not_exercised, 2),
+            'totalReturnPctNotExercised': round(total_return_pct_not_exercised, 2),
+            'stockAppreciationPct': round(stock_appreciation_pct, 2),
+            'callPremiumPct': round(call_premium_pct, 2),
+        })
+    
+    return covered_calls
+
