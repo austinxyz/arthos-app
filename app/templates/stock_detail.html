@@ -361,55 +361,69 @@
                                         {% set call_prem_pct = cc.callPremiumPct %}
                                         {% set total_pct = cc.totalReturnPctExercised %}
                                         
-                                        {# Calculate widths based on total return % #}
-                                        {% if total_pct != 0 %}
-                                            {# Calculate what portion of total return comes from each component #}
-                                            {% if stock_app_pct < 0 %}
-                                                {# Negative stock appreciation - show red for negative portion #}
-                                                {% set abs_total = abs(stock_app_pct) + call_prem_pct %}
-                                                {% if abs_total > 0 %}
-                                                    {% set stock_width = (abs(stock_app_pct) / abs_total) * 100 %}
-                                                    {% set call_width = (call_prem_pct / abs_total) * 100 %}
-                                                    
-                                                    <div class="progress" style="height: 30px; position: relative;">
-                                                        <div class="progress-bar bg-danger" role="progressbar" 
-                                                             style="width: {{ stock_width|round(1) }}%;" 
-                                                             title="Stock Appreciation: {{ "%.2f"|format(stock_app_pct) }}%">
-                                                            <span style="color: white; font-weight: bold;">{{ "%.2f"|format(stock_app_pct) }}%</span>
-                                                        </div>
-                                                        <div class="progress-bar bg-success" role="progressbar" 
-                                                             style="width: {{ call_width|round(1) }}%;" 
-                                                             title="Call Premium: {{ "%.2f"|format(call_prem_pct) }}%">
-                                                            <span style="color: white; font-weight: bold;">{{ "%.2f"|format(call_prem_pct) }}%</span>
-                                                        </div>
+                                        {# Progress bar showing return breakdown for exercised scenario #}
+                                        {% if stock_app_pct < 0 %}
+                                            {# Negative stock appreciation (ITM calls) - show red for negative portion #}
+                                            {% set abs_stock = abs(stock_app_pct) %}
+                                            {% set abs_total = abs_stock + call_prem_pct %}
+                                            {% if abs_total > 0 %}
+                                                {% set stock_width = (abs_stock / abs_total) * 100 %}
+                                                {% set call_width = (call_prem_pct / abs_total) * 100 %}
+                                                
+                                                <div class="progress" style="height: 30px;">
+                                                    <div class="progress-bar bg-danger" role="progressbar" 
+                                                         style="width: {{ stock_width|round(1) }}%;" 
+                                                         title="Stock Appreciation: {{ "%.2f"|format(stock_app_pct) }}%">
+                                                        <span style="color: white; font-weight: bold;">{{ "%.2f"|format(stock_app_pct) }}%</span>
                                                     </div>
-                                                {% else %}
-                                                    <span class="text-muted">N/A</span>
-                                                {% endif %}
+                                                    <div class="progress-bar bg-success" role="progressbar" 
+                                                         style="width: {{ call_width|round(1) }}%;" 
+                                                         title="Call Premium: {{ "%.2f"|format(call_prem_pct) }}%">
+                                                        <span style="color: white; font-weight: bold;">{{ "%.2f"|format(call_prem_pct) }}%</span>
+                                                    </div>
+                                                </div>
                                             {% else %}
-                                                {# Both positive - show proportional breakdown #}
-                                                {% if total_pct > 0 %}
-                                                    {% set stock_width = (stock_app_pct / total_pct) * 100 %}
-                                                    {% set call_width = (call_prem_pct / total_pct) * 100 %}
-                                                    
-                                                    <div class="progress" style="height: 30px;">
-                                                        <div class="progress-bar bg-info" role="progressbar" 
-                                                             style="width: {{ stock_width|round(1) }}%;" 
-                                                             title="Stock Appreciation: {{ "%.2f"|format(stock_app_pct) }}%">
-                                                            <span style="color: white; font-weight: bold;">{{ "%.2f"|format(stock_app_pct) }}%</span>
-                                                        </div>
-                                                        <div class="progress-bar bg-success" role="progressbar" 
-                                                             style="width: {{ call_width|round(1) }}%;" 
-                                                             title="Call Premium: {{ "%.2f"|format(call_prem_pct) }}%">
-                                                            <span style="color: white; font-weight: bold;">{{ "%.2f"|format(call_prem_pct) }}%</span>
-                                                        </div>
-                                                    </div>
-                                                {% else %}
-                                                    <span class="text-muted">N/A</span>
-                                                {% endif %}
+                                                <span class="text-muted">N/A</span>
                                             {% endif %}
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                            {# Positive stock appreciation - show proportional breakdown #}
+                                            {% if total_pct > 0 %}
+                                                {% set stock_width = (stock_app_pct / total_pct) * 100 %}
+                                                {% set call_width = (call_prem_pct / total_pct) * 100 %}
+                                                
+                                                {# Ensure widths are valid percentages #}
+                                                {% if stock_width < 0 %}
+                                                    {% set stock_width = 0 %}
+                                                {% endif %}
+                                                {% if call_width < 0 %}
+                                                    {% set call_width = 0 %}
+                                                {% endif %}
+                                                {% if stock_width > 100 %}
+                                                    {% set stock_width = 100 %}
+                                                {% endif %}
+                                                {% if call_width > 100 %}
+                                                    {% set call_width = 100 %}
+                                                {% endif %}
+                                                
+                                                <div class="progress" style="height: 30px;">
+                                                    {% if stock_width > 0 %}
+                                                    <div class="progress-bar bg-info" role="progressbar" 
+                                                         style="width: {{ stock_width|round(1) }}%;" 
+                                                         title="Stock Appreciation: {{ "%.2f"|format(stock_app_pct) }}%">
+                                                        <span style="color: white; font-weight: bold;">{{ "%.2f"|format(stock_app_pct) }}%</span>
+                                                    </div>
+                                                    {% endif %}
+                                                    {% if call_width > 0 %}
+                                                    <div class="progress-bar bg-success" role="progressbar" 
+                                                         style="width: {{ call_width|round(1) }}%;" 
+                                                         title="Call Premium: {{ "%.2f"|format(call_prem_pct) }}%">
+                                                        <span style="color: white; font-weight: bold;">{{ "%.2f"|format(call_prem_pct) }}%</span>
+                                                    </div>
+                                                    {% endif %}
+                                                </div>
+                                            {% else %}
+                                                <span class="text-muted">N/A</span>
+                                            {% endif %}
                                         {% endif %}
                                     </td>
                                 </tr>

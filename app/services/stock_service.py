@@ -401,11 +401,35 @@ def calculate_covered_call_returns(options_data: Dict[float, Dict[str, Any]], cu
         call_data = strike_data['call']
         
         # Calculate call premium: max(Last Price, (Bid + Ask) / 2)
-        last_price = call_data.get('lastPrice') if call_data.get('lastPrice') is not None else 0
-        bid = call_data.get('bid') if call_data.get('bid') is not None else 0
-        ask = call_data.get('ask') if call_data.get('ask') is not None else 0
+        last_price = call_data.get('lastPrice')
+        if last_price is None or pd.isna(last_price):
+            last_price = 0
+        else:
+            last_price = float(last_price)
+        
+        bid = call_data.get('bid')
+        if bid is None or pd.isna(bid):
+            bid = 0
+        else:
+            bid = float(bid)
+        
+        ask = call_data.get('ask')
+        if ask is None or pd.isna(ask):
+            ask = 0
+        else:
+            ask = float(ask)
+        
         avg_bid_ask = (bid + ask) / 2 if (bid > 0 and ask > 0) else 0
-        call_premium = max(last_price, avg_bid_ask) if (last_price > 0 or avg_bid_ask > 0) else 0
+        
+        # Calculate call premium: max(Last Price, (Bid + Ask) / 2)
+        if last_price > 0 and avg_bid_ask > 0:
+            call_premium = max(last_price, avg_bid_ask)
+        elif last_price > 0:
+            call_premium = last_price
+        elif avg_bid_ask > 0:
+            call_premium = avg_bid_ask
+        else:
+            call_premium = 0
         
         if call_premium == 0:
             continue  # Skip if no valid premium
