@@ -69,27 +69,65 @@ def get_stock_chart_data(ticker: str) -> Dict[str, Any]:
     data['SMA_50_minus_2std'] = data['SMA_50'] - (2 * data['STD_50'])
     data['SMA_50_minus_3std'] = data['SMA_50'] - (3 * data['STD_50'])
     
-    # Filter to show data from Jan 1, 2025 onwards (or last 365 days if Jan 1, 2025 is not available)
-    # Handle timezone-aware index by normalizing to timezone-naive for comparison
-    data_index = data.index
-    if data_index.tz is not None:
-        # If index is timezone-aware, normalize it for comparison
-        data_index_normalized = data_index.tz_localize(None)
-        jan_1_2025 = pd.Timestamp('2025-01-01')
-        # Filter using normalized index
-        mask = data_index_normalized >= jan_1_2025
-        data_from_jan_1 = data[mask]
-    else:
-        # Index is timezone-naive
-        jan_1_2025 = pd.Timestamp('2025-01-01')
-        data_from_jan_1 = data[data.index >= jan_1_2025]
+    # Separate daily data from intraday data for chart display
+    # Chart should show daily data only (candlestick charts work best with daily data)
+    # Intraday data will be used for current price calculation but not displayed on chart
+    today = datetime.now().date()
+    
+    # Normalize index to timezone-naive for consistent comparison
+    # This handles cases where index might be timezone-aware or have mixed timezones
+    data_normalized = data.copy()
+    if isinstance(data.index, pd.DatetimeIndex):
+        if data.index.tz is not None:
+            # Convert timezone-aware to timezone-naive
+            data_normalized.index = data.index.tz_localize(None)
+        else:
+            # Already timezone-naive, but ensure all values are properly normalized
+            data_normalized.index = pd.to_datetime(data.index, utc=False)
+    
+    # Filter to daily data only (timestamps at midnight or date-only, or dates before today)
+    # Intraday data has time components (hour, minute), daily data doesn't
+    daily_mask = []
+    for ts in data_normalized.index:
+        ts_obj = pd.Timestamp(ts)
+        # Normalize to timezone-naive if needed
+        if ts_obj.tz is not None:
+            ts_obj = ts_obj.tz_localize(None)
+        # Check if it's a daily timestamp (at midnight) or before today
+        if ts_obj.hour == 0 and ts_obj.minute == 0:
+            daily_mask.append(True)
+        elif ts_obj.date() < today:
+            daily_mask.append(True)
+        else:
+            # Has time component and is today - this is intraday data
+            daily_mask.append(False)
+    
+    daily_data = data_normalized[daily_mask] if any(daily_mask) else data_normalized
+    
+    # Force normalize the index one more time to ensure it's timezone-naive
+    # Convert each timestamp individually to handle mixed timezone-aware/naive timestamps
+    daily_data = daily_data.copy()
+    normalized_timestamps = []
+    for ts in daily_data.index:
+        ts_obj = pd.Timestamp(ts)
+        # Convert to timezone-naive if it's timezone-aware
+        if ts_obj.tz is not None:
+            normalized_timestamps.append(ts_obj.tz_localize(None))
+        else:
+            normalized_timestamps.append(ts_obj)
+    daily_data.index = pd.DatetimeIndex(normalized_timestamps)
+    
+    # Filter daily data to show from Jan 1, 2025 onwards (or last 365 days)
+    # Index is now guaranteed to be timezone-naive
+    jan_1_2025 = pd.Timestamp('2025-01-01')  # Timezone-naive by default
+    data_from_jan_1 = daily_data[daily_data.index >= jan_1_2025]
     
     if len(data_from_jan_1) > 0:
         # We have data from Jan 1, 2025, show up to 365 days from that point
         display_data = data_from_jan_1.head(365)
     else:
         # Jan 1, 2025 data not available (might be future date or no trading day), show last 365 days
-        display_data = data.tail(365)
+        display_data = daily_data.tail(365)
     
     # Prepare candlestick data (last 365 days)
     candlestick_data = []
@@ -169,6 +207,7 @@ def get_stock_chart_data(ticker: str) -> Dict[str, Any]:
             std_3_lower.append({'x': date_str, 'y': None})
     
     # Get current values (from full dataset)
+    # Use the most recent data point which could be intraday data for today
     current_price = float(data['Close'].iloc[-1])
     sma_50_current = calculate_sma(data, 50)
     sma_200_current = calculate_sma(data, 200)

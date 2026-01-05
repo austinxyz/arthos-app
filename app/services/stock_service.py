@@ -6,15 +6,62 @@ from datetime import datetime, timedelta
 from app.services.cache_service import get_cached_data, set_cached_data
 
 
+def fetch_intraday_data(ticker: str) -> Optional[pd.DataFrame]:
+    """
+    Fetch current day's intraday data for a given ticker.
+    
+    Args:
+        ticker: Stock ticker symbol (e.g., 'AAPL', 'MSFT')
+        
+    Returns:
+        DataFrame with intraday data for today, or None if not available
+    """
+    try:
+        stock = yf.Ticker(ticker)
+        today = datetime.now().date()
+        
+        # Try to get intraday data for today (1-minute intervals)
+        # Use period='1d' to get today's data, interval='1m' for 1-minute bars
+        intraday = stock.history(period='1d', interval='1m')
+        
+        if intraday.empty:
+            return None
+        
+        # Check if the data is for today by comparing dates
+        # Handle timezone-aware and timezone-naive indices
+        if hasattr(intraday.index, 'date'):
+            # Timezone-aware index
+            intraday_dates = set(intraday.index.date)
+        else:
+            # Timezone-naive index
+            intraday_dates = set([pd.Timestamp(d).date() for d in intraday.index])
+        
+        if today in intraday_dates:
+            # Filter to only today's data
+            if hasattr(intraday.index, 'date'):
+                intraday_today = intraday[intraday.index.date == today]
+            else:
+                # Convert to date for comparison
+                intraday_today = intraday[[pd.Timestamp(d).date() == today for d in intraday.index]]
+            return intraday_today if not intraday_today.empty else None
+        else:
+            # Data might be from previous day if market is closed
+            return None
+    except Exception as e:
+        # If intraday data fails, return None (not critical)
+        return None
+
+
 def fetch_stock_data(ticker: str) -> pd.DataFrame:
     """
-    Fetch past 2 years of stock data for a given ticker.
+    Fetch past 2 years of stock data for a given ticker, including current day's intraday data if available.
     
     Args:
         ticker: Stock ticker symbol (e.g., 'AAPL', 'MSFT')
         
     Returns:
         DataFrame with stock data including 'Close' prices
+        If intraday data is available for today, it will be appended to the historical daily data
         
     Raises:
         ValueError: If ticker is invalid or data cannot be fetched
@@ -29,7 +76,34 @@ def fetch_stock_data(ticker: str) -> pd.DataFrame:
         
         if hist.empty:
             raise ValueError(f"No data found for ticker: {ticker}")
+        
+        # Try to fetch intraday data for today
+        intraday_today = fetch_intraday_data(ticker)
+        
+        if intraday_today is not None and not intraday_today.empty:
+            # Get today's date
+            today = datetime.now().date()
             
+            # Remove today's daily data from historical data if it exists
+            # (since we'll use intraday data instead for more accuracy)
+            if hasattr(hist.index, 'date'):
+                hist_dates = hist.index.date
+                today_mask = [d == today for d in hist_dates]
+            else:
+                hist_dates = [pd.Timestamp(d).date() for d in hist.index]
+                today_mask = [d == today for d in hist_dates]
+            
+            if any(today_mask):
+                # Remove today's daily data
+                hist = hist[~pd.Series(today_mask, index=hist.index)]
+            
+            # Combine historical daily data with today's intraday data
+            # Intraday data will have more granular timestamps
+            combined = pd.concat([hist, intraday_today])
+            combined = combined.sort_index()
+            
+            return combined
+        
         return hist
     except Exception as e:
         raise ValueError(f"Error fetching data for {ticker}: {str(e)}")

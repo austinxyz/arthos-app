@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from app.services.stock_service import (
     fetch_stock_data,
+    fetch_intraday_data,
     calculate_sma,
     calculate_devstep,
     calculate_signal,
@@ -120,6 +121,54 @@ class TestFetchStockData:
         """Test fetching data for an invalid ticker."""
         with pytest.raises(ValueError, match="No data found|Error fetching"):
             fetch_stock_data("INVALIDTICKER12345")
+    
+    def test_fetch_stock_data_includes_intraday_if_available(self):
+        """Test that fetch_stock_data includes intraday data for today if available."""
+        # Fetch data for a well-known ticker
+        data = fetch_stock_data("AAPL")
+        
+        assert isinstance(data, pd.DataFrame)
+        assert not data.empty
+        assert 'Close' in data.columns
+        
+        # Check if we have intraday data (timestamps with time components)
+        # Intraday data will have hour/minute components, daily data won't
+        last_timestamp = pd.Timestamp(data.index[-1])
+        has_intraday = last_timestamp.hour != 0 or last_timestamp.minute != 0
+        
+        # If market is open, we should have intraday data
+        # If market is closed, we might not have it
+        # So we just verify the data structure is correct
+        if has_intraday:
+            # We have intraday data - verify it's for today
+            today = datetime.now().date()
+            assert last_timestamp.date() == today, "Intraday data should be for today"
+        
+        # Verify the data has the expected columns
+        assert all(col in data.columns for col in ['Open', 'High', 'Low', 'Close', 'Volume'])
+    
+    def test_fetch_intraday_data(self):
+        """Test fetching intraday data for current day."""
+        # Try to fetch intraday data
+        intraday = fetch_intraday_data("AAPL")
+        
+        # Intraday data may or may not be available depending on market hours
+        if intraday is not None:
+            assert isinstance(intraday, pd.DataFrame)
+            assert not intraday.empty
+            assert 'Close' in intraday.columns
+            
+            # Verify it's for today
+            today = datetime.now().date()
+            intraday_dates = set([pd.Timestamp(ts).date() for ts in intraday.index])
+            assert today in intraday_dates, "Intraday data should be for today"
+            
+            # Verify timestamps have time components
+            has_time = any(
+                pd.Timestamp(ts).hour != 0 or pd.Timestamp(ts).minute != 0 
+                for ts in intraday.index
+            )
+            assert has_time, "Intraday data should have time components"
 
 
 class TestGetStockMetrics:
@@ -149,6 +198,28 @@ class TestGetStockMetrics:
         assert metrics["sma_200"] > 0
         assert metrics["current_price"] > 0
         assert metrics["data_points"] > 0
+    
+    def test_current_price_uses_latest_data(self):
+        """Test that current price uses the latest available data (intraday if available)."""
+        # Get metrics which should use latest data point
+        metrics = get_stock_metrics("AAPL")
+        
+        # Fetch the raw data to verify
+        data = fetch_stock_data("AAPL")
+        latest_price = float(data['Close'].iloc[-1])
+        latest_price_rounded = round(latest_price, 2)
+        
+        # Current price should match the latest data point (accounting for rounding)
+        assert abs(metrics["current_price"] - latest_price_rounded) < 0.01, \
+            f"Current price {metrics['current_price']} should match rounded latest data point {latest_price_rounded} (raw: {latest_price})"
+        
+        # If we have intraday data, the latest price should be from today
+        last_timestamp = pd.Timestamp(data.index[-1])
+        if last_timestamp.hour != 0 or last_timestamp.minute != 0:
+            # We have intraday data
+            today = datetime.now().date()
+            assert last_timestamp.date() == today, \
+                "If intraday data exists, it should be for today"
     
     def test_get_metrics_invalid_ticker(self):
         """Test getting metrics for an invalid ticker."""
