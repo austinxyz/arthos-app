@@ -253,15 +253,19 @@
                                 {% for strike in sorted_strikes %}
                                 {% set strike_data = options_data[strike] %}
                                 {# Check if this strike is closest to current price #}
-                                {% if strike > current_price %}
-                                    {% set distance = strike - current_price %}
+                                {% if min_distance is not none %}
+                                    {% if strike > current_price %}
+                                        {% set distance = strike - current_price %}
+                                    {% else %}
+                                        {% set distance = current_price - strike %}
+                                    {% endif %}
+                                    {# Use rounded comparison to handle floating point precision #}
+                                    {% set distance_rounded = (distance * 100)|round / 100 %}
+                                    {% set min_distance_rounded = (min_distance * 100)|round / 100 %}
+                                    {% set is_closest = (distance_rounded == min_distance_rounded) %}
                                 {% else %}
-                                    {% set distance = current_price - strike %}
+                                    {% set is_closest = false %}
                                 {% endif %}
-                                {# Use rounded comparison to handle floating point precision #}
-                                {% set distance_rounded = (distance * 100)|round / 100 %}
-                                {% set min_distance_rounded = (min_distance * 100)|round / 100 %}
-                                {% set is_closest = (distance_rounded == min_distance_rounded) %}
                                 <tr{% if is_closest %} class="table-warning"{% endif %}>
                                     {# Put columns #}
                                     {% if strike_data.put %}
@@ -385,15 +389,19 @@
                             <tbody>
                                 {% for cc in covered_calls %}
                                 {# Check if this strike is closest to current price #}
-                                {% if cc.strike > current_price %}
-                                    {% set distance = cc.strike - current_price %}
+                                {% if min_distance is not none %}
+                                    {% if cc.strike > current_price %}
+                                        {% set distance = cc.strike - current_price %}
+                                    {% else %}
+                                        {% set distance = current_price - cc.strike %}
+                                    {% endif %}
+                                    {# Use rounded comparison to handle floating point precision #}
+                                    {% set distance_rounded = (distance * 100)|round / 100 %}
+                                    {% set min_distance_rounded = (min_distance * 100)|round / 100 %}
+                                    {% set is_closest = (distance_rounded == min_distance_rounded) %}
                                 {% else %}
-                                    {% set distance = current_price - cc.strike %}
+                                    {% set is_closest = false %}
                                 {% endif %}
-                                {# Use rounded comparison to handle floating point precision #}
-                                {% set distance_rounded = (distance * 100)|round / 100 %}
-                                {% set min_distance_rounded = (min_distance * 100)|round / 100 %}
-                                {% set is_closest = (distance_rounded == min_distance_rounded) %}
                                 <tr{% if is_closest %} class="table-warning"{% endif %}>
                                     <td class="fw-bold">${{ "%.2f"|format(cc.strike) }}</td>
                                     <td>${{ "%.2f"|format(cc.callPremium) }}</td>
