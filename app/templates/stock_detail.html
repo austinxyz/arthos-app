@@ -266,7 +266,11 @@
                                     {% endif %}
                                     {# Compare with small epsilon to handle floating point precision #}
                                     {# Check if distance equals min_distance (within 0.01 tolerance) #}
-                                    {% if distance >= min_distance - 0.01 and distance <= min_distance + 0.01 %}
+                                    {% set diff = distance - min_distance %}
+                                    {% if diff < 0 %}
+                                        {% set diff = -diff %}
+                                    {% endif %}
+                                    {% if diff <= 0.01 %}
                                         {% set is_closest = true %}
                                     {% else %}
                                         {% set is_closest = false %}
@@ -403,7 +407,11 @@
                                     {% endif %}
                                     {# Compare with small epsilon to handle floating point precision #}
                                     {# Check if distance equals min_distance (within 0.01 tolerance) #}
-                                    {% if distance >= min_distance - 0.01 and distance <= min_distance + 0.01 %}
+                                    {% set diff = distance - min_distance %}
+                                    {% if diff < 0 %}
+                                        {% set diff = -diff %}
+                                    {% endif %}
+                                    {% if diff <= 0.01 %}
                                         {% set is_closest = true %}
                                     {% else %}
                                         {% set is_closest = false %}
