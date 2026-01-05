@@ -414,67 +414,67 @@ def calculate_covered_call_returns(options_data: Dict[float, Dict[str, Any]], cu
             call_data = strike_data['call']
             if not isinstance(call_data, dict):
                 continue
-        
-        # Calculate call premium: max(Last Price, (Bid + Ask) / 2)
-        last_price = call_data.get('lastPrice')
-        if last_price is None or pd.isna(last_price):
-            last_price = 0
-        else:
-            last_price = float(last_price)
-        
-        bid = call_data.get('bid')
-        if bid is None or pd.isna(bid):
-            bid = 0
-        else:
-            bid = float(bid)
-        
-        ask = call_data.get('ask')
-        if ask is None or pd.isna(ask):
-            ask = 0
-        else:
-            ask = float(ask)
-        
-        avg_bid_ask = (bid + ask) / 2 if (bid > 0 and ask > 0) else 0
-        
-        # Calculate call premium: max(Last Price, (Bid + Ask) / 2)
-        if last_price > 0 and avg_bid_ask > 0:
-            call_premium = max(last_price, avg_bid_ask)
-        elif last_price > 0:
-            call_premium = last_price
-        elif avg_bid_ask > 0:
-            call_premium = avg_bid_ask
-        else:
-            call_premium = 0
-        
-        if call_premium == 0:
-            continue  # Skip if no valid premium
-        
-        # Calculate returns for exercised scenario
-        # Total Return = Strike Price + Call Premium - Stock Purchase Price
-        total_return_exercised = strike + call_premium - current_price
-        total_return_pct_exercised = (total_return_exercised / current_price) * 100 if current_price > 0 else 0
-        
-        # Stock appreciation return % = (Strike Price - Stock Purchase Price) / Stock Purchase Price
-        stock_appreciation_pct = ((strike - current_price) / current_price) * 100 if current_price > 0 else 0
-        
-        # Call premium return % = Call Premium / Stock Purchase Price
-        call_premium_pct = (call_premium / current_price) * 100 if current_price > 0 else 0
-        
-        # Calculate returns for not exercised scenario
-        # Total Return = Call Premium
-        total_return_not_exercised = call_premium
-        total_return_pct_not_exercised = (total_return_not_exercised / current_price) * 100 if current_price > 0 else 0
-        
-        covered_calls.append({
-            'strike': strike,
-            'callPremium': round(call_premium, 2),
-            'totalReturnExercised': round(total_return_exercised, 2),
-            'totalReturnPctExercised': round(total_return_pct_exercised, 2),
-            'totalReturnNotExercised': round(total_return_not_exercised, 2),
-            'totalReturnPctNotExercised': round(total_return_pct_not_exercised, 2),
-            'stockAppreciationPct': round(stock_appreciation_pct, 2),
-            'callPremiumPct': round(call_premium_pct, 2),
-        })
+            
+            # Calculate call premium: max(Last Price, (Bid + Ask) / 2)
+            last_price = call_data.get('lastPrice')
+            if last_price is None or pd.isna(last_price):
+                last_price = 0
+            else:
+                last_price = float(last_price)
+            
+            bid = call_data.get('bid')
+            if bid is None or pd.isna(bid):
+                bid = 0
+            else:
+                bid = float(bid)
+            
+            ask = call_data.get('ask')
+            if ask is None or pd.isna(ask):
+                ask = 0
+            else:
+                ask = float(ask)
+            
+            avg_bid_ask = (bid + ask) / 2 if (bid > 0 and ask > 0) else 0
+            
+            # Calculate call premium: max(Last Price, (Bid + Ask) / 2)
+            if last_price > 0 and avg_bid_ask > 0:
+                call_premium = max(last_price, avg_bid_ask)
+            elif last_price > 0:
+                call_premium = last_price
+            elif avg_bid_ask > 0:
+                call_premium = avg_bid_ask
+            else:
+                call_premium = 0
+            
+            if call_premium == 0:
+                continue  # Skip if no valid premium
+            
+            # Calculate returns for exercised scenario
+            # Total Return = Strike Price + Call Premium - Stock Purchase Price
+            total_return_exercised = strike + call_premium - current_price
+            total_return_pct_exercised = (total_return_exercised / current_price) * 100 if current_price > 0 else 0
+            
+            # Stock appreciation return % = (Strike Price - Stock Purchase Price) / Stock Purchase Price
+            stock_appreciation_pct = ((strike - current_price) / current_price) * 100 if current_price > 0 else 0
+            
+            # Call premium return % = Call Premium / Stock Purchase Price
+            call_premium_pct = (call_premium / current_price) * 100 if current_price > 0 else 0
+            
+            # Calculate returns for not exercised scenario
+            # Total Return = Call Premium
+            total_return_not_exercised = call_premium
+            total_return_pct_not_exercised = (total_return_not_exercised / current_price) * 100 if current_price > 0 else 0
+            
+            covered_calls.append({
+                'strike': strike,
+                'callPremium': round(call_premium, 2),
+                'totalReturnExercised': round(total_return_exercised, 2),
+                'totalReturnPctExercised': round(total_return_pct_exercised, 2),
+                'totalReturnNotExercised': round(total_return_not_exercised, 2),
+                'totalReturnPctNotExercised': round(total_return_pct_not_exercised, 2),
+                'stockAppreciationPct': round(stock_appreciation_pct, 2),
+                'callPremiumPct': round(call_premium_pct, 2),
+            })
     except Exception as e:
         # If there's an error processing options, log it and return what we have
         print(f"Error processing covered call returns: {str(e)}")
