@@ -183,7 +183,8 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             options_expiration, options_data = get_options_data(ticker, metrics['current_price'])
             
             # Sort strikes in descending order for display (highest strike first)
-            if options_data:
+            # Check if options_data is a dict and has keys
+            if options_data and isinstance(options_data, dict) and len(options_data) > 0:
                 sorted_strikes = sorted(options_data.keys(), reverse=True)
                 
                 # Calculate covered call returns
