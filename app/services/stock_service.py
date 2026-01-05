@@ -130,22 +130,52 @@ def calculate_devstep(data: pd.DataFrame, sma_50: float) -> float:
     """
     Calculate the number of standard deviations the current price is from the 50-day SMA.
     
+    Uses only daily data points for std_dev calculation to avoid skewing from intraday data.
+    Uses the latest price (intraday if available) for current_price.
+    
     Args:
-        data: DataFrame with 'Close' prices
+        data: DataFrame with 'Close' prices (may include intraday data)
         sma_50: 50-day Simple Moving Average
-        
+    
     Returns:
         Number of standard deviations (devstep)
     """
-    if len(data) < 50:
-        # Use available data if less than 50 days
-        window = len(data)
+    from datetime import datetime
+    
+    # Get current price (use latest, which could be intraday)
+    current_price = data['Close'].iloc[-1]
+    
+    # Separate daily data from intraday data for std_dev calculation
+    today = datetime.now().date()
+    daily_mask = []
+    
+    for ts in data.index:
+        ts_obj = pd.Timestamp(ts)
+        # Normalize to timezone-naive if needed
+        if ts_obj.tz is not None:
+            ts_obj = ts_obj.tz_localize(None)
+        # Check if it's a daily timestamp (at midnight) or before today
+        if ts_obj.hour == 0 and ts_obj.minute == 0:
+            daily_mask.append(True)
+        elif ts_obj.date() < today:
+            daily_mask.append(True)
+        else:
+            # Has time component and is today - this is intraday data
+            daily_mask.append(False)
+    
+    daily_data = data[daily_mask] if any(daily_mask) else data
+    
+    # Calculate std_dev using only daily data points
+    if len(daily_data) < 50:
+        window = len(daily_data)
     else:
         window = 50
     
-    recent_prices = data['Close'].tail(window)
-    current_price = data['Close'].iloc[-1]
-    std_dev = recent_prices.std()
+    if window == 0:
+        return 0.0
+    
+    recent_daily_prices = daily_data['Close'].tail(window)
+    std_dev = recent_daily_prices.std()
     
     if std_dev == 0:
         return 0.0
@@ -158,33 +188,72 @@ def calculate_5day_price_movement(data: pd.DataFrame, sma_50: float) -> Tuple[fl
     """
     Calculate the 5-day price movement in terms of standard deviations.
     
+    Uses only daily data points to find the price 5 trading days ago (not 5 data points ago).
+    Uses the latest price (intraday if available) for current_price.
+    Uses only daily data points for std_dev calculation.
+    
     Args:
-        data: DataFrame with 'Close' prices
+        data: DataFrame with 'Close' prices (may include intraday data)
         sma_50: 50-day Simple Moving Average
-        
+    
     Returns:
         Tuple of (movement_in_stddev, is_positive)
-        - movement_in_stddev: Price movement over 5 days in standard deviations
+        - movement_in_stddev: Price movement over 5 trading days in standard deviations
         - is_positive: True if price moved up, False if price moved down
     """
-    if len(data) < 6:  # Need at least 6 days (5 days ago + current)
+    from datetime import datetime
+    
+    # Get current price (use latest, which could be intraday)
+    current_price = data['Close'].iloc[-1]
+    
+    # Separate daily data from intraday data
+    today = datetime.now().date()
+    daily_mask = []
+    
+    for ts in data.index:
+        ts_obj = pd.Timestamp(ts)
+        # Normalize to timezone-naive if needed
+        if ts_obj.tz is not None:
+            ts_obj = ts_obj.tz_localize(None)
+        # Check if it's a daily timestamp (at midnight) or before today
+        if ts_obj.hour == 0 and ts_obj.minute == 0:
+            daily_mask.append(True)
+        elif ts_obj.date() < today:
+            daily_mask.append(True)
+        else:
+            # Has time component and is today - this is intraday data
+            daily_mask.append(False)
+    
+    daily_data = data[daily_mask] if any(daily_mask) else data
+    
+    # Need at least 6 daily data points (5 days ago + current day)
+    if len(daily_data) < 6:
         return (0.0, True)
     
-    # Get prices
-    current_price = data['Close'].iloc[-1]
-    price_5days_ago = data['Close'].iloc[-6]  # 5 days before last day
+    # Get price from 5 trading days ago (using daily data only)
+    # If we have intraday data for today, we want the price from 5 daily candles ago
+    # If we don't have intraday data, we want the price from 6 daily candles ago (5 days before today)
+    if any(not mask for mask in daily_mask):  # We have intraday data
+        # Use the last 5 daily candles (excluding today's intraday)
+        price_5days_ago = daily_data['Close'].iloc[-5]
+    else:
+        # No intraday data, use 6 days ago (5 trading days before today)
+        price_5days_ago = daily_data['Close'].iloc[-6]
     
     # Calculate price change
     price_change = current_price - price_5days_ago
     
-    # Calculate standard deviation for conversion
-    if len(data) < 50:
-        window = len(data)
+    # Calculate standard deviation for conversion using only daily data
+    if len(daily_data) < 50:
+        window = len(daily_data)
     else:
         window = 50
     
-    recent_prices = data['Close'].tail(window)
-    std_dev = recent_prices.std()
+    if window == 0:
+        return (0.0, True)
+    
+    recent_daily_prices = daily_data['Close'].tail(window)
+    std_dev = recent_daily_prices.std()
     
     if std_dev == 0:
         return (0.0, True)

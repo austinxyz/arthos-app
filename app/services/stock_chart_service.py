@@ -70,8 +70,7 @@ def get_stock_chart_data(ticker: str) -> Dict[str, Any]:
     data['SMA_50_minus_3std'] = data['SMA_50'] - (3 * data['STD_50'])
     
     # Separate daily data from intraday data for chart display
-    # Chart should show daily data only (candlestick charts work best with daily data)
-    # Intraday data will be used for current price calculation but not displayed on chart
+    # We'll aggregate today's intraday data into a daily candle and show it on the chart
     today = datetime.now().date()
     
     # Normalize index to timezone-naive for consistent comparison
@@ -85,9 +84,11 @@ def get_stock_chart_data(ticker: str) -> Dict[str, Any]:
             # Already timezone-naive, but ensure all values are properly normalized
             data_normalized.index = pd.to_datetime(data.index, utc=False)
     
-    # Filter to daily data only (timestamps at midnight or date-only, or dates before today)
-    # Intraday data has time components (hour, minute), daily data doesn't
+    # Separate daily data from intraday data
+    # Daily data: timestamps at midnight or dates before today
+    # Intraday data: timestamps from today with time components
     daily_mask = []
+    intraday_mask = []
     for ts in data_normalized.index:
         ts_obj = pd.Timestamp(ts)
         # Normalize to timezone-naive if needed
@@ -96,26 +97,137 @@ def get_stock_chart_data(ticker: str) -> Dict[str, Any]:
         # Check if it's a daily timestamp (at midnight) or before today
         if ts_obj.hour == 0 and ts_obj.minute == 0:
             daily_mask.append(True)
+            intraday_mask.append(False)
         elif ts_obj.date() < today:
             daily_mask.append(True)
+            intraday_mask.append(False)
         else:
             # Has time component and is today - this is intraday data
             daily_mask.append(False)
+            intraday_mask.append(True)
     
-    daily_data = data_normalized[daily_mask] if any(daily_mask) else data_normalized
+    daily_data = data_normalized[daily_mask] if any(daily_mask) else pd.DataFrame()
+    intraday_today = data_normalized[intraday_mask] if any(intraday_mask) else pd.DataFrame()
     
-    # Force normalize the index one more time to ensure it's timezone-naive
-    # Convert each timestamp individually to handle mixed timezone-aware/naive timestamps
-    daily_data = daily_data.copy()
-    normalized_timestamps = []
-    for ts in daily_data.index:
-        ts_obj = pd.Timestamp(ts)
-        # Convert to timezone-naive if it's timezone-aware
-        if ts_obj.tz is not None:
-            normalized_timestamps.append(ts_obj.tz_localize(None))
+    # Normalize daily_data index to timezone-naive before aggregating
+    if not daily_data.empty:
+        daily_data = daily_data.copy()
+        normalized_daily_timestamps = []
+        for ts in daily_data.index:
+            ts_obj = pd.Timestamp(ts)
+            if ts_obj.tz is not None:
+                normalized_daily_timestamps.append(ts_obj.tz_localize(None))
+            else:
+                normalized_daily_timestamps.append(ts_obj)
+        daily_data.index = pd.DatetimeIndex(normalized_daily_timestamps)
+    
+    # Aggregate today's intraday data into a daily candle
+    if not intraday_today.empty:
+        # Create aggregated daily candle for today (timezone-naive timestamp)
+        today_timestamp = pd.Timestamp(today).replace(hour=0, minute=0, second=0, microsecond=0)
+        # Ensure it's timezone-naive
+        if today_timestamp.tz is not None:
+            today_timestamp = today_timestamp.tz_localize(None)
+        
+        # Remove today's daily data if it exists (we'll use aggregated intraday instead)
+        if not daily_data.empty:
+            today_daily_mask = [pd.Timestamp(ts).date() == today for ts in daily_data.index]
+            if any(today_daily_mask):
+                daily_data = daily_data[~pd.Series(today_daily_mask, index=daily_data.index)]
+        
+        # Calculate SMA/STD values from daily_data only (excluding today)
+        # This ensures we use the last 50/200 daily candles, not intraday data points
+        sma_50_value = None
+        std_50_value = None
+        sma_200_value = None
+        
+        if not daily_data.empty:
+            # Calculate SMA_50 from last 50 daily candles (excluding today)
+            if len(daily_data) >= 50:
+                recent_50_daily = daily_data['Close'].tail(50)
+                sma_50_value = recent_50_daily.mean()
+                std_50_value = recent_50_daily.std()
+            elif len(daily_data) > 0:
+                # Use available daily data if less than 50 days
+                sma_50_value = daily_data['Close'].mean()
+                std_50_value = daily_data['Close'].std()
+            
+            # Calculate SMA_200 from last 200 daily candles (excluding today)
+            if len(daily_data) >= 200:
+                recent_200_daily = daily_data['Close'].tail(200)
+                sma_200_value = recent_200_daily.mean()
+            elif len(daily_data) > 0:
+                # Use available daily data if less than 200 days
+                sma_200_value = daily_data['Close'].mean()
+        
+        # Create aggregated daily candle for today
+        today_close = intraday_today['Close'].iloc[-1]
+        today_candle_data = {
+            'Open': intraday_today['Open'].iloc[0],
+            'High': intraday_today['High'].max(),
+            'Low': intraday_today['Low'].min(),
+            'Close': today_close,
+            'Volume': intraday_today['Volume'].sum(),
+            'Dividends': 0.0,
+            'Stock Splits': 0.0,
+            'SMA_50': sma_50_value,
+            'SMA_200': sma_200_value,
+            'STD_50': std_50_value
+        }
+        
+        # Calculate STD bands if we have SMA_50 and STD_50
+        if sma_50_value is not None and std_50_value is not None:
+            today_candle_data['SMA_50_plus_1std'] = sma_50_value + std_50_value
+            today_candle_data['SMA_50_plus_2std'] = sma_50_value + (2 * std_50_value)
+            today_candle_data['SMA_50_plus_3std'] = sma_50_value + (3 * std_50_value)
+            today_candle_data['SMA_50_minus_1std'] = sma_50_value - std_50_value
+            today_candle_data['SMA_50_minus_2std'] = sma_50_value - (2 * std_50_value)
+            today_candle_data['SMA_50_minus_3std'] = sma_50_value - (3 * std_50_value)
         else:
-            normalized_timestamps.append(ts_obj)
-    daily_data.index = pd.DatetimeIndex(normalized_timestamps)
+            today_candle_data['SMA_50_plus_1std'] = None
+            today_candle_data['SMA_50_plus_2std'] = None
+            today_candle_data['SMA_50_plus_3std'] = None
+            today_candle_data['SMA_50_minus_1std'] = None
+            today_candle_data['SMA_50_minus_2std'] = None
+            today_candle_data['SMA_50_minus_3std'] = None
+        
+        today_candle = pd.DataFrame([today_candle_data], index=[today_timestamp])
+        
+        # Add today's aggregated candle to daily data
+        if not daily_data.empty:
+            daily_data = pd.concat([daily_data, today_candle])
+        else:
+            daily_data = today_candle
+        
+        # Sort by date to ensure chronological order
+        daily_data = daily_data.sort_index()
+        
+        # Recalculate rolling SMAs and standard deviations for daily_data (now including today)
+        # This ensures the rolling window calculation is correct using only daily candles
+        daily_data['SMA_50'] = daily_data['Close'].rolling(window=50, min_periods=50).mean()
+        daily_data['SMA_200'] = daily_data['Close'].rolling(window=200, min_periods=200).mean()
+        daily_data['STD_50'] = daily_data['Close'].rolling(window=50, min_periods=50).std()
+        
+        # Recalculate STD dev bands
+        daily_data['SMA_50_plus_1std'] = daily_data['SMA_50'] + daily_data['STD_50']
+        daily_data['SMA_50_plus_2std'] = daily_data['SMA_50'] + (2 * daily_data['STD_50'])
+        daily_data['SMA_50_plus_3std'] = daily_data['SMA_50'] + (3 * daily_data['STD_50'])
+        daily_data['SMA_50_minus_1std'] = daily_data['SMA_50'] - daily_data['STD_50']
+        daily_data['SMA_50_minus_2std'] = daily_data['SMA_50'] - (2 * daily_data['STD_50'])
+        daily_data['SMA_50_minus_3std'] = daily_data['SMA_50'] - (3 * daily_data['STD_50'])
+    
+    # Ensure the index is timezone-naive (should already be, but double-check)
+    if not daily_data.empty:
+        daily_data = daily_data.copy()
+        normalized_timestamps = []
+        for ts in daily_data.index:
+            ts_obj = pd.Timestamp(ts)
+            # Convert to timezone-naive if it's timezone-aware
+            if ts_obj.tz is not None:
+                normalized_timestamps.append(ts_obj.tz_localize(None))
+            else:
+                normalized_timestamps.append(ts_obj)
+        daily_data.index = pd.DatetimeIndex(normalized_timestamps)
     
     # Filter daily data to show from Jan 1, 2025 onwards (or last 365 days)
     # Index is now guaranteed to be timezone-naive
@@ -212,6 +324,34 @@ def get_stock_chart_data(ticker: str) -> Dict[str, Any]:
     sma_50_current = calculate_sma(data, 50)
     sma_200_current = calculate_sma(data, 200)
     
+    # Get timestamp of the latest data point (for display in metrics)
+    # Use the original data (which includes intraday) to get the most recent timestamp
+    latest_timestamp = data.index[-1]
+    try:
+        if isinstance(latest_timestamp, pd.Timestamp):
+            # Normalize to timezone-naive if needed
+            if latest_timestamp.tz is not None:
+                latest_timestamp = latest_timestamp.tz_localize(None)
+            # Format timestamp for display
+            if latest_timestamp.hour == 0 and latest_timestamp.minute == 0:
+                # Daily data - show just the date
+                current_data_timestamp = latest_timestamp.strftime('%Y-%m-%d')
+            else:
+                # Intraday data - show date and time
+                current_data_timestamp = latest_timestamp.strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            # Convert to Timestamp if it's not already
+            ts_obj = pd.Timestamp(latest_timestamp)
+            if ts_obj.tz is not None:
+                ts_obj = ts_obj.tz_localize(None)
+            if ts_obj.hour == 0 and ts_obj.minute == 0:
+                current_data_timestamp = ts_obj.strftime('%Y-%m-%d')
+            else:
+                current_data_timestamp = ts_obj.strftime('%Y-%m-%d %H:%M:%S')
+    except Exception as e:
+        # Fallback to string representation
+        current_data_timestamp = str(latest_timestamp)
+    
     return {
         "ticker": ticker.upper(),
         "dates": dates,
@@ -228,6 +368,7 @@ def get_stock_chart_data(ticker: str) -> Dict[str, Any]:
         },
         "current_price": round(current_price, 2),
         "sma_50_current": round(sma_50_current, 2),
-        "sma_200_current": round(sma_200_current, 2)
+        "sma_200_current": round(sma_200_current, 2),
+        "current_data_timestamp": current_data_timestamp
     }
 
