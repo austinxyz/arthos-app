@@ -213,31 +213,31 @@
                 {# This will be used for both Options Data and Covered Calls tables #}
                 {% set min_distance = none %}
                 {% set debug_calc_entered = false %}
-                {% set debug_first_distance = none %}
+                {% set debug_strikes_checked = [] %}
                 
                 {# Calculate from sorted_strikes - find true minimum across all strikes #}
                 {% if sorted_strikes and sorted_strikes|length > 0 and current_price is not none and current_price > 0 %}
                     {% set debug_calc_entered = true %}
-                    {# Process first strike to initialize min_distance #}
-                    {% set first_strike = sorted_strikes[0] %}
-                    {% if first_strike > current_price %}
-                        {% set min_distance = first_strike - current_price %}
-                    {% else %}
-                        {% set min_distance = current_price - first_strike %}
-                    {% endif %}
-                    {% set debug_first_distance = min_distance %}
+                    {# Initialize with a very large number to ensure we find the true minimum #}
+                    {% set min_distance = 999999.0 %}
                     
-                    {# Process remaining strikes to find minimum #}
+                    {# Loop through all strikes to find the actual minimum #}
                     {% for strike in sorted_strikes %}
                         {% if strike > current_price %}
                             {% set distance = strike - current_price %}
                         {% else %}
                             {% set distance = current_price - strike %}
                         {% endif %}
+                        {# Update min_distance if this distance is smaller #}
                         {% if distance < min_distance %}
                             {% set min_distance = distance %}
                         {% endif %}
                     {% endfor %}
+                    
+                    {# If min_distance is still the initial value, something went wrong #}
+                    {% if min_distance >= 999999.0 %}
+                        {% set min_distance = none %}
+                    {% endif %}
                 {% endif %}
                 
                 {# If still none, try to calculate from options_data keys #}
@@ -258,7 +258,7 @@
                 
                 {% if options_expiration and options_data and options_data|length > 0 %}
                     {# Debug info - remove after testing #}
-                    <p class="mb-1 text-muted small">Debug: Current Price = ${{ "%.2f"|format(current_price) }}, Min Distance = {{ min_distance }}, sorted_strikes length = {{ sorted_strikes|length if sorted_strikes is defined and sorted_strikes else 'None/Undefined' }}, First strike = {{ sorted_strikes[0] if sorted_strikes and sorted_strikes|length > 0 else 'N/A' }}, Calc entered = {{ debug_calc_entered }}, First distance = {{ debug_first_distance }}</p>
+                    <p class="mb-1 text-muted small">Debug: Current Price = ${{ "%.2f"|format(current_price) }}, Min Distance = {{ "%.4f"|format(min_distance) if min_distance is not none else 'None' }}, sorted_strikes = {{ sorted_strikes|join(', ') if sorted_strikes else 'None' }}, Calc entered = {{ debug_calc_entered }}</p>
                     <p class="mb-3"><strong>Expiration:</strong> {{ options_expiration }}</p>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover table-bordered">
