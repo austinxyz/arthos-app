@@ -280,7 +280,7 @@
                                 {% set is_closest = false %}
                                 {% set distance = none %}
                                 {% set diff = none %}
-                                {% if min_distance is not none and current_price is not none and strike is not none %}
+                                {% if min_distance and min_distance < 999999.0 and current_price and strike %}
                                     {% if strike > current_price %}
                                         {% set distance = strike - current_price %}
                                     {% else %}
@@ -420,7 +420,7 @@
                                 {% set is_closest = false %}
                                 {% set distance = none %}
                                 {% set diff = none %}
-                                {% if min_distance is not none and current_price is not none and cc.strike is not none %}
+                                {% if min_distance and min_distance < 999999.0 and current_price and cc.strike %}
                                     {% if cc.strike > current_price %}
                                         {% set distance = cc.strike - current_price %}
                                     {% else %}
