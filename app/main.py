@@ -187,6 +187,17 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             if options_data and isinstance(options_data, dict) and len(options_data) > 0:
                 sorted_strikes = sorted(options_data.keys(), reverse=True)
                 
+                # Calculate minimum distance from current price to closest strike
+                min_distance = None
+                if metrics['current_price'] and metrics['current_price'] > 0:
+                    for strike in sorted_strikes:
+                        if strike > metrics['current_price']:
+                            distance = strike - metrics['current_price']
+                        else:
+                            distance = metrics['current_price'] - strike
+                        if min_distance is None or distance < min_distance:
+                            min_distance = distance
+                
                 # Calculate covered call returns
                 try:
                     covered_calls = calculate_covered_call_returns(options_data, metrics['current_price'])
@@ -195,6 +206,8 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
                     import traceback
                     traceback.print_exc()
                     covered_calls = []
+            else:
+                min_distance = None
         except Exception as e:
             # If options data fails, continue without it
             print(f"Error fetching options data for {ticker}: {str(e)}")
@@ -214,7 +227,8 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             "options_data": options_data,
             "sorted_strikes": sorted_strikes,
             "covered_calls": covered_calls,
-            "current_price": metrics['current_price']
+            "current_price": metrics['current_price'],
+            "min_distance": min_distance if 'min_distance' in locals() else None
         })
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
