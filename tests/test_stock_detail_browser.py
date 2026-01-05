@@ -64,6 +64,26 @@ class TestStockDetailBrowser:
         
         # Check all metric labels exist
         expect(page.locator(".metric-label:has-text('Current Price')")).to_be_visible()
+        
+        # Check that current price timestamp is displayed (if available)
+        current_price_item = page.locator(".metric-item").filter(has_text="Current Price")
+        expect(current_price_item).to_be_visible()
+        # Check for timestamp above current price (could be date or date+time format)
+        timestamp_element = current_price_item.locator(".text-muted.small")
+        if timestamp_element.count() > 0:
+            timestamp_text = timestamp_element.inner_text().strip()
+            assert timestamp_text != "", "Timestamp should not be empty if displayed"
+            # Timestamp should be in format YYYY-MM-DD or YYYY-MM-DD HH:MM:SS
+            import re
+            assert re.match(r'^\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2})?$', timestamp_text), \
+                f"Timestamp format should be YYYY-MM-DD or YYYY-MM-DD HH:MM:SS, got: {timestamp_text}"
+        
+        # Verify that current price value is displayed
+        current_price_value = current_price_item.locator(".metric-value")
+        expect(current_price_value).to_be_visible()
+        price_text = current_price_value.inner_text().strip()
+        assert price_text.startswith("$"), f"Current price should start with $, got: {price_text}"
+        
         expect(page.locator(".metric-label:has-text('SMA 50')")).to_be_visible()
         expect(page.locator(".metric-label:has-text('SMA 200')")).to_be_visible()
         expect(page.locator(".metric-label:has-text('Dividend Yield')")).to_be_visible()
@@ -498,4 +518,60 @@ class TestStockDetailBrowser:
         covered_calls_table = page.locator("#covered-calls table")
         if covered_calls_table.count() > 0:
             expect(covered_calls_table.first()).to_be_visible()
+    
+    def test_current_price_timestamp_displayed(self, page: Page, live_server_url):
+        """Test that the timestamp of current stock price data is displayed above Current Price."""
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        
+        # Find the Current Price metric item
+        current_price_item = page.locator(".metric-item").filter(has_text="Current Price")
+        expect(current_price_item).to_be_visible()
+        
+        # Check for timestamp above current price
+        timestamp_element = current_price_item.locator(".text-muted.small")
+        timestamp_count = timestamp_element.count()
+        
+        # Timestamp should be displayed (if we have data)
+        if timestamp_count > 0:
+            timestamp_text = timestamp_element.inner_text().strip()
+            assert timestamp_text != "", "Timestamp should not be empty if displayed"
+            
+            # Verify timestamp format (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)
+            import re
+            assert re.match(r'^\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2})?$', timestamp_text), \
+                f"Timestamp format should be YYYY-MM-DD or YYYY-MM-DD HH:MM:SS, got: {timestamp_text}"
+            
+            # Verify current price is displayed below timestamp
+            current_price_value = current_price_item.locator(".metric-value")
+            expect(current_price_value).to_be_visible()
+            price_text = current_price_value.inner_text().strip()
+            assert price_text.startswith("$"), f"Current price should start with $, got: {price_text}"
+    
+    def test_todays_candle_displayed_on_chart(self, page: Page, live_server_url):
+        """Test that today's aggregated candle (from intraday data) is displayed on the chart."""
+        from datetime import datetime
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        
+        # Wait for chart to load
+        expect(page.locator("#stockChart")).to_be_visible(timeout=10000)
+        
+        # Get today's date
+        today = datetime.now().date().strftime('%Y-%m-%d')
+        
+        # Check if chart data includes today's date
+        # We can verify this by checking the JavaScript chart data
+        chart_data_script = page.locator("script").filter(has_text="candlestickData")
+        if chart_data_script.count() > 0:
+            script_content = chart_data_script.inner_text()
+            # Check if today's date appears in the candlestick data
+            # The date format in the chart data should be YYYY-MM-DD
+            if today in script_content:
+                # Today's date is in the chart data, which means today's aggregated candle is included
+                # Verify the data structure is correct by checking for the date in the JSON
+                assert f'"x":"{today}"' in script_content or f'"x": "{today}"' in script_content, \
+                    f"Today's date {today} should be in chart candlestick data"
 

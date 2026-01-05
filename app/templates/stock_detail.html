@@ -120,6 +120,9 @@
                     <h5 class="mb-3">Current Metrics</h5>
                     <div class="metric-item">
                         <div class="metric-label">Current Price</div>
+                        {% if chart_data.current_data_timestamp %}
+                        <div class="text-muted small mb-1">{{ chart_data.current_data_timestamp }}</div>
+                        {% endif %}
                         <div class="metric-value">${{ "%.2f"|format(metrics.current_price) }}</div>
                     </div>
                     <div class="metric-item">

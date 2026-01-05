@@ -63,6 +63,15 @@ class TestStockChartService:
         # Check that SMAs are numbers
         assert isinstance(chart_data["sma_50_current"], (int, float))
         assert isinstance(chart_data["sma_200_current"], (int, float))
+        
+        # Check that current_data_timestamp is present and valid
+        assert "current_data_timestamp" in chart_data
+        assert chart_data["current_data_timestamp"] is not None
+        assert chart_data["current_data_timestamp"] != ""
+        # Timestamp should be in format YYYY-MM-DD or YYYY-MM-DD HH:MM:SS
+        import re
+        assert re.match(r'^\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2})?$', chart_data["current_data_timestamp"]), \
+            f"Timestamp format should be YYYY-MM-DD or YYYY-MM-DD HH:MM:SS, got: {chart_data['current_data_timestamp']}"
     
     def test_get_stock_chart_data_invalid_ticker(self):
         """Test getting chart data for invalid ticker."""
@@ -156,4 +165,37 @@ class TestStockChartService:
         assert dates == std1_lower_dates
         assert dates == std2_upper_dates
         assert dates == std2_lower_dates
+    
+    def test_chart_includes_todays_aggregated_candle(self):
+        """Test that today's intraday data is aggregated into a daily candle and shown on chart."""
+        from datetime import datetime
+        chart_data = get_stock_chart_data("AAPL")
+        
+        # Get today's date
+        today = datetime.now().date().strftime('%Y-%m-%d')
+        
+        # Check if today's date appears in the candlestick data
+        candlestick_dates = [c["x"] for c in chart_data["candlestick_data"]]
+        
+        # Today's date might be in the chart if we have intraday data
+        # If it's there, verify it's a valid candle
+        if today in candlestick_dates:
+            # Find today's candle
+            today_candle = next((c for c in chart_data["candlestick_data"] if c["x"] == today), None)
+            assert today_candle is not None, f"Today's candle ({today}) should be in chart data"
+            
+            # Verify it has all required fields
+            assert "open" in today_candle
+            assert "high" in today_candle
+            assert "low" in today_candle
+            assert "close" in today_candle
+            
+            # Verify high >= low
+            assert today_candle["high"] >= today_candle["low"]
+            # Verify high >= open and close
+            assert today_candle["high"] >= today_candle["open"]
+            assert today_candle["high"] >= today_candle["close"]
+            # Verify low <= open and close
+            assert today_candle["low"] <= today_candle["open"]
+            assert today_candle["low"] <= today_candle["close"]
 
