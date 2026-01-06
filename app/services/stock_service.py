@@ -113,17 +113,102 @@ def calculate_sma(data: pd.DataFrame, window: int) -> float:
     """
     Calculate Simple Moving Average (SMA) for the given window.
     
+    Uses only daily data points (excludes intraday data points) but includes
+    today's close price if intraday data is available. This ensures consistency
+    with chart calculations which include today's aggregated candle.
+    
     Args:
-        data: DataFrame with 'Close' prices
+        data: DataFrame with 'Close' prices (may include intraday data)
         window: Number of days for the moving average
         
     Returns:
-        SMA value
+        SMA value calculated from daily data, including today's close if available
     """
-    if len(data) < window:
+    from datetime import datetime
+    
+    # Separate daily data from intraday data
+    today = datetime.now().date()
+    daily_mask = []
+    intraday_today = []
+    
+    for ts in data.index:
+        ts_obj = pd.Timestamp(ts)
+        # Normalize to timezone-naive if needed
+        if ts_obj.tz is not None:
+            ts_obj = ts_obj.tz_localize(None)
+        # Check if it's a daily timestamp (at midnight) or before today
+        if ts_obj.hour == 0 and ts_obj.minute == 0:
+            daily_mask.append(True)
+            intraday_today.append(False)
+        elif ts_obj.date() < today:
+            daily_mask.append(True)
+            intraday_today.append(False)
+        else:
+            # Has time component and is today - this is intraday data
+            daily_mask.append(False)
+            intraday_today.append(True)
+    
+    # Get daily data (excluding today's daily data if it exists)
+    daily_data = data[daily_mask] if any(daily_mask) else pd.DataFrame()
+    
+    # Get today's intraday data if available
+    intraday_data = data[intraday_today] if any(intraday_today) else pd.DataFrame()
+    
+    # If we have intraday data for today, aggregate it into a daily candle
+    # and add it to daily_data for SMA calculation
+    if not intraday_data.empty:
+        today_close = intraday_data['Close'].iloc[-1]  # Use last close price from intraday
+        
+        # Remove today's daily data if it exists (we'll use aggregated intraday instead)
+        if not daily_data.empty:
+            today_daily_mask = [pd.Timestamp(ts).date() == today for ts in daily_data.index]
+            if any(today_daily_mask):
+                daily_data = daily_data[~pd.Series(today_daily_mask, index=daily_data.index)]
+        
+        # Create today's aggregated candle
+        today_timestamp = pd.Timestamp(today).replace(hour=0, minute=0, second=0, microsecond=0)
+        # Ensure timezone-naive
+        if today_timestamp.tz is not None:
+            today_timestamp = today_timestamp.tz_localize(None)
+        
+        today_candle = pd.DataFrame([{
+            'Close': today_close
+        }], index=[today_timestamp])
+        
+        # Normalize daily_data index to timezone-naive before concatenating
+        if not daily_data.empty:
+            daily_data = daily_data.copy()
+            normalized_index = []
+            for ts in daily_data.index:
+                ts_obj = pd.Timestamp(ts)
+                if ts_obj.tz is not None:
+                    normalized_index.append(ts_obj.tz_localize(None))
+                else:
+                    normalized_index.append(ts_obj)
+            daily_data.index = pd.DatetimeIndex(normalized_index)
+        
+        # Add today's candle to daily data
+        if not daily_data.empty:
+            daily_data = pd.concat([daily_data, today_candle])
+        else:
+            daily_data = today_candle
+        
+        # Sort by date (all timestamps are now timezone-naive)
+        daily_data = daily_data.sort_index()
+    
+    # If no daily data at all, use original data
+    if daily_data.empty:
+        daily_data = data
+    
+    if len(daily_data) < window:
         # If not enough data, use available data
-        window = len(data)
-    return data['Close'].tail(window).mean()
+        window = len(daily_data)
+    
+    if window == 0:
+        return 0.0
+    
+    # Calculate SMA using the last 'window' daily data points (now including today if available)
+    return daily_data['Close'].tail(window).mean()
 
 
 def calculate_devstep(data: pd.DataFrame, sma_50: float) -> float:

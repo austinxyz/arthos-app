@@ -318,11 +318,32 @@ def get_stock_chart_data(ticker: str) -> Dict[str, Any]:
             std_3_upper.append({'x': date_str, 'y': None})
             std_3_lower.append({'x': date_str, 'y': None})
     
-    # Get current values (from full dataset)
+    # Get current values
     # Use the most recent data point which could be intraday data for today
     current_price = float(data['Close'].iloc[-1])
-    sma_50_current = calculate_sma(data, 50)
-    sma_200_current = calculate_sma(data, 200)
+    
+    # Use the last value from the rolling SMA calculation (which uses daily data only)
+    # This ensures consistency with what's shown on the chart
+    if not daily_data.empty:
+        # Get the last non-null SMA values from daily_data
+        sma_50_values = daily_data['SMA_50'].dropna()
+        sma_200_values = daily_data['SMA_200'].dropna()
+        
+        if len(sma_50_values) > 0:
+            sma_50_current = float(sma_50_values.iloc[-1])
+        else:
+            # Fallback to calculate_sma if no rolling values available
+            sma_50_current = calculate_sma(data, 50)
+        
+        if len(sma_200_values) > 0:
+            sma_200_current = float(sma_200_values.iloc[-1])
+        else:
+            # Fallback to calculate_sma if no rolling values available
+            sma_200_current = calculate_sma(data, 200)
+    else:
+        # Fallback if no daily data
+        sma_50_current = calculate_sma(data, 50)
+        sma_200_current = calculate_sma(data, 200)
     
     # Get timestamp of the latest data point (for display in metrics)
     # Use the original data (which includes intraday) to get the most recent timestamp

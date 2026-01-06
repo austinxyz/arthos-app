@@ -71,4 +71,37 @@ class TestStockDetailAPI:
         
         assert response1.status_code == status.HTTP_200_OK
         assert response2.status_code == status.HTTP_200_OK
+    
+    def test_sma_values_match_between_chart_and_metrics(self, client):
+        """Test that SMA 50 and SMA 200 values in metrics table match chart values."""
+        from app.services.stock_service import get_stock_metrics
+        from app.services.stock_chart_service import get_stock_chart_data
+        
+        ticker = "AAPL"
+        
+        # Get metrics
+        metrics = get_stock_metrics(ticker)
+        
+        # Get chart data
+        chart_data = get_stock_chart_data(ticker)
+        
+        # Extract SMA values from metrics
+        metrics_sma_50 = metrics.get('sma_50')
+        metrics_sma_200 = metrics.get('sma_200')
+        
+        # Extract SMA values from chart data
+        chart_sma_50 = chart_data.get('sma_50_current')
+        chart_sma_200 = chart_data.get('sma_200_current')
+        
+        # Verify both have values
+        assert metrics_sma_50 is not None, "Metrics SMA 50 should not be None"
+        assert metrics_sma_200 is not None, "Metrics SMA 200 should not be None"
+        assert chart_sma_50 is not None, "Chart SMA 50 should not be None"
+        assert chart_sma_200 is not None, "Chart SMA 200 should not be None"
+        
+        # Verify they match (within 0.01 tolerance for floating point precision)
+        assert abs(metrics_sma_50 - chart_sma_50) < 0.01, \
+            f"SMA 50 mismatch: metrics={metrics_sma_50}, chart={chart_sma_50}"
+        assert abs(metrics_sma_200 - chart_sma_200) < 0.01, \
+            f"SMA 200 mismatch: metrics={metrics_sma_200}, chart={chart_sma_200}"
 
