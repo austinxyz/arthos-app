@@ -108,7 +108,16 @@ jobs:
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       run: |
-        # Railway CLI uses RAILWAY_TOKEN environment variable automatically
-        railway link --service ${{ secrets.RAILWAY_SERVICE_ID }} --yes
+        # Verify token is set (for debugging - remove in production)
+        if [ -z "$RAILWAY_TOKEN" ]; then
+          echo "Error: RAILWAY_TOKEN is not set"
+          exit 1
+        fi
+        
+        # Railway CLI should use RAILWAY_TOKEN automatically
+        # Try linking with service ID
+        railway link --service ${{ secrets.RAILWAY_SERVICE_ID }} || railway link ${{ secrets.RAILWAY_SERVICE_ID }}
+        
+        # Deploy
         railway up --detach
 
