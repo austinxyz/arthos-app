@@ -90,34 +90,6 @@ jobs:
         # Exit with test result
         exit $EXIT_CODE
 
-  deploy:
-    name: Deploy to Railway
-    # Temporarily removed dependency on test job to allow deployment even if tests fail
-    # needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Railway CLI
-      run: |
-        npm install -g @railway/cli
-    
-    - name: Deploy to Railway
-      env:
-        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      run: |
-        # Verify token is set (for debugging - remove in production)
-        if [ -z "$RAILWAY_TOKEN" ]; then
-          echo "Error: RAILWAY_TOKEN is not set"
-          exit 1
-        fi
-        
-        # Railway CLI should use RAILWAY_TOKEN automatically
-        # Try linking with service ID
-        railway link --service ${{ secrets.RAILWAY_SERVICE_ID }} || railway link ${{ secrets.RAILWAY_SERVICE_ID }}
-        
-        # Deploy
-        railway up --detach
+  # Deployment is handled automatically by Railway's GitHub integration
+  # No need for manual deployment job - Railway deploys on push to main
 
