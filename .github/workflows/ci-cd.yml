@@ -108,6 +108,7 @@ jobs:
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       run: |
-        railway link --service ${{ secrets.RAILWAY_SERVICE_ID }}
+        # Railway CLI uses RAILWAY_TOKEN environment variable automatically
+        railway link --service ${{ secrets.RAILWAY_SERVICE_ID }} --yes
         railway up --detach
 
