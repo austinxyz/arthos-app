@@ -1,13 +1,21 @@
 """Database configuration using SQLModel."""
+import os
 from sqlmodel import SQLModel, create_engine, Session, text
 from app.models.stock_cache import StockCache  # Import to register with metadata
 from app.models.watchlist import WatchList, WatchListStock  # Import to register with metadata
 
-# Database URL - using SQLite for now, can be easily swapped for Postgres later
-DATABASE_URL = "sqlite:///arthos.db"
+# Database URL - supports both SQLite (local dev) and PostgreSQL (production)
+# Railway provides DATABASE_URL environment variable automatically
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///arthos.db")
+
+# Convert Railway's postgres:// URL to postgresql:// if needed (SQLAlchemy requirement)
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # Create engine - separated for easy swapping to Postgres
-engine = create_engine(DATABASE_URL, echo=True)
+# Disable echo in production for better performance
+echo_sql = os.getenv("ECHO_SQL", "false").lower() == "true"
+engine = create_engine(DATABASE_URL, echo=echo_sql)
 
 
 def create_db_and_tables():
@@ -21,21 +29,39 @@ def _migrate_cache_version_column():
     """Add cache_version column to stockcache table if it doesn't exist."""
     try:
         with Session(engine) as session:
-            # Check if cache_version column exists
-            result = session.exec(text(
-                "PRAGMA table_info(stockcache)"
-            )).all()
+            # Check database type
+            is_sqlite = DATABASE_URL.startswith("sqlite")
             
-            # Check if cache_version column exists
-            column_exists = any(row[1] == 'cache_version' for row in result)
-            
-            if not column_exists:
-                # Add the cache_version column
-                session.exec(text(
-                    "ALTER TABLE stockcache ADD COLUMN cache_version INTEGER"
-                ))
-                session.commit()
-                print("Added cache_version column to stockcache table")
+            if is_sqlite:
+                # SQLite-specific migration
+                result = session.exec(text(
+                    "PRAGMA table_info(stockcache)"
+                )).all()
+                
+                # Check if cache_version column exists
+                column_exists = any(row[1] == 'cache_version' for row in result)
+                
+                if not column_exists:
+                    # Add the cache_version column
+                    session.exec(text(
+                        "ALTER TABLE stockcache ADD COLUMN cache_version INTEGER"
+                    ))
+                    session.commit()
+                    print("Added cache_version column to stockcache table")
+            else:
+                # PostgreSQL-specific migration
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'stockcache' AND column_name = 'cache_version'"
+                )).all()
+                
+                if len(result) == 0:
+                    # Add the cache_version column
+                    session.exec(text(
+                        "ALTER TABLE stockcache ADD COLUMN cache_version INTEGER"
+                    ))
+                    session.commit()
+                    print("Added cache_version column to stockcache table")
     except Exception as e:
         # If migration fails, log but don't crash
         print(f"Warning: Could not migrate cache_version column: {e}")

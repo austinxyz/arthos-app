@@ -1,0 +1,59 @@
+# Railway ignore file - similar to .gitignore
+# Files and directories to exclude from Railway deployment
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database (local SQLite files)
+*.db
+*.sqlite
+*.sqlite3
+arthos.db
+
+# Logs
+*.log
+logs/
+
+# Environment files (Railway uses its own env vars)
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+README.md
+docs/
+
+# Test files (not needed in production)
+tests/
+test_*.py
+
