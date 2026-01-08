@@ -169,8 +169,22 @@ class TestWatchListBrowser:
         # Wait a bit to ensure no stock was added
         page.wait_for_timeout(2000)
         
-        # Verify the invalid ticker is NOT in the table
-        expect(page.locator("text=INVALID12345")).not_to_be_visible()
+        # Verify the invalid ticker is NOT in the table (check table rows specifically)
+        # The error message contains "INVALID12345" but it should not be in the table
+        stocks_table = page.locator("#stocksTable tbody tr")
+        stock_count = stocks_table.count()
+        
+        # Since format validation blocked the API call, the table should be empty
+        # But if there are any rows (from previous tests or other sources), verify INVALID12345 is not in them
+        if stock_count > 0:
+            # Check that INVALID12345 is not in any table row's first cell (where ticker would appear)
+            for i in range(stock_count):
+                first_cell = stocks_table.nth(i).locator("td:first-child")
+                if first_cell.count() > 0:
+                    first_cell_text = first_cell.inner_text().strip()
+                    assert "INVALID12345" not in first_cell_text, \
+                        f"INVALID12345 should not be in the table, but found in first cell: {first_cell_text}"
+        # If stock_count is 0, that's expected - the table is empty, so INVALID12345 is definitely not there
     
     def test_add_stocks_sdsk_invalid_ticker(self, page: Page, live_server_url):
         """Test adding SDSK (valid format but doesn't exist in yfinance) - should be rejected."""
