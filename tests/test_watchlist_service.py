@@ -168,9 +168,10 @@ class TestAddStocksToWatchList:
     def test_add_stocks_success(self):
         """Test successfully adding stocks to watchlist."""
         watchlist = create_watchlist("Test WatchList")
-        added = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"])
+        added, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"])
         
         assert len(added) == 2
+        assert len(invalid) == 0
         assert any(s.ticker == "AAPL" for s in added)
         assert any(s.ticker == "MSFT" for s in added)
     
@@ -179,18 +180,35 @@ class TestAddStocksToWatchList:
         watchlist = create_watchlist("Test WatchList")
         
         # Add AAPL first time
-        added1 = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
+        added1, invalid1 = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
         assert len(added1) == 1
+        assert len(invalid1) == 0
         
         # Try to add AAPL again
-        added2 = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
+        added2, invalid2 = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
         assert len(added2) == 0  # Should be ignored
+        assert len(invalid2) == 0
     
-    def test_add_stocks_invalid_ticker(self):
-        """Test adding invalid ticker format."""
+    def test_add_stocks_invalid_ticker_filtered(self):
+        """Test that invalid tickers are filtered out instead of raising error."""
         watchlist = create_watchlist("Test WatchList")
-        with pytest.raises(ValueError, match="Invalid ticker format"):
-            add_stocks_to_watchlist(watchlist.watchlist_id, ["INVALID12345"])
+        added, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["INVALID12345"])
+        
+        assert len(added) == 0
+        assert len(invalid) == 1
+        assert "INVALID12345" in invalid
+    
+    def test_add_stocks_mixed_valid_invalid(self):
+        """Test adding mix of valid and invalid tickers."""
+        watchlist = create_watchlist("Test WatchList")
+        added, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "INVALID12345", "MSFT", "BADTICKER"])
+        
+        assert len(added) == 2
+        assert len(invalid) == 2
+        assert any(s.ticker == "AAPL" for s in added)
+        assert any(s.ticker == "MSFT" for s in added)
+        assert "INVALID12345" in invalid
+        assert "BADTICKER" in invalid
 
 
 class TestRemoveStockFromWatchList:
@@ -199,7 +217,7 @@ class TestRemoveStockFromWatchList:
     def test_remove_stock_success(self):
         """Test successfully removing a stock."""
         watchlist = create_watchlist("Test WatchList")
-        add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"])
+        added, _ = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"])
         
         result = remove_stock_from_watchlist(watchlist.watchlist_id, "AAPL")
         assert result is True

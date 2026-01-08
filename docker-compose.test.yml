@@ -41,8 +41,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      test-server:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql://test_user:test_password@postgres:5432/test_db
+      TEST_SERVER_URL: http://test-server:8000
     volumes:
       - .:/app
       - pip_cache:/root/.cache/pip

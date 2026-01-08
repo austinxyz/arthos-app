@@ -48,7 +48,9 @@ def setup_database():
 @pytest.fixture
 def live_server_url():
     """Return the URL of the live server."""
-    return "http://localhost:8000"
+    import os
+    # Use environment variable if set (for Docker), otherwise use localhost
+    return os.getenv("TEST_SERVER_URL", "http://localhost:8000")
 
 
 @pytest.mark.browser
@@ -150,7 +152,7 @@ class TestWatchListBrowser:
         expect(page.locator("text=AAPL")).to_be_visible(timeout=10000)
     
     def test_add_stocks_invalid_ticker(self, page: Page, live_server_url):
-        """Test adding invalid ticker to watchlist."""
+        """Test adding invalid ticker to watchlist - should filter it out and show message."""
         watchlist = create_watchlist("Test WatchList")
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
@@ -159,9 +161,76 @@ class TestWatchListBrowser:
         page.fill("#tickersInput", "INVALID12345")
         page.click("button[type='submit']")
         
-        # Should show error message
+        # Should show error message about invalid ticker
         expect(page.locator("#errorMessage")).to_be_visible()
-        expect(page.locator("#errorMessage")).to_contain_text("Invalid ticker format")
+        expect(page.locator("#errorMessage")).to_contain_text("Ticker INVALID12345 is invalid")
+    
+    def test_add_stocks_mixed_valid_invalid(self, page: Page, live_server_url):
+        """Test adding mix of valid and invalid tickers - valid ones should be added."""
+        watchlist = create_watchlist("Test WatchList")
+        
+        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
+        
+        # Add mix of valid and invalid tickers
+        page.fill("#tickersInput", "AAPL,INVALID12345,MSFT")
+        page.click("button[type='submit']")
+        
+        # Should show error message about invalid ticker but still add valid ones
+        expect(page.locator("#errorMessage")).to_be_visible()
+        expect(page.locator("#errorMessage")).to_contain_text("Ticker INVALID12345 is invalid")
+        
+        # Wait for page reload if stocks were added
+        page.wait_for_timeout(3000)
+        
+        # Valid stocks should appear in table
+        expect(page.locator("text=AAPL")).to_be_visible(timeout=10000)
+        expect(page.locator("text=MSFT")).to_be_visible(timeout=10000)
+    
+    def test_delete_button_visible_for_error_rows(self, page: Page, live_server_url):
+        """Test that delete button is visible and actionable for error rows."""
+        watchlist = create_watchlist("Test WatchList")
+        # Add a stock that will fail to fetch (using a non-existent ticker)
+        # We'll manually add it to the database to simulate an existing invalid ticker
+        from app.models.watchlist import WatchListStock
+        from datetime import datetime
+        with Session(engine) as session:
+            invalid_stock = WatchListStock(
+                watchlist_id=watchlist.watchlist_id,
+                ticker="SDSK",  # This ticker doesn't exist and will cause an error
+                date_added=datetime.now()
+            )
+            session.add(invalid_stock)
+            session.commit()
+        
+        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
+        
+        # Wait for table to load
+        page.wait_for_selector('#stocksTable', state='visible', timeout=10000)
+        page.wait_for_timeout(3000)  # Give time for data to load
+        
+        # Find the error row (should have table-danger class)
+        error_row = page.locator('#stocksTable tbody tr.table-danger')
+        expect(error_row).to_be_visible()
+        
+        # Check that error message is displayed
+        expect(error_row.locator("text=SDSK")).to_be_visible()
+        
+        # Check that delete button is visible in the error row
+        delete_button = error_row.locator("button.btn-danger")
+        expect(delete_button).to_be_visible()
+        
+        # Verify delete button is actionable (can be clicked)
+        # Set up dialog handler before clicking
+        page.once("dialog", lambda dialog: dialog.accept())
+        
+        # Click delete button
+        delete_button.click()
+        
+        # Wait for page to reload
+        page.wait_for_timeout(2000)
+        
+        # Verify the error row is removed (SDSK should not be visible)
+        expect(page.locator("text=SDSK")).not_to_be_visible(timeout=5000)
     
     def test_edit_watchlist_name(self, page: Page, live_server_url):
         """Test editing watchlist name."""
@@ -188,7 +257,7 @@ class TestWatchListBrowser:
     def test_remove_stock_from_portfolio(self, page: Page, live_server_url):
         """Test removing a stock from watchlist."""
         watchlist = create_watchlist("Test WatchList")
-        add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"])
+        added, _ = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"])
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
@@ -245,7 +314,7 @@ class TestWatchListBrowser:
     def test_dividend_yield_display_in_portfolio(self, page: Page, live_server_url):
         """Test that dividend yield is displayed correctly in watchlist table."""
         watchlist = create_watchlist("Test WatchList")
-        add_stocks_to_watchlist(watchlist.watchlist_id, ["HD", "AAPL"])
+        added, _ = add_stocks_to_watchlist(watchlist.watchlist_id, ["HD", "AAPL"])
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         

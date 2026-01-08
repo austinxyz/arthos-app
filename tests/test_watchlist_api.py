@@ -177,8 +177,8 @@ class TestWatchListAPI:
         assert response2.status_code == status.HTTP_200_OK
         assert len(response2.json()["added_stocks"]) == 0  # Should be ignored
     
-    def test_add_stocks_invalid_ticker(self, client):
-        """Test adding invalid ticker format."""
+    def test_add_stocks_invalid_ticker_filtered(self, client):
+        """Test that invalid tickers are filtered out and message is returned."""
         watchlist = create_watchlist("Test WatchList")
         
         response = client.post(
@@ -186,7 +186,29 @@ class TestWatchListAPI:
             json={"tickers": "INVALID12345"}
         )
         
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "invalid_tickers" in data
+        assert len(data["invalid_tickers"]) == 1
+        assert "INVALID12345" in data["invalid_tickers"]
+        assert "Ticker INVALID12345 is invalid" in data["message"]
+    
+    def test_add_stocks_mixed_valid_invalid(self, client):
+        """Test adding mix of valid and invalid tickers."""
+        watchlist = create_watchlist("Test WatchList")
+        
+        response = client.post(
+            f"/v1/watchlist/{watchlist.watchlist_id}/stocks",
+            json={"tickers": "AAPL,INVALID12345,MSFT"}
+        )
+        
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert len(data["added_stocks"]) == 2
+        assert len(data["invalid_tickers"]) == 1
+        assert "INVALID12345" in data["invalid_tickers"]
+        assert "Added 2 stock(s) to watchlist" in data["message"]
+        assert "Ticker INVALID12345 is invalid" in data["message"]
     
     def test_remove_stock_from_portfolio(self, client):
         """Test removing a stock from watchlist."""

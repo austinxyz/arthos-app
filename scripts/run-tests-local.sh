@@ -61,7 +61,7 @@ case $TEST_TYPE in
         
         # Run browser tests (use host network to access localhost:8000)
         echo -e "\n${GREEN}Running browser tests...${NC}"
-        docker-compose -f docker-compose.test.yml run --rm --network host test-runner \
+        docker-compose -f docker-compose.test.yml run --rm test-runner \
             pytest tests/ -v --tb=short -k "browser or e2e"
         
         # Stop server

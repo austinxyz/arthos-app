@@ -35,7 +35,9 @@ def setup_database():
 @pytest.fixture
 def live_server_url():
     """Return the URL of the live server."""
-    return "http://localhost:8000"
+    import os
+    # Use environment variable if set (for Docker), otherwise use localhost
+    return os.getenv("TEST_SERVER_URL", "http://localhost:8000")
 
 
 @pytest.mark.browser

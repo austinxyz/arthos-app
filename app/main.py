@@ -512,14 +512,14 @@ async def delete_watchlist(watchlist_id: UUID = FPath(...)):
 @app.post("/v1/watchlist/{watchlist_id}/stocks")
 async def add_stocks_to_watchlist(watchlist_id: UUID = FPath(...), request: AddStocksRequest = None):
     """
-    Add stocks to a watchlist.
+    Add stocks to a watchlist. Filters out invalid tickers and returns info about them.
     
     Args:
         watchlist_id: UUID of the watchlist
         request: Request with comma-separated tickers
         
     Returns:
-        JSON response with added stocks
+        JSON response with added stocks and invalid tickers
     """
     from app.services.watchlist_service import add_stocks_to_watchlist
     
@@ -533,17 +533,29 @@ async def add_stocks_to_watchlist(watchlist_id: UUID = FPath(...), request: AddS
         raise HTTPException(status_code=400, detail="At least one ticker is required")
     
     try:
-        added_stocks = add_stocks_to_watchlist(watchlist_id, ticker_list)
-        return {
-            "message": f"Added {len(added_stocks)} stock(s) to watchlist",
+        added_stocks, invalid_tickers = add_stocks_to_watchlist(watchlist_id, ticker_list)
+        
+        # Build response message
+        messages = []
+        if added_stocks:
+            messages.append(f"Added {len(added_stocks)} stock(s) to watchlist")
+        if invalid_tickers:
+            for invalid_ticker in invalid_tickers:
+                messages.append(f"Ticker {invalid_ticker} is invalid")
+        
+        response = {
+            "message": ". ".join(messages) if messages else "No valid tickers to add",
             "added_stocks": [
                 {
                     "ticker": s.ticker,
                     "date_added": s.date_added.isoformat()
                 }
                 for s in added_stocks
-            ]
+            ],
+            "invalid_tickers": invalid_tickers
         }
+        
+        return response
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

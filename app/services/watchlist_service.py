@@ -143,31 +143,28 @@ def delete_watchlist(watchlist_id: UUID) -> bool:
         return True
 
 
-def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> List[WatchListStock]:
+def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[List[WatchListStock], List[str]]:
     """
-    Add stocks to a watchlist. Ignores duplicates.
+    Add stocks to a watchlist. Ignores duplicates and filters out invalid tickers.
     
     Args:
         watchlist_id: WatchList UUID
         tickers: List of stock ticker symbols
         
     Returns:
-        List of WatchListStock objects that were added (excluding duplicates)
+        Tuple of (List of WatchListStock objects that were added, List of invalid tickers)
         
     Raises:
-        ValueError: If watchlist not found or tickers are invalid
+        ValueError: If watchlist not found
     """
     # Validate watchlist exists
     watchlist = get_watchlist(watchlist_id)
     
-    # Validate ticker formats
+    # Validate ticker formats - filter out invalid ones instead of raising error
     valid_tickers, invalid_tickers = validate_ticker_list(tickers)
     
-    if invalid_tickers:
-        raise ValueError(f"Invalid ticker format(s): {', '.join(invalid_tickers)}")
-    
     if not valid_tickers:
-        return []
+        return [], invalid_tickers
     
     with Session(engine) as session:
         added_stocks = []
@@ -202,7 +199,7 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> List[Watc
         for stock in added_stocks:
             session.refresh(stock)
         
-        return added_stocks
+        return added_stocks, invalid_tickers
 
 
 def remove_stock_from_watchlist(watchlist_id: UUID, ticker: str) -> bool:
