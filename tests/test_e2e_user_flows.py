@@ -74,9 +74,11 @@ def live_server_url():
     return "http://localhost:8000"
 
 
+@pytest.mark.e2e
 class TestE2EUserFlows:
     """End-to-end tests for complete user workflows."""
     
+    @pytest.mark.e2e
     def test_complete_user_workflow(self, page: Page, live_server_url):
         """
         Test complete user workflow:
@@ -323,6 +325,7 @@ class TestE2EUserFlows:
                             # Skip rows that don't have the expected format
                             continue
     
+    @pytest.mark.e2e
     def test_home_page_loads_and_navigation(self, page: Page, live_server_url):
         """Test that home page loads correctly and navigation works."""
         page.goto(f"{live_server_url}/")
@@ -345,6 +348,7 @@ class TestE2EUserFlows:
         page.wait_for_url(r"**/watchlists", timeout=5000)
         expect(page).to_have_title("WatchLists - Arthos")
     
+    @pytest.mark.e2e
     def test_watchlist_creation_and_stock_addition_flow(self, page: Page, live_server_url):
         """Test creating a watchlist and adding stocks, verifying table populates."""
         # Navigate to watchlists page
@@ -384,6 +388,7 @@ class TestE2EUserFlows:
         table_rows = table.locator("tbody tr")
         assert table_rows.count() >= len(test_stocks), "Table should have at least as many rows as stocks added"
     
+    @pytest.mark.e2e
     def test_stock_details_chart_and_metrics_consistency(self, page: Page, live_server_url):
         """Test that stock details page shows chart and metrics, and SMA values are consistent."""
         ticker = "AAPL"
@@ -418,6 +423,7 @@ class TestE2EUserFlows:
         # Note: Chart data is in JavaScript, so we can't directly compare,
         # but we've verified the values are displayed correctly in metrics
     
+    @pytest.mark.e2e
     def test_options_data_strike_prices_within_range(self, page: Page, live_server_url):
         """Test that options data shows strike prices within 10% of current price."""
         ticker = "AAPL"
@@ -470,6 +476,7 @@ class TestE2EUserFlows:
                     if strikes_found:
                         assert len(strikes_found) > 0, "Should find at least one strike price"
     
+    @pytest.mark.e2e
     def test_covered_calls_math_correctness(self, page: Page, live_server_url):
         """Test that Covered Calls table shows correct calculations."""
         ticker = "AAPL"
