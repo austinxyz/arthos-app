@@ -9,9 +9,17 @@ This guide explains how to run tests locally using Docker, mimicking the GitHub 
 
 ## Quick Start
 
+**Important:** Make sure you're in the project root directory (`arthos-app/`) when running these commands.
+
 ### Run All Tests
 
 **Linux/macOS:**
+```bash
+# From project root directory
+bash scripts/run-tests-local.sh all
+```
+
+Or make it executable first:
 ```bash
 chmod +x scripts/run-tests-local.sh
 ./scripts/run-tests-local.sh all
@@ -26,11 +34,13 @@ chmod +x scripts/run-tests-local.sh
 
 **Linux/macOS:**
 ```bash
-./scripts/run-tests-local.sh unit
+# From project root directory
+bash scripts/run-tests-local.sh unit
 ```
 
 **Windows:**
 ```powershell
+# From project root directory
 .\scripts\run-tests-local.ps1 -TestType unit
 ```
 
@@ -38,11 +48,13 @@ chmod +x scripts/run-tests-local.sh
 
 **Linux/macOS:**
 ```bash
-./scripts/run-tests-local.sh browser
+# From project root directory
+bash scripts/run-tests-local.sh browser
 ```
 
 **Windows:**
 ```powershell
+# From project root directory
 .\scripts\run-tests-local.ps1 -TestType browser
 ```
 
@@ -50,11 +62,13 @@ chmod +x scripts/run-tests-local.sh
 
 **Linux/macOS:**
 ```bash
-./scripts/run-tests-local.sh tests/test_api.py
+# From project root directory
+bash scripts/run-tests-local.sh tests/test_api.py
 ```
 
 **Windows:**
 ```powershell
+# From project root directory
 .\scripts\run-tests-local.ps1 -TestType tests/test_api.py
 ```
 
