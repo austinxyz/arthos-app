@@ -52,7 +52,8 @@ def get_cached_data(ticker: str) -> Optional[Tuple[pd.DataFrame, datetime]]:
             data_dict = json.loads(cache_entry.data)
             # Convert back to DataFrame - transpose because we stored with orient='index'
             df = pd.DataFrame(data_dict).T
-            df.index = pd.to_datetime(df.index, utc=True)
+            # Use utc=True to avoid FutureWarning, then convert to naive for compatibility
+            df.index = pd.to_datetime(df.index, utc=True).tz_localize(None)
             return (df, cache_entry.cache_timestamp)
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             # If deserialization fails, delete the corrupted cache entry

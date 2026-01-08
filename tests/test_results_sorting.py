@@ -56,12 +56,14 @@ def test_results_page_signal_sorting(browser_page: Page, client):
         signals.append(signal_text.strip())
     
     # Expected order: Extreme Oversold (5) > Oversold (4) > Neutral (3) > Overbought (2) > Extreme Overbought (1)
-    # Define priority mapping
+    # Define priority mapping - note: badges show abbreviated text (Extreme OS, Extreme OB)
     priority_map = {
+        'Extreme OS': 5,  # Badge text for Extreme Oversold
         'Extreme Oversold': 5,
         'Oversold': 4,
         'Neutral': 3,
         'Overbought': 2,
+        'Extreme OB': 1,  # Badge text for Extreme Overbought
         'Extreme Overbought': 1
     }
     
@@ -99,12 +101,14 @@ def test_results_page_signal_sorting_manual(browser_page: Page):
         signals.append(signal_text.strip())
         print(f"Row {i+1}: {signal_text.strip()}")
     
-    # Verify sorting
+    # Verify sorting - note: badges show abbreviated text (Extreme OS, Extreme OB)
     priority_map = {
+        'Extreme OS': 5,  # Badge text for Extreme Oversold
         'Extreme Oversold': 5,
         'Oversold': 4,
         'Neutral': 3,
         'Overbought': 2,
+        'Extreme OB': 1,  # Badge text for Extreme Overbought
         'Extreme Overbought': 1
     }
     

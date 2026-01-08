@@ -464,9 +464,9 @@ def get_stock_metrics(ticker: str) -> Dict[str, Any]:
         "current_price": round(current_price, 2),
         "dividend_yield": round(dividend_yield, 2) if dividend_yield is not None else None,
         "movement_5day_stddev": round(movement_5day, 4),
-        "is_price_positive_5day": is_price_positive,
+        "is_price_positive_5day": bool(is_price_positive),  # Convert numpy bool to Python bool for JSON serialization
         "data_points": len(data),
-        "cached": cached_result
+        "cached": bool(cached_result)  # Ensure Python bool for JSON serialization
     }
     
     # Add cache_timestamp only if data was cached

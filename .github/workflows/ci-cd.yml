@@ -79,9 +79,15 @@ jobs:
           sleep 1
         done
         
-        # Run browser tests
+        # Verify server is actually running
+        if ! curl -f http://localhost:8000/ > /dev/null 2>&1; then
+          echo "ERROR: Server failed to start!"
+          exit 1
+        fi
+        
+        # Run browser tests (including E2E tests which use live_server_url)
         EXIT_CODE=0
-        pytest tests/ -v --tb=short -k "browser" || EXIT_CODE=$?
+        pytest tests/ -v --tb=short -k "browser or e2e" || EXIT_CODE=$?
         
         # Stop the server
         kill $SERVER_PID 2>/dev/null || true
