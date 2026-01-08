@@ -82,7 +82,8 @@ def get_stock_chart_data(ticker: str) -> Dict[str, Any]:
             data_normalized.index = data.index.tz_localize(None)
         else:
             # Already timezone-naive, but ensure all values are properly normalized
-            data_normalized.index = pd.to_datetime(data.index, utc=False)
+            # Use utc=True to avoid FutureWarning, then convert to naive if needed
+            data_normalized.index = pd.to_datetime(data.index, utc=True).tz_localize(None)
     
     # Separate daily data from intraday data
     # Daily data: timestamps at midnight or dates before today
