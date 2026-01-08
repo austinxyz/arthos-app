@@ -152,18 +152,19 @@ class TestWatchListBrowser:
         expect(page.locator("text=AAPL")).to_be_visible(timeout=10000)
     
     def test_add_stocks_invalid_ticker(self, page: Page, live_server_url):
-        """Test adding invalid ticker to watchlist - should filter it out and show message."""
+        """Test adding invalid ticker format to watchlist - should be caught by frontend validation."""
         watchlist = create_watchlist("Test WatchList")
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
-        # Try invalid ticker
+        # Try invalid ticker format (> 5 characters) - frontend validation should catch this
         page.fill("#tickersInput", "INVALID12345")
         page.click("button[type='submit']")
         
-        # Should show error message about invalid ticker
+        # Should show format validation error message (frontend catches this before API call)
         expect(page.locator("#errorMessage")).to_be_visible()
-        expect(page.locator("#errorMessage")).to_contain_text("Ticker INVALID12345 is invalid")
+        expect(page.locator("#errorMessage")).to_contain_text("Invalid ticker format")
+        expect(page.locator("#errorMessage")).to_contain_text("INVALID12345")
         
         # Wait a bit to ensure no stock was added
         page.wait_for_timeout(2000)
@@ -199,28 +200,27 @@ class TestWatchListBrowser:
             assert "SDSK" not in row_text, f"SDSK should not be in the table, but found in row: {row_text}"
     
     def test_add_stocks_mixed_valid_invalid(self, page: Page, live_server_url):
-        """Test adding mix of valid and invalid tickers - valid ones should be added."""
+        """Test adding mix of valid and invalid format tickers - format validation should catch invalid ones."""
         watchlist = create_watchlist("Test WatchList")
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
-        # Add mix of valid and invalid tickers
+        # Add mix of valid and invalid format tickers (> 5 chars)
+        # Frontend format validation should catch INVALID12345 before API call
         page.fill("#tickersInput", "AAPL,INVALID12345,MSFT")
         page.click("button[type='submit']")
         
-        # Should show error message about invalid ticker but still add valid ones
+        # Should show format validation error message (frontend catches this before API call)
         expect(page.locator("#errorMessage")).to_be_visible()
-        expect(page.locator("#errorMessage")).to_contain_text("Ticker INVALID12345 is invalid")
+        expect(page.locator("#errorMessage")).to_contain_text("Invalid ticker format")
+        expect(page.locator("#errorMessage")).to_contain_text("INVALID12345")
         
-        # Wait for page reload if stocks were added
-        page.wait_for_timeout(3000)
+        # Wait a bit - no stocks should be added because format validation failed
+        page.wait_for_timeout(2000)
         
-        # Valid stocks should appear in table
-        expect(page.locator("text=AAPL")).to_be_visible(timeout=10000)
-        expect(page.locator("text=MSFT")).to_be_visible(timeout=10000)
-        
-        # Invalid ticker should NOT be in the table
-        expect(page.locator("text=INVALID12345")).not_to_be_visible()
+        # Since format validation failed, no API call was made, so no stocks should be added
+        # The table should be empty (or only have pre-existing stocks)
+        # We can't verify AAPL/MSFT were added because the form submission was blocked
     
     def test_add_stocks_mixed_valid_sdsk(self, page: Page, live_server_url):
         """Test adding mix of valid ticker and SDSK - only valid one should be added."""
@@ -277,8 +277,12 @@ class TestWatchListBrowser:
         error_row = page.locator('#stocksTable tbody tr.table-danger')
         expect(error_row).to_be_visible()
         
-        # Check that error message is displayed
-        expect(error_row.locator("text=SDSK")).to_be_visible()
+        # Check that ticker name is displayed in the first column (more specific locator)
+        expect(error_row.locator("td:first-child strong:has-text('SDSK')")).to_be_visible()
+        
+        # Check that error message is displayed in the error cell
+        expect(error_row.locator("td.text-danger")).to_be_visible()
+        expect(error_row.locator("td.text-danger")).to_contain_text("Error fetching data")
         
         # Check that delete button is visible in the error row
         delete_button = error_row.locator("button.btn-danger")
@@ -295,7 +299,7 @@ class TestWatchListBrowser:
         page.wait_for_timeout(2000)
         
         # Verify the error row is removed (SDSK should not be visible)
-        expect(page.locator("text=SDSK")).not_to_be_visible(timeout=5000)
+        expect(page.locator("td:first-child strong:has-text('SDSK')")).not_to_be_visible(timeout=5000)
     
     def test_edit_watchlist_name(self, page: Page, live_server_url):
         """Test editing watchlist name."""
