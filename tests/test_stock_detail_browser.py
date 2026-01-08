@@ -126,11 +126,12 @@ class TestStockDetailBrowser:
         if option_table.count() > 0:
             expect(option_table.first).to_be_visible()
             # Check table headers - scope to Option Data table to avoid matching Covered Calls table
+            # Use .first to handle multiple matches (Put and Call both have Last/Bid/Ask headers)
             option_data_section = page.locator("#option-data")
-            expect(option_data_section.locator("th:has-text('Strike')")).to_be_visible()
-            expect(option_data_section.locator("th:has-text('Last')")).to_be_visible()
-            expect(option_data_section.locator("th:has-text('Bid')")).to_be_visible()
-            expect(option_data_section.locator("th:has-text('Ask')")).to_be_visible()
+            expect(option_data_section.locator("th:has-text('Strike')").first).to_be_visible()
+            expect(option_data_section.locator("th:has-text('Last')").first).to_be_visible()
+            expect(option_data_section.locator("th:has-text('Bid')").first).to_be_visible()
+            expect(option_data_section.locator("th:has-text('Ask')").first).to_be_visible()
         
         # Check that covered calls table exists (need to switch to that tab first)
         covered_calls_tab = page.locator("button#covered-calls-tab")
