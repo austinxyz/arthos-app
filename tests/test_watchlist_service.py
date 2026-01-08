@@ -209,6 +209,17 @@ class TestAddStocksToWatchList:
         assert any(s.ticker == "MSFT" for s in added)
         assert "INVALID12345" in invalid
         assert "BADTICKER" in invalid
+    
+    def test_add_stocks_ticker_not_exists_in_yfinance(self):
+        """Test that tickers that pass format validation but don't exist in yfinance are filtered out."""
+        watchlist = create_watchlist("Test WatchList")
+        # SDSK passes format validation but doesn't exist in yfinance
+        added, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["SDSK", "AAPL"])
+        
+        assert len(added) == 1
+        assert len(invalid) == 1
+        assert any(s.ticker == "AAPL" for s in added)
+        assert "SDSK" in invalid
 
 
 class TestRemoveStockFromWatchList:

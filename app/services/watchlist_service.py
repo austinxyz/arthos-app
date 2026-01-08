@@ -146,6 +146,7 @@ def delete_watchlist(watchlist_id: UUID) -> bool:
 def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[List[WatchListStock], List[str]]:
     """
     Add stocks to a watchlist. Ignores duplicates and filters out invalid tickers.
+    Validates both ticker format and that the ticker exists in yfinance.
     
     Args:
         watchlist_id: WatchList UUID
@@ -161,7 +162,27 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
     watchlist = get_watchlist(watchlist_id)
     
     # Validate ticker formats - filter out invalid ones instead of raising error
-    valid_tickers, invalid_tickers = validate_ticker_list(tickers)
+    valid_format_tickers, invalid_format_tickers = validate_ticker_list(tickers)
+    
+    # Now validate that tickers actually exist in yfinance
+    from app.services.stock_service import fetch_stock_data
+    
+    valid_tickers = []
+    invalid_tickers = list(invalid_format_tickers)  # Start with format-invalid tickers
+    
+    for ticker in valid_format_tickers:
+        ticker = ticker.upper()
+        try:
+            # Try to fetch data to verify ticker exists in yfinance
+            # Use a minimal fetch to avoid caching and speed up validation
+            data = fetch_stock_data(ticker)
+            if data is not None and len(data) > 0:
+                valid_tickers.append(ticker)
+            else:
+                invalid_tickers.append(ticker)
+        except (ValueError, Exception) as e:
+            # If fetching fails (ticker doesn't exist), add to invalid list
+            invalid_tickers.append(ticker)
     
     if not valid_tickers:
         return [], invalid_tickers
@@ -170,8 +191,6 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
         added_stocks = []
         
         for ticker in valid_tickers:
-            ticker = ticker.upper()
-            
             # Check if stock already exists in watchlist
             statement = select(WatchListStock).where(
                 WatchListStock.watchlist_id == watchlist_id,
