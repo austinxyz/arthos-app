@@ -172,20 +172,35 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
     
     for ticker in valid_format_tickers:
         ticker = ticker.upper()
+        is_valid = False
         try:
             # Try to fetch data to verify ticker exists in yfinance
             # This will raise ValueError if ticker doesn't exist or has no data
             data = fetch_stock_data(ticker)
-            # Double-check: data should not be None or empty
+            # Double-check: data should not be None or empty, and should have required columns
             if data is None or len(data) == 0:
-                invalid_tickers.append(ticker)
+                print(f"Debug: Ticker {ticker} returned empty data, marking as invalid")
+            elif 'Close' not in data.columns:
+                print(f"Debug: Ticker {ticker} missing 'Close' column, marking as invalid")
+            elif len(data) < 1:
+                print(f"Debug: Ticker {ticker} has insufficient data points, marking as invalid")
             else:
-                valid_tickers.append(ticker)
+                # Additional validation: check if Close prices are valid (not all NaN)
+                if data['Close'].isna().all():
+                    print(f"Debug: Ticker {ticker} has all NaN Close prices, marking as invalid")
+                else:
+                    print(f"Debug: Ticker {ticker} validated successfully, {len(data)} data points")
+                    is_valid = True
+                    valid_tickers.append(ticker)
         except ValueError as e:
             # ValueError is raised when ticker doesn't exist or has no data
-            invalid_tickers.append(ticker)
+            print(f"Debug: Ticker {ticker} failed yfinance validation (ValueError): {e}")
         except Exception as e:
             # Catch any other exceptions (network errors, etc.) and treat as invalid
+            print(f"Debug: Ticker {ticker} failed yfinance validation (Exception): {e}")
+        
+        # If validation failed, add to invalid list
+        if not is_valid:
             invalid_tickers.append(ticker)
     
     if not valid_tickers:
