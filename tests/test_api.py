@@ -1,6 +1,15 @@
 """Tests for API endpoints."""
 import pytest
 from fastapi import status
+from app.database import create_db_and_tables
+
+
+@pytest.fixture(autouse=True)
+def setup_database():
+    """Create database tables before each test."""
+    create_db_and_tables()
+    yield
+    # Cleanup is handled by cache service tests if needed
 
 
 class TestStockAPI:
