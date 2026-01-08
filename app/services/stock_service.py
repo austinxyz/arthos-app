@@ -344,9 +344,10 @@ def calculate_5day_price_movement(data: pd.DataFrame, sma_50: float) -> Tuple[fl
         return (0.0, True)
     
     # Convert price change to standard deviations
-    movement_in_stddev = price_change / std_dev
+    movement_in_stddev = float(price_change / std_dev)
     
-    is_positive = price_change >= 0
+    # Ensure Python bool (not numpy bool) for JSON serialization
+    is_positive = bool(price_change >= 0)
     
     return (movement_in_stddev, is_positive)
 
@@ -465,7 +466,7 @@ def get_stock_metrics(ticker: str) -> Dict[str, Any]:
         "dividend_yield": round(dividend_yield, 2) if dividend_yield is not None else None,
         "movement_5day_stddev": round(movement_5day, 4),
         "is_price_positive_5day": bool(is_price_positive),  # Convert numpy bool to Python bool for JSON serialization
-        "data_points": len(data),
+        "data_points": int(len(data)),  # Ensure Python int (not numpy int64) for JSON serialization
         "cached": bool(cached_result)  # Ensure Python bool for JSON serialization
     }
     

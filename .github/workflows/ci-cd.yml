@@ -59,7 +59,7 @@ jobs:
       env:
         DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
       run: |
-        pytest tests/ -v --tb=short -k "not browser"
+        pytest tests/ -v --tb=short -k "not browser and not e2e"
     
     - name: Run browser tests
       env:

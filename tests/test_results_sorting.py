@@ -76,6 +76,7 @@ def test_results_page_signal_sorting(browser_page: Page, client):
                 f"Sorting incorrect: {signals[i]} (priority {current_priority}) should come before {signals[i + 1]} (priority {next_priority})"
 
 
+@pytest.mark.skip(reason="Requires server to be running on localhost:8000")
 def test_results_page_signal_sorting_manual(browser_page: Page):
     """Test sorting by manually navigating to a running server."""
     # This test assumes the server is running on localhost:8000
