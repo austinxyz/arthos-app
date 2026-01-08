@@ -24,6 +24,7 @@ def browser_page():
         browser.close()
 
 
+@pytest.mark.browser
 def test_results_page_signal_sorting(browser_page: Page, client):
     """Test that results page sorts by Signal correctly."""
     # Start the FastAPI server in a separate process or use the test client

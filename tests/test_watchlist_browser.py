@@ -51,6 +51,7 @@ def live_server_url():
     return "http://localhost:8000"
 
 
+@pytest.mark.browser
 class TestWatchListBrowser:
     """Browser tests for watchlist pages."""
     

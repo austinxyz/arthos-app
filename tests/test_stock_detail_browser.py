@@ -38,6 +38,7 @@ def live_server_url():
     return "http://localhost:8000"
 
 
+@pytest.mark.browser
 class TestStockDetailBrowser:
     """Browser tests for stock detail page."""
     
