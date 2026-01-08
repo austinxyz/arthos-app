@@ -15,10 +15,21 @@ from sqlmodel import Session
 
 @pytest.fixture(autouse=True)
 def setup_database():
-    """Create database tables before each test."""
+    """Create database tables and clean up before and after each test."""
     create_db_and_tables()
+    
+    # Cleanup BEFORE test: delete all cache entries
+    with Session(engine) as session:
+        from sqlmodel import select
+        statement = select(StockCache)
+        all_entries = session.exec(statement).all()
+        for entry in all_entries:
+            session.delete(entry)
+        session.commit()
+    
     yield
-    # Cleanup: delete all cache entries after each test
+    
+    # Cleanup AFTER test: delete all cache entries
     with Session(engine) as session:
         from sqlmodel import select
         statement = select(StockCache)
