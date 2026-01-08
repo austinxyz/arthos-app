@@ -1,4 +1,5 @@
 """FastAPI application for Arthos investment analysis."""
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Query, Path as FPath
 from fastapi.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
@@ -9,13 +10,11 @@ from app.services.stock_service import get_stock_metrics
 from app.database import create_db_and_tables
 from pydantic import BaseModel
 
-# Initialize FastAPI app
-app = FastAPI(title="Arthos", description="Investment Analysis Platform")
 
-# Initialize database tables on startup
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database tables on application startup."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for FastAPI app startup and shutdown."""
+    # Startup
     create_db_and_tables()
     # Purge cache entries with invalid versions (e.g., when cache structure changes)
     # This is done in a try-except to handle cases where the cache_version column
@@ -28,6 +27,19 @@ async def startup_event():
     except Exception as e:
         # Don't crash startup if cache purging fails
         print(f"Warning: Could not purge invalid cache versions on startup: {e}")
+    
+    yield
+    
+    # Shutdown (if needed in the future)
+    pass
+
+
+# Initialize FastAPI app with lifespan handler
+app = FastAPI(
+    title="Arthos",
+    description="Investment Analysis Platform",
+    lifespan=lifespan
+)
 
 # Set up templates directory
 templates_dir = Path(__file__).parent / "templates"

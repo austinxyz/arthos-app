@@ -52,7 +52,7 @@ class TestStockDetailBrowser:
         page.wait_for_load_state("networkidle", timeout=30000)
         
         # Check page title
-        expect(page).to_have_title(f"{ticker} - Stock Details - Arthos", timeout=10000)
+        expect(page).to_have_title(f"Stock: {ticker} - Arthos", timeout=10000)
         
         # Check main heading
         expect(page.locator(f"h1:has-text('{ticker}')")).to_be_visible()
@@ -93,7 +93,7 @@ class TestStockDetailBrowser:
         
         # Check for HR separator (should be after chart)
         hr_elements = page.locator("hr")
-        expect(hr_elements.first()).to_be_visible()
+        expect(hr_elements.first).to_be_visible()
         
         # Check that tabs exist
         expect(page.locator("ul.nav-tabs")).to_be_visible(timeout=15000)
@@ -124,7 +124,7 @@ class TestStockDetailBrowser:
         # Check that option data table exists (even if empty)
         option_table = page.locator("table").filter(has_text="Put")
         if option_table.count() > 0:
-            expect(option_table.first()).to_be_visible()
+            expect(option_table.first).to_be_visible()
             # Check table headers
             expect(page.locator("th:has-text('Strike')")).to_be_visible()
             expect(page.locator("th:has-text('Last')")).to_be_visible()
@@ -147,7 +147,7 @@ class TestStockDetailBrowser:
         # Check for any error messages
         error_messages = page.locator(".alert-danger, .text-danger, .error")
         if error_messages.count() > 0:
-            error_text = error_messages.first().inner_text()
+            error_text = error_messages.first.inner_text()
             pytest.fail(f"Error found on page: {error_text}")
         
         # Check console for errors
@@ -206,7 +206,7 @@ class TestStockDetailBrowser:
                 continue
             
             # Get current price
-            current_price_text = current_price_elem.first().inner_text().strip()
+            current_price_text = current_price_elem.first.inner_text().strip()
             try:
                 current_price = float(current_price_text.replace("$", "").replace(",", ""))
             except ValueError:
@@ -279,7 +279,7 @@ class TestStockDetailBrowser:
             if current_price_elem.count() == 0:
                 continue
             
-            current_price_text = current_price_elem.first().inner_text().strip()
+            current_price_text = current_price_elem.first.inner_text().strip()
             try:
                 current_price = float(current_price_text.replace("$", "").replace(",", ""))
             except ValueError:
@@ -368,7 +368,7 @@ class TestStockDetailBrowser:
         if current_price_elem.count() == 0:
             pytest.skip("Could not find current price")
         
-        current_price_text = current_price_elem.first().inner_text().strip()
+        current_price_text = current_price_elem.first.inner_text().strip()
         try:
             current_price = float(current_price_text.replace("$", "").replace(",", ""))
         except ValueError:
@@ -497,7 +497,7 @@ class TestStockDetailBrowser:
         # Check if Option Data table exists and is visible
         option_table = page.locator("#option-data table")
         if option_table.count() > 0:
-            expect(option_table.first()).to_be_visible()
+            expect(option_table.first).to_be_visible()
         
         # Covered Calls content should exist but may not be visible initially (depends on Bootstrap)
         covered_calls_pane = page.locator("#covered-calls.tab-pane")
@@ -518,7 +518,7 @@ class TestStockDetailBrowser:
         # Check if Covered Calls table exists and is visible
         covered_calls_table = page.locator("#covered-calls table")
         if covered_calls_table.count() > 0:
-            expect(covered_calls_table.first()).to_be_visible()
+            expect(covered_calls_table.first).to_be_visible()
     
     def test_current_price_timestamp_displayed(self, page: Page, live_server_url):
         """Test that the timestamp of current stock price data is displayed above Current Price."""
