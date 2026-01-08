@@ -174,14 +174,18 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
         ticker = ticker.upper()
         try:
             # Try to fetch data to verify ticker exists in yfinance
-            # Use a minimal fetch to avoid caching and speed up validation
+            # This will raise ValueError if ticker doesn't exist or has no data
             data = fetch_stock_data(ticker)
-            if data is not None and len(data) > 0:
-                valid_tickers.append(ticker)
-            else:
+            # Double-check: data should not be None or empty
+            if data is None or len(data) == 0:
                 invalid_tickers.append(ticker)
-        except (ValueError, Exception) as e:
-            # If fetching fails (ticker doesn't exist), add to invalid list
+            else:
+                valid_tickers.append(ticker)
+        except ValueError as e:
+            # ValueError is raised when ticker doesn't exist or has no data
+            invalid_tickers.append(ticker)
+        except Exception as e:
+            # Catch any other exceptions (network errors, etc.) and treat as invalid
             invalid_tickers.append(ticker)
     
     if not valid_tickers:
