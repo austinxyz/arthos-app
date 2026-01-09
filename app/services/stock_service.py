@@ -3,7 +3,6 @@ import yfinance as yf
 import pandas as pd
 from typing import Dict, Any, Tuple, List, Optional
 from datetime import datetime, timedelta
-from app.services.cache_service import get_cached_data, set_cached_data
 
 
 def fetch_intraday_data(ticker: str) -> Optional[pd.DataFrame]:
@@ -375,111 +374,9 @@ def calculate_signal(devstep: float) -> str:
         return "Extreme Overbought"
 
 
-def get_stock_metrics(ticker: str) -> Dict[str, Any]:
-    """
-    Fetch stock data and calculate all required metrics.
-    Uses cache if available and not expired (60 minutes).
-    Fetches 2 years of data to enable proper SMA calculations.
-    
-    Args:
-        ticker: Stock ticker symbol
-        
-    Returns:
-        Dictionary containing:
-        - ticker: Stock ticker
-        - sma_50: 50-day Simple Moving Average
-        - sma_200: 200-day Simple Moving Average
-        - devstep: Number of standard deviations from 50-day SMA
-        - signal: Trading signal
-        - current_price: Current stock price
-        - dividend_yield: Dividend yield as a percentage
-        - data_points: Number of data points fetched
-        - cached: Boolean indicating if data came from cache
-        - cache_timestamp: ISO timestamp of cache entry (if cached)
-    """
-    cached_result = None
-    cache_timestamp = None
-    
-    # Try to get from cache first
-    cached_data = get_cached_data(ticker)
-    if cached_data:
-        data, cache_timestamp = cached_data
-        cached_result = True
-    else:
-        # Fetch from yfinance
-        data = fetch_stock_data(ticker)
-        # Cache the fetched data
-        set_cached_data(ticker, data)
-        cached_result = False
-    
-    # Calculate SMAs
-    sma_50 = calculate_sma(data, 50)
-    sma_200 = calculate_sma(data, 200)
-    
-    # Calculate devstep
-    devstep = calculate_devstep(data, sma_50)
-    
-    # Calculate 5-day price movement in standard deviations
-    movement_5day, is_price_positive = calculate_5day_price_movement(data, sma_50)
-    
-    # Calculate signal
-    signal = calculate_signal(devstep)
-    
-    # Get current price
-    current_price = float(data['Close'].iloc[-1])
-    
-    # Fetch dividend yield from yfinance
-    dividend_yield = None
-    try:
-        stock = yf.Ticker(ticker)
-        info = stock.info
-        # dividendYield from yfinance is typically returned as a decimal fraction
-        # (e.g., 0.0266 for 2.66%, or 0.0064 for 0.64%)
-        # However, some data may be inconsistent and returned as a percentage
-        # We use a heuristic: if converting to percentage gives unreasonable value (>20%),
-        # treat original as already a percentage
-        if 'dividendYield' in info and info['dividendYield'] is not None:
-            raw_value = float(info['dividendYield'])
-            
-            # Try treating as decimal fraction first (standard yfinance format)
-            as_percentage = raw_value * 100
-            
-            # If converted value is unreasonable (>20%), likely already a percentage
-            # Most dividend yields are between 0% and 15%, very few exceed 20%
-            if as_percentage > 20:
-                # Value is likely already a percentage (e.g., 0.58 means 0.58%)
-                dividend_yield = raw_value
-            else:
-                # Value is a decimal fraction (e.g., 0.0064 means 0.64%)
-                dividend_yield = as_percentage
-    except Exception:
-        # If dividend yield cannot be fetched, leave it as None
-        dividend_yield = None
-    
-    result = {
-        "ticker": ticker.upper(),
-        "sma_50": round(sma_50, 2),
-        "sma_200": round(sma_200, 2),
-        "devstep": round(devstep, 4),
-        "signal": signal,
-        "current_price": round(current_price, 2),
-        "dividend_yield": round(dividend_yield, 2) if dividend_yield is not None else None,
-        "movement_5day_stddev": round(movement_5day, 4),
-        "is_price_positive_5day": bool(is_price_positive),  # Convert numpy bool to Python bool for JSON serialization
-        "data_points": int(len(data)),  # Ensure Python int (not numpy int64) for JSON serialization
-        "cached": bool(cached_result)  # Ensure Python bool for JSON serialization
-    }
-    
-    # Add cache_timestamp only if data was cached
-    if cached_result and cache_timestamp:
-        result["cache_timestamp"] = cache_timestamp.isoformat()
-    
-    return result
-
-
 def get_multiple_stock_metrics(tickers: list) -> list:
     """
-    Fetch stock metrics for multiple tickers.
+    Fetch stock metrics for multiple tickers from database.
     
     Args:
         tickers: List of stock ticker symbols
@@ -488,6 +385,8 @@ def get_multiple_stock_metrics(tickers: list) -> list:
         List of dictionaries containing metrics for each ticker.
         Failed tickers will have an 'error' field instead of metrics.
     """
+    from app.services.stock_price_service import get_stock_metrics_from_db
+    
     results = []
     for ticker in tickers:
         ticker = ticker.strip().upper()
@@ -495,7 +394,7 @@ def get_multiple_stock_metrics(tickers: list) -> list:
             continue
         
         try:
-            metrics = get_stock_metrics(ticker)
+            metrics = get_stock_metrics_from_db(ticker)
             results.append(metrics)
         except Exception as e:
             # Add error entry for failed ticker

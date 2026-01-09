@@ -27,7 +27,7 @@ def setup_database():
     # Cleanup
     with Session(engine) as session:
         from sqlmodel import select
-        from app.models.stock_price import StockPrice, StockPriceWatermark
+        from app.models.stock_price import StockPrice, StockAttributes
         
         statement = select(WatchListStock)
         all_stocks = session.exec(statement).all()
@@ -45,10 +45,10 @@ def setup_database():
         for price in all_prices:
             session.delete(price)
         
-        statement = select(StockPriceWatermark)
-        all_watermarks = session.exec(statement).all()
-        for watermark in all_watermarks:
-            session.delete(watermark)
+        statement = select(StockAttributes)
+        all_attributes = session.exec(statement).all()
+        for attributes in all_attributes:
+            session.delete(attributes)
         
         session.commit()
 

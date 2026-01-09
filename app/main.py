@@ -6,7 +6,7 @@ from starlette.templating import Jinja2Templates
 from starlette.responses import RedirectResponse
 from pathlib import Path
 from uuid import UUID
-from app.services.stock_service import get_stock_metrics
+from app.services.stock_price_service import get_stock_metrics_from_db
 from app.database import create_db_and_tables
 from pydantic import BaseModel
 
@@ -16,22 +16,25 @@ async def lifespan(app: FastAPI):
     """Lifespan event handler for FastAPI app startup and shutdown."""
     # Startup
     create_db_and_tables()
-    # Purge cache entries with invalid versions (e.g., when cache structure changes)
-    # This is done in a try-except to handle cases where the cache_version column
-    # doesn't exist yet in the database (will be created on next cache write)
+    
+    # Start the scheduler for fetching stock data every 60 minutes
     try:
-        from app.services.cache_service import purge_invalid_cache_versions
-        purged_count = purge_invalid_cache_versions()
-        if purged_count > 0:
-            print(f"Purged {purged_count} cache entries with invalid versions")
+        from app.services.scheduler_service import start_scheduler
+        start_scheduler()
+        print("Scheduler started for fetching stock data every 60 minutes")
     except Exception as e:
-        # Don't crash startup if cache purging fails
-        print(f"Warning: Could not purge invalid cache versions on startup: {e}")
+        # Don't crash startup if scheduler fails
+        print(f"Warning: Could not start scheduler: {e}")
     
     yield
     
-    # Shutdown (if needed in the future)
-    pass
+    # Shutdown
+    try:
+        from app.services.scheduler_service import stop_scheduler
+        stop_scheduler()
+        print("Scheduler stopped")
+    except Exception as e:
+        print(f"Warning: Could not stop scheduler: {e}")
 
 
 # Initialize FastAPI app with lifespan handler
@@ -290,8 +293,7 @@ async def results(request: Request, tickers: str = Query(..., description="Comma
 @app.get("/v1/stock")
 async def get_stock_data(q: str = Query(..., description="Stock ticker symbol")):
     """
-    Fetch past 365 days of stock data and compute metrics.
-    Uses caching to avoid unnecessary yfinance API calls (60-minute cache).
+    Fetch stock data and compute metrics from database.
     
     Args:
         q: Stock ticker symbol (e.g., 'AAPL', 'MSFT')
@@ -305,15 +307,15 @@ async def get_stock_data(q: str = Query(..., description="Stock ticker symbol"))
         - signal: Trading signal (Neutral, Overbought, etc.)
         - current_price: Current stock price
         - dividend_yield: Dividend yield as a percentage (None if not available)
-        - data_points: Number of data points fetched
-        - cached: Boolean indicating if data came from cache
-        - cache_timestamp: ISO timestamp of cache entry (only if cached=true)
+        - data_points: Number of data points
+        - movement_5day_stddev: 5-day price movement in standard deviations
+        - is_price_positive_5day: Whether price moved up in last 5 days
     """
     if not q or not q.strip():
         raise HTTPException(status_code=400, detail="Ticker symbol (q) is required")
     
     try:
-        metrics = get_stock_metrics(q.strip().upper())
+        metrics = get_stock_metrics_from_db(q.strip().upper())
         return metrics
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -592,17 +594,17 @@ async def test_stock_price_page(request: Request, ticker: str = Query("", descri
     Returns:
         HTML page with stock price data
     """
-    from app.services.stock_price_service import get_stock_prices_from_db, get_watermark
+    from app.services.stock_price_service import get_stock_prices_from_db, get_stock_attributes
     
     prices = []
-    watermark = None
+    attributes = None
     error_message = None
     
     if ticker:
         ticker = ticker.strip().upper()
         try:
             prices = get_stock_prices_from_db(ticker)
-            watermark = get_watermark(ticker)
+            attributes = get_stock_attributes(ticker)
         except Exception as e:
             error_message = f"Error fetching data: {str(e)}"
     
@@ -620,19 +622,21 @@ async def test_stock_price_page(request: Request, ticker: str = Query("", descri
             "dma_200": float(price.dma_200) if price.dma_200 else None
         })
     
-    watermark_data = None
-    if watermark:
-        watermark_data = {
-            "ticker": watermark.ticker,
-            "earliest_date": watermark.earliest_date.isoformat(),
-            "latest_date": watermark.latest_date.isoformat()
+    attributes_data = None
+    if attributes:
+        attributes_data = {
+            "ticker": attributes.ticker,
+            "earliest_date": attributes.earliest_date.isoformat(),
+            "latest_date": attributes.latest_date.isoformat(),
+            "dividend_amt": float(attributes.dividend_amt) if attributes.dividend_amt else None,
+            "dividend_yield": float(attributes.dividend_yield) if attributes.dividend_yield else None
         }
     
     return templates.TemplateResponse("test_stock_price.html", {
         "request": request,
         "ticker": ticker if ticker else "",
         "prices": prices_data,
-        "watermark": watermark_data,
+        "attributes": attributes_data,
         "error_message": error_message
     })
 

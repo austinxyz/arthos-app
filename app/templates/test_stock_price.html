@@ -30,7 +30,7 @@
             margin-top: 10px;
             display: none;
         }
-        .watermark-card {
+        .attributes-card {
             margin-bottom: 20px;
         }
     </style>
@@ -73,23 +73,27 @@
             </div>
         </div>
         
-        {% if watermark %}
-        <div class="card watermark-card">
+        {% if attributes %}
+        <div class="card attributes-card">
             <div class="card-body">
-                <h5 class="card-title">Watermark Data</h5>
+                <h5 class="card-title">Stock Attributes</h5>
                 <table class="table table-bordered">
                     <thead class="table-light">
                         <tr>
                             <th>Ticker</th>
                             <th>Earliest Date</th>
                             <th>Latest Date</th>
+                            <th>Dividend Amount</th>
+                            <th>Dividend Yield</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td><strong>{{ watermark.ticker }}</strong></td>
-                            <td>{{ watermark.earliest_date }}</td>
-                            <td>{{ watermark.latest_date }}</td>
+                            <td><strong>{{ attributes.ticker }}</strong></td>
+                            <td>{{ attributes.earliest_date }}</td>
+                            <td>{{ attributes.latest_date }}</td>
+                            <td>{% if attributes.dividend_amt %}${{ "%.4f"|format(attributes.dividend_amt) }}{% else %}N/A{% endif %}</td>
+                            <td>{% if attributes.dividend_yield %}{{ "%.4f"|format(attributes.dividend_yield) }}%{% else %}N/A{% endif %}</td>
                         </tr>
                     </tbody>
                 </table>

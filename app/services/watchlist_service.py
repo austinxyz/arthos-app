@@ -2,9 +2,10 @@
 from sqlmodel import Session, select
 from app.database import engine
 from app.models.watchlist import WatchList, WatchListStock
+from app.models.stock_price import StockPrice
 from app.services.ticker_validator import validate_ticker_list
 from app.services.stock_service import get_multiple_stock_metrics
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Dict, Any
 from uuid import UUID
 
@@ -318,32 +319,97 @@ def get_watchlist_stocks(watchlist_id: UUID) -> List[WatchListStock]:
 def get_watchlist_stocks_with_metrics(watchlist_id: UUID) -> List[Dict[str, Any]]:
     """
     Get all stocks in a watchlist with their current metrics.
-    Reads price data from stock_price table (not from yfinance cache).
+    Reads from stock_attributes table and current day's stock_price table (not from yfinance cache).
+    Uses get_stock_metrics_from_db to calculate devstep, signal, and 5-day movement.
     
     Args:
         watchlist_id: WatchList UUID
         
     Returns:
-        List of dictionaries containing stock metrics
+        List of dictionaries containing stock metrics with all columns from stock_attributes
     """
-    from app.services.stock_price_service import get_stock_metrics_from_db
+    from app.services.stock_price_service import get_stock_attributes, get_stock_metrics_from_db
+    from app.models.stock_price import StockPrice
+    from datetime import date
     
     stocks = get_watchlist_stocks(watchlist_id)
     
     if not stocks:
         return []
     
-    # Get metrics from stock_price table for each ticker
+    # Get metrics from stock_attributes and current day's stock_price for each ticker
     metrics_list = []
+    today = date.today()
+    
     for stock in stocks:
         ticker = stock.ticker
         try:
-            metric = get_stock_metrics_from_db(ticker)
+            # Get stock attributes (includes dividend_amt, dividend_yield, earliest_date, latest_date)
+            attributes = get_stock_attributes(ticker)
+            
+            if not attributes:
+                metrics_list.append({
+                    "ticker": ticker,
+                    "error": f"No stock attributes found for ticker: {ticker}"
+                })
+                continue
+            
+            # Get current day's stock price data
+            with Session(engine) as session:
+                statement = select(StockPrice).where(
+                    StockPrice.ticker == ticker.upper(),
+                    StockPrice.price_date == today
+                )
+                current_price_record = session.exec(statement).first()
+                
+                if not current_price_record:
+                    # Try to get the latest available price
+                    statement = select(StockPrice).where(
+                        StockPrice.ticker == ticker.upper()
+                    ).order_by(StockPrice.price_date.desc())
+                    current_price_record = session.exec(statement).first()
+                
+                if not current_price_record:
+                    metrics_list.append({
+                        "ticker": ticker,
+                        "error": f"No price data found for ticker: {ticker}"
+                    })
+                    continue
+            
+            # Get calculated metrics (devstep, signal, movement_5day_stddev, etc.) from database
+            try:
+                calculated_metrics = get_stock_metrics_from_db(ticker)
+            except Exception as e:
+                # If calculation fails, use defaults
+                calculated_metrics = {
+                    "devstep": 0.0,
+                    "signal": "Neutral",
+                    "movement_5day_stddev": 0.0,
+                    "is_price_positive_5day": True
+                }
+            
+            # Build metrics dictionary with all data from stock_attributes, current day's stock_price, and calculated metrics
+            metric = {
+                "ticker": ticker.upper(),
+                "current_price": float(current_price_record.close_price),
+                "sma_50": float(current_price_record.dma_50) if current_price_record.dma_50 else None,
+                "sma_200": float(current_price_record.dma_200) if current_price_record.dma_200 else None,
+                "dividend_amt": float(attributes.dividend_amt) if attributes.dividend_amt else None,
+                "dividend_yield": float(attributes.dividend_yield) if attributes.dividend_yield else None,
+                "earliest_date": attributes.earliest_date.isoformat(),
+                "latest_date": attributes.latest_date.isoformat(),
+                # Use calculated metrics for trading range widget
+                "devstep": calculated_metrics.get("devstep", 0.0),
+                "signal": calculated_metrics.get("signal", "Neutral"),
+                "movement_5day_stddev": calculated_metrics.get("movement_5day_stddev", 0.0),
+                "is_price_positive_5day": calculated_metrics.get("is_price_positive_5day", True),
+            }
             
             # Format numbers for display
             metric['current_price_formatted'] = f"${metric['current_price']:.2f}"
             metric['sma_50_formatted'] = f"${metric['sma_50']:.2f}" if metric['sma_50'] else "N/A"
             metric['sma_200_formatted'] = f"${metric['sma_200']:.2f}" if metric['sma_200'] else "N/A"
+            metric['dividend_amt_formatted'] = f"${metric['dividend_amt']:.2f}" if metric['dividend_amt'] else "N/A"
             metric['stddev_50d_formatted'] = f"{metric['devstep']:.1f}"
             
             # Format dividend yield

@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from sqlmodel import Session
 from app.database import engine
-from app.models.stock_price import StockPrice, StockPriceWatermark
+from app.models.stock_price import StockPrice, StockAttributes
 
 
 @pytest.fixture
@@ -86,17 +86,19 @@ def populate_test_stock_prices(ticker: str, num_days: int = 365, base_price: flo
         
         session.commit()
         
-        # Create or update watermark
-        watermark = session.get(StockPriceWatermark, ticker_upper)
-        if watermark:
-            watermark.earliest_date = earliest_date
-            watermark.latest_date = latest_date
+        # Create or update stock attributes
+        attributes = session.get(StockAttributes, ticker_upper)
+        if attributes:
+            attributes.earliest_date = earliest_date
+            attributes.latest_date = latest_date
         else:
-            watermark = StockPriceWatermark(
+            attributes = StockAttributes(
                 ticker=ticker_upper,
                 earliest_date=earliest_date,
-                latest_date=latest_date
+                latest_date=latest_date,
+                dividend_amt=None,
+                dividend_yield=None
             )
-            session.add(watermark)
+            session.add(attributes)
         
         session.commit()

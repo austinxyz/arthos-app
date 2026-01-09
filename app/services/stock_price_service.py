@@ -1,4 +1,4 @@
-"""Service for managing stock price data and watermarks."""
+"""Service for managing stock price data and attributes."""
 import yfinance as yf
 import pandas as pd
 import statistics
@@ -7,52 +7,71 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional, Tuple, Dict, Any
 from app.database import engine
-from app.models.stock_price import StockPrice, StockPriceWatermark
+from app.models.stock_price import StockPrice, StockAttributes
 
 
-def get_watermark(ticker: str) -> Optional[StockPriceWatermark]:
+def get_stock_attributes(ticker: str) -> Optional[StockAttributes]:
     """
-    Get watermark for a ticker.
+    Get stock attributes for a ticker.
     
     Args:
         ticker: Stock ticker symbol
         
     Returns:
-        StockPriceWatermark if exists, None otherwise
+        StockAttributes if exists, None otherwise
     """
     with Session(engine) as session:
-        watermark = session.get(StockPriceWatermark, ticker.upper())
-        return watermark
+        attributes = session.get(StockAttributes, ticker.upper())
+        return attributes
 
 
-def update_watermark(ticker: str, earliest_date: date, latest_date: date):
+def update_stock_attributes(ticker: str, earliest_date: date, latest_date: date, 
+                           dividend_amt: Optional[Decimal] = None, 
+                           dividend_yield: Optional[Decimal] = None,
+                           current_price: Optional[float] = None):
     """
-    Create or update watermark for a ticker.
+    Create or update stock attributes for a ticker.
     
     Args:
         ticker: Stock ticker symbol
         earliest_date: Earliest date with data
         latest_date: Latest date with data
+        dividend_amt: Annual dividend amount (optional)
+        dividend_yield: Dividend yield as percentage (optional)
+        current_price: Current stock price (used to calculate dividend_yield if not provided)
     """
     with Session(engine) as session:
         ticker_upper = ticker.upper()
-        watermark = session.get(StockPriceWatermark, ticker_upper)
+        attributes = session.get(StockAttributes, ticker_upper)
         
-        if watermark:
-            # Update existing watermark
-            watermark.earliest_date = min(watermark.earliest_date, earliest_date)
-            watermark.latest_date = max(watermark.latest_date, latest_date)
+        if attributes:
+            # Update existing attributes
+            attributes.earliest_date = min(attributes.earliest_date, earliest_date)
+            attributes.latest_date = max(attributes.latest_date, latest_date)
+            if dividend_amt is not None:
+                attributes.dividend_amt = dividend_amt
+            if dividend_yield is not None:
+                attributes.dividend_yield = dividend_yield
+            elif dividend_amt is not None and current_price is not None and current_price > 0:
+                # Calculate dividend yield if not provided but dividend_amt and current_price are available
+                attributes.dividend_yield = Decimal(str((float(dividend_amt) / current_price) * 100)).quantize(Decimal('0.0001'))
         else:
-            # Create new watermark
-            watermark = StockPriceWatermark(
+            # Create new attributes
+            # Calculate dividend_yield if dividend_amt and current_price are provided but dividend_yield is not
+            if dividend_yield is None and dividend_amt is not None and current_price is not None and current_price > 0:
+                dividend_yield = Decimal(str((float(dividend_amt) / current_price) * 100)).quantize(Decimal('0.0001'))
+            
+            attributes = StockAttributes(
                 ticker=ticker_upper,
                 earliest_date=earliest_date,
-                latest_date=latest_date
+                latest_date=latest_date,
+                dividend_amt=dividend_amt,
+                dividend_yield=dividend_yield
             )
-            session.add(watermark)
+            session.add(attributes)
         
         session.commit()
-        session.refresh(watermark)
+        session.refresh(attributes)
 
 
 def save_stock_prices(ticker: str, price_data: pd.DataFrame):
@@ -217,15 +236,16 @@ def save_stock_prices(ticker: str, price_data: pd.DataFrame):
         
         session.commit()
         
-        # Update watermark
-        if earliest_date and latest_date:
-            update_watermark(ticker_upper, earliest_date, latest_date)
+        # Note: stock_attributes will be created/updated by fetch_and_save_stock_prices
+        # after successful data save. We don't update it here in save_stock_prices
+        # to ensure it's only created after successful fetch.
 
 
 def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
     """
     Fetch stock price data from yfinance and save to database.
-    Uses watermark to determine what data to fetch.
+    Also updates stock attributes (dividend_amt, dividend_yield).
+    Uses stock attributes to determine what data to fetch.
     
     Args:
         ticker: Stock ticker symbol
@@ -239,24 +259,24 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
     ticker_upper = ticker.upper()
     today = datetime.now().date()
     
-    # Check watermark
-    watermark = get_watermark(ticker_upper)
+    # Check stock attributes
+    attributes = get_stock_attributes(ticker_upper)
     
-    if watermark is None:
+    if attributes is None:
         # No watermark - fetch 2 years of data
         start_date = datetime.now() - timedelta(days=730)
         end_date = datetime.now()
         fetch_intraday = False
     else:
-        # Watermark exists - fetch data after latest_date
-        if watermark.latest_date >= today:
+        # Stock attributes exist - fetch data after latest_date
+        if attributes.latest_date >= today:
             # Latest date is today - fetch only current prices (intraday)
             start_date = None
             end_date = None
             fetch_intraday = True
         else:
             # Fetch data from latest_date + 1 day to today
-            start_date = datetime.combine(watermark.latest_date + timedelta(days=1), datetime.min.time())
+            start_date = datetime.combine(attributes.latest_date + timedelta(days=1), datetime.min.time())
             end_date = datetime.now()
             fetch_intraday = False
     
@@ -368,12 +388,15 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
         
         # Count records before saving
         records_before = 0
-        if watermark:
+        if attributes:
             with Session(engine) as session:
                 statement = select(StockPrice).where(StockPrice.ticker == ticker_upper)
                 records_before = len(session.exec(statement).all())
         
-        # Save to database
+        # Save to database - only proceed if we have data to save
+        if price_data.empty:
+            return pd.DataFrame(), 0
+        
         save_stock_prices(ticker_upper, price_data)
         
         # Count records after saving
@@ -382,6 +405,72 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
             records_after = len(session.exec(statement).all())
         
         new_records = records_after - records_before
+        
+        # Only create/update stock_attributes after successful data save
+        # Get date range from saved prices
+        price_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in price_data.index]
+        earliest_date = min(price_dates)
+        latest_date = max(price_dates)
+        
+        # If attributes exist, update date range to include existing data
+        if attributes:
+            earliest_date = min(attributes.earliest_date, earliest_date)
+            latest_date = max(attributes.latest_date, latest_date)
+        
+        # Fetch and update dividend information from yfinance
+        try:
+            stock = yf.Ticker(ticker_upper)
+            info = stock.info
+            
+            dividend_amt = None
+            dividend_yield = None
+            current_price = None
+            
+            # Get current price from latest saved data or from yfinance
+            if not price_data.empty:
+                current_price = float(price_data['Close'].iloc[-1])
+            else:
+                # Try to get from yfinance
+                if 'currentPrice' in info and info['currentPrice'] is not None:
+                    current_price = float(info['currentPrice'])
+                elif 'regularMarketPrice' in info and info['regularMarketPrice'] is not None:
+                    current_price = float(info['regularMarketPrice'])
+            
+            # Get dividend amount
+            if 'dividendRate' in info and info['dividendRate'] is not None:
+                dividend_amt = Decimal(str(float(info['dividendRate']))).quantize(Decimal('0.0001'))
+            
+            # Get dividend yield
+            if 'dividendYield' in info and info['dividendYield'] is not None:
+                raw_value = float(info['dividendYield'])
+                as_percentage = raw_value * 100
+                # If the value is already a percentage (> 20), use it as is, otherwise multiply by 100
+                if as_percentage > 20:
+                    dividend_yield = Decimal(str(raw_value)).quantize(Decimal('0.0001'))
+                else:
+                    dividend_yield = Decimal(str(as_percentage)).quantize(Decimal('0.0001'))
+            elif dividend_amt is not None and current_price is not None and current_price > 0:
+                # Calculate dividend yield from dividend amount and current price
+                dividend_yield = Decimal(str((float(dividend_amt) / current_price) * 100)).quantize(Decimal('0.0001'))
+            
+            # Create or update stock attributes with all information (only after successful data save)
+            update_stock_attributes(
+                ticker_upper, 
+                earliest_date, 
+                latest_date,
+                dividend_amt=dividend_amt,
+                dividend_yield=dividend_yield,
+                current_price=current_price
+            )
+        except Exception as e:
+            # Log error but don't fail the price data save
+            # Still create stock_attributes with date range even if dividend fetch fails
+            print(f"Warning: Could not update dividend information for {ticker_upper}: {e}")
+            update_stock_attributes(
+                ticker_upper, 
+                earliest_date, 
+                latest_date
+            )
         
         return price_data, new_records
         
@@ -549,19 +638,12 @@ def get_stock_metrics_from_db(ticker: str) -> Dict[str, Any]:
         price_change = current_price - price_earliest
         is_price_positive = price_change >= 0
     
-    # Fetch dividend yield from yfinance (still from yfinance)
+    # Get dividend yield from stock_attributes table (not from yfinance)
     dividend_yield = None
     try:
-        import yfinance as yf
-        stock = yf.Ticker(ticker.upper())
-        info = stock.info
-        if 'dividendYield' in info and info['dividendYield'] is not None:
-            raw_value = float(info['dividendYield'])
-            as_percentage = raw_value * 100
-            if as_percentage > 20:
-                dividend_yield = raw_value
-            else:
-                dividend_yield = as_percentage
+        attributes = get_stock_attributes(ticker)
+        if attributes and attributes.dividend_yield is not None:
+            dividend_yield = float(attributes.dividend_yield)
     except Exception:
         dividend_yield = None
     

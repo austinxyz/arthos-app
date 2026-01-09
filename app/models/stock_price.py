@@ -51,9 +51,9 @@ class StockPrice(SQLModel, table=True):
     )
 
 
-class StockPriceWatermark(SQLModel, table=True):
-    """Model for tracking date ranges of available stock price data."""
-    __tablename__ = "stock_price_wtrmrk"
+class StockAttributes(SQLModel, table=True):
+    """Model for storing stock attributes and tracking date ranges of available stock price data."""
+    __tablename__ = "stock_attributes"
     
     ticker: str = Field(
         max_length=8,
@@ -65,4 +65,14 @@ class StockPriceWatermark(SQLModel, table=True):
     )
     latest_date: date = Field(
         description="Latest date with data available in stock_price table"
+    )
+    dividend_amt: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="Annual dividend amount for the stock"
+    )
+    dividend_yield: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="Dividend yield as a percentage (dividend amount divided by current stock price)"
     )

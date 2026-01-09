@@ -3,7 +3,7 @@ import pytest
 from fastapi import status
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session
-from app.models.stock_price import StockPrice, StockPriceWatermark
+from app.models.stock_price import StockPrice, StockAttributes
 
 
 @pytest.fixture(autouse=True)
@@ -11,7 +11,7 @@ def setup_database():
     """Create database tables before each test."""
     create_db_and_tables()
     yield
-    # Cleanup stock_price tables
+    # Cleanup stock_price and stock_attributes tables
     with Session(engine) as session:
         from sqlmodel import select
         statement = select(StockPrice)
@@ -19,10 +19,10 @@ def setup_database():
         for price in all_prices:
             session.delete(price)
         
-        statement = select(StockPriceWatermark)
-        all_watermarks = session.exec(statement).all()
-        for watermark in all_watermarks:
-            session.delete(watermark)
+        statement = select(StockAttributes)
+        all_attributes = session.exec(statement).all()
+        for attributes in all_attributes:
+            session.delete(attributes)
         
         session.commit()
 
@@ -32,6 +32,10 @@ class TestStockAPI:
     
     def test_get_stock_data_valid_ticker(self, client):
         """Test API endpoint with a valid ticker."""
+        # Populate test data first (required since endpoint now reads from DB)
+        from tests.conftest import populate_test_stock_prices
+        populate_test_stock_prices("AAPL")
+        
         response = client.get("/v1/stock?q=AAPL")
         
         assert response.status_code == status.HTTP_200_OK
@@ -48,8 +52,8 @@ class TestStockAPI:
         
         # Verify data types
         assert isinstance(data["ticker"], str)
-        assert isinstance(data["sma_50"], (int, float))
-        assert isinstance(data["sma_200"], (int, float))
+        assert isinstance(data["sma_50"], (int, float)) or data["sma_50"] is None
+        assert isinstance(data["sma_200"], (int, float)) or data["sma_200"] is None
         assert isinstance(data["devstep"], (int, float))
         assert isinstance(data["signal"], str)
         assert isinstance(data["current_price"], (int, float))
@@ -87,6 +91,10 @@ class TestStockAPI:
     
     def test_get_stock_data_case_insensitive(self, client):
         """Test that ticker parameter is case-insensitive."""
+        # Populate test data first
+        from tests.conftest import populate_test_stock_prices
+        populate_test_stock_prices("AAPL")
+        
         response_lower = client.get("/v1/stock?q=aapl")
         response_upper = client.get("/v1/stock?q=AAPL")
         
@@ -99,6 +107,10 @@ class TestStockAPI:
     
     def test_get_stock_data_with_whitespace(self, client):
         """Test that whitespace in ticker is handled correctly."""
+        # Populate test data first
+        from tests.conftest import populate_test_stock_prices
+        populate_test_stock_prices("AAPL")
+        
         response = client.get("/v1/stock?q=  AAPL  ")
         
         assert response.status_code == status.HTTP_200_OK

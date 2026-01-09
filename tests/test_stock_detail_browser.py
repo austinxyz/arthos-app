@@ -3,8 +3,7 @@ import pytest
 from playwright.sync_api import Page, expect
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session
-from app.models.stock_cache import StockCache
-from app.models.stock_price import StockPrice, StockPriceWatermark
+from app.models.stock_price import StockPrice, StockAttributes
 from tests.conftest import populate_test_stock_prices
 
 
@@ -21,35 +20,21 @@ def setup_database():
     populate_test_stock_prices("HD")
     populate_test_stock_prices("SHOP")
     
-    # Cleanup cache before test
-    with Session(engine) as session:
-        from sqlmodel import select
-        statement = select(StockCache)
-        all_entries = session.exec(statement).all()
-        for entry in all_entries:
-            session.delete(entry)
-        session.commit()
-    
     yield
     
-    # Cleanup cache after test
+    # Cleanup after test
     with Session(engine) as session:
         from sqlmodel import select
-        statement = select(StockCache)
-        all_entries = session.exec(statement).all()
-        for entry in all_entries:
-            session.delete(entry)
-        
         # Clean stock_price tables
         statement = select(StockPrice)
         all_prices = session.exec(statement).all()
         for price in all_prices:
             session.delete(price)
         
-        statement = select(StockPriceWatermark)
-        all_watermarks = session.exec(statement).all()
-        for watermark in all_watermarks:
-            session.delete(watermark)
+        statement = select(StockAttributes)
+        all_attributes = session.exec(statement).all()
+        for attributes in all_attributes:
+            session.delete(attributes)
         
         session.commit()
 

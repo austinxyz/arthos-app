@@ -3,7 +3,7 @@ import pytest
 from app.services.stock_chart_service import get_stock_chart_data
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session
-from app.models.stock_price import StockPrice, StockPriceWatermark
+from app.models.stock_price import StockPrice, StockAttributes
 from tests.conftest import populate_test_stock_prices
 
 
@@ -20,10 +20,10 @@ def setup_database():
         for price in all_prices:
             session.delete(price)
         
-        statement = select(StockPriceWatermark)
-        all_watermarks = session.exec(statement).all()
-        for watermark in all_watermarks:
-            session.delete(watermark)
+        statement = select(StockAttributes)
+        all_attributes = session.exec(statement).all()
+        for attributes in all_attributes:
+            session.delete(attributes)
         
         session.commit()
 

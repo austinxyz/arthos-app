@@ -7,12 +7,12 @@ from app.services.stock_price_service import (
     get_stock_prices_as_dataframe,
     get_stock_metrics_from_db,
     fetch_and_save_stock_prices,
-    get_watermark,
-    update_watermark
+    get_stock_attributes,
+    update_stock_attributes
 )
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session
-from app.models.stock_price import StockPrice, StockPriceWatermark
+from app.models.stock_price import StockPrice, StockAttributes
 
 
 @pytest.fixture(autouse=True)
@@ -28,10 +28,10 @@ def setup_database():
         for price in all_prices:
             session.delete(price)
         
-        statement = select(StockPriceWatermark)
-        all_watermarks = session.exec(statement).all()
-        for watermark in all_watermarks:
-            session.delete(watermark)
+        statement = select(StockAttributes)
+        all_attributes = session.exec(statement).all()
+        for attributes in all_attributes:
+            session.delete(attributes)
         
         session.commit()
 
@@ -277,12 +277,12 @@ class TestFetchAndSaveStockPrices:
         prices = get_stock_prices_from_db(ticker)
         assert len(prices) > 0
         
-        # Verify watermark was created
-        watermark = get_watermark(ticker)
-        assert watermark is not None
-        assert watermark.ticker == ticker
-        assert watermark.earliest_date is not None
-        assert watermark.latest_date is not None
+        # Verify stock_attributes was created
+        attributes = get_stock_attributes(ticker)
+        assert attributes is not None
+        assert attributes.ticker == ticker
+        assert attributes.earliest_date is not None
+        assert attributes.latest_date is not None
     
     def test_fetch_and_save_incremental(self):
         """Test fetching incremental data when watermark exists."""

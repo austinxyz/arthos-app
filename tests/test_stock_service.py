@@ -8,7 +8,7 @@ from app.services.stock_service import (
     calculate_sma,
     calculate_devstep,
     calculate_signal,
-    get_stock_metrics
+    calculate_5day_price_movement
 )
 
 
@@ -171,179 +171,21 @@ class TestFetchStockData:
             assert has_time, "Intraday data should have time components"
 
 
-class TestGetStockMetrics:
-    """Tests for get_stock_metrics function."""
+class TestCalculate5DayPriceMovement:
+    """Tests for calculate_5day_price_movement function."""
     
-    def test_get_metrics_valid_ticker(self):
-        """Test getting metrics for a valid ticker."""
-        metrics = get_stock_metrics("AAPL")
+    def test_5day_movement_calculation(self):
+        """Test 5-day price movement calculation."""
+        # Create sample data with enough days
+        dates = pd.date_range(start='2024-01-01', periods=100, freq='D')
+        prices = pd.Series([100.0 + i * 0.1 for i in range(100)], index=dates)
+        data = pd.DataFrame({'Close': prices})
         
-        assert isinstance(metrics, dict)
-        assert "ticker" in metrics
-        assert "sma_50" in metrics
-        assert "sma_200" in metrics
-        assert "devstep" in metrics
-        assert "signal" in metrics
-        assert "current_price" in metrics
-        assert "data_points" in metrics
+        sma_50 = 105.0
+        movement, is_positive = calculate_5day_price_movement(data, sma_50)
         
-        # Verify signal is one of the expected values
-        assert metrics["signal"] in [
-            "Neutral", "Overbought", "Extreme Overbought",
-            "Oversold", "Extreme Oversold"
-        ]
-        
-        # Verify numeric values are reasonable
-        assert metrics["sma_50"] > 0
-        assert metrics["sma_200"] > 0
-        assert metrics["current_price"] > 0
-        assert metrics["data_points"] > 0
-    
-    def test_current_price_uses_latest_data(self):
-        """Test that current price uses the latest available data (intraday if available)."""
-        # Get metrics which should use latest data point
-        metrics = get_stock_metrics("AAPL")
-        
-        # Fetch the raw data to verify
-        data = fetch_stock_data("AAPL")
-        latest_price = float(data['Close'].iloc[-1])
-        latest_price_rounded = round(latest_price, 2)
-        
-        # Current price should match the latest data point (accounting for rounding)
-        assert abs(metrics["current_price"] - latest_price_rounded) < 0.01, \
-            f"Current price {metrics['current_price']} should match rounded latest data point {latest_price_rounded} (raw: {latest_price})"
-        
-        # If we have intraday data, the latest price should be from today
-        last_timestamp = pd.Timestamp(data.index[-1])
-        if last_timestamp.hour != 0 or last_timestamp.minute != 0:
-            # We have intraday data
-            today = datetime.now().date()
-            assert last_timestamp.date() == today, \
-                "If intraday data exists, it should be for today"
-    
-    def test_get_metrics_invalid_ticker(self):
-        """Test getting metrics for an invalid ticker."""
-        with pytest.raises(ValueError):
-            get_stock_metrics("INVALIDTICKER12345")
-    
-    def test_ticker_case_insensitive(self):
-        """Test that ticker is converted to uppercase."""
-        metrics = get_stock_metrics("aapl")
-        assert metrics["ticker"] == "AAPL"
-
-
-class TestTSLADebug:
-    """Debug test for TSLA to validate SMA calculations."""
-    
-    def test_tsla_debug_sma_calculations(self, capsys):
-        """Fetch TSLA data and print intermediate outputs to validate SMA calculations."""
-        ticker = "TSLA"
-        
-        print(f"\n{'='*80}")
-        print(f"DEBUG TEST: Fetching and validating SMA calculations for {ticker}")
-        print(f"{'='*80}\n")
-        
-        # Fetch stock data
-        print("Step 1: Fetching stock data from yfinance...")
-        data = fetch_stock_data(ticker)
-        print(f"✓ Data fetched successfully")
-        print(f"  - Total data points: {len(data)}")
-        print(f"  - Date range: {data.index.min()} to {data.index.max()}")
-        print(f"  - Columns: {list(data.columns)}")
-        
-        # Display first and last few rows
-        print(f"\n  First 5 rows:")
-        print(data.head().to_string())
-        print(f"\n  Last 5 rows:")
-        print(data.tail().to_string())
-        
-        # Calculate SMAs
-        print(f"\nStep 2: Calculating 50-day SMA...")
-        sma_50 = calculate_sma(data, 50)
-        print(f"✓ 50-day SMA calculated: ${sma_50:.2f}")
-        
-        # Manual calculation for validation
-        last_50_prices = data['Close'].tail(50)
-        manual_sma_50 = last_50_prices.mean()
-        print(f"  - Last 50 closing prices count: {len(last_50_prices)}")
-        print(f"  - Manual calculation: ${manual_sma_50:.2f}")
-        print(f"  - Validation: {'✓ PASS' if abs(sma_50 - manual_sma_50) < 0.01 else '✗ FAIL'}")
-        print(f"  - Last 50 prices range: ${last_50_prices.min():.2f} to ${last_50_prices.max():.2f}")
-        print(f"  - Last 50 prices mean: ${manual_sma_50:.2f}")
-        print(f"  - Last 50 prices std dev: ${last_50_prices.std():.2f}")
-        
-        print(f"\nStep 3: Calculating 200-day SMA...")
-        sma_200 = calculate_sma(data, 200)
-        print(f"✓ 200-day SMA calculated: ${sma_200:.2f}")
-        
-        # Manual calculation for validation
-        if len(data) >= 200:
-            last_200_prices = data['Close'].tail(200)
-            manual_sma_200 = last_200_prices.mean()
-            print(f"  - Last 200 closing prices count: {len(last_200_prices)}")
-            print(f"  - Manual calculation: ${manual_sma_200:.2f}")
-            print(f"  - Validation: {'✓ PASS' if abs(sma_200 - manual_sma_200) < 0.01 else '✗ FAIL'}")
-            print(f"  - Last 200 prices range: ${last_200_prices.min():.2f} to ${last_200_prices.max():.2f}")
-            print(f"  - Last 200 prices mean: ${manual_sma_200:.2f}")
-            print(f"  - Last 200 prices std dev: ${last_200_prices.std():.2f}")
-        else:
-            print(f"  - Warning: Only {len(data)} data points available, using all data")
-            manual_sma_200 = data['Close'].mean()
-            print(f"  - Using all {len(data)} data points")
-            print(f"  - Manual calculation: ${manual_sma_200:.2f}")
-            print(f"  - Validation: {'✓ PASS' if abs(sma_200 - manual_sma_200) < 0.01 else '✗ FAIL'}")
-        
-        # Calculate devstep
-        print(f"\nStep 4: Calculating devstep...")
-        devstep = calculate_devstep(data, sma_50)
-        print(f"✓ Devstep calculated: {devstep:.4f}")
-        
-        # Manual calculation for validation
-        current_price = data['Close'].iloc[-1]
-        recent_prices = data['Close'].tail(50) if len(data) >= 50 else data['Close']
-        std_dev = recent_prices.std()
-        manual_devstep = (current_price - sma_50) / std_dev if std_dev > 0 else 0.0
-        print(f"  - Current price: ${current_price:.2f}")
-        print(f"  - 50-day SMA: ${sma_50:.2f}")
-        print(f"  - Standard deviation (last 50): ${std_dev:.2f}")
-        print(f"  - Manual devstep: {manual_devstep:.4f}")
-        print(f"  - Validation: {'✓ PASS' if abs(devstep - manual_devstep) < 0.0001 else '✗ FAIL'}")
-        
-        # Calculate signal
-        print(f"\nStep 5: Calculating signal...")
-        signal = calculate_signal(devstep)
-        print(f"✓ Signal: {signal}")
-        print(f"  - Based on devstep: {devstep:.4f}")
-        
-        # Get full metrics
-        print(f"\nStep 6: Getting full metrics...")
-        metrics = get_stock_metrics(ticker)
-        print(f"✓ Full metrics retrieved")
-        print(f"\n{'='*80}")
-        print("FINAL METRICS SUMMARY:")
-        print(f"{'='*80}")
-        print(f"Ticker: {metrics['ticker']}")
-        print(f"Current Price: ${metrics['current_price']:.2f}")
-        print(f"50-day SMA: ${metrics['sma_50']:.2f}")
-        print(f"200-day SMA: ${metrics['sma_200']:.2f}")
-        print(f"Devstep: {metrics['devstep']:.4f}")
-        print(f"Signal: {metrics['signal']}")
-        print(f"Data Points: {metrics['data_points']}")
-        print(f"Cached: {metrics['cached']}")
-        if metrics.get('cache_timestamp'):
-            print(f"Cache Timestamp: {metrics['cache_timestamp']}")
-        print(f"{'='*80}\n")
-        
-        # Assertions
-        assert metrics['ticker'] == ticker.upper()
-        assert metrics['sma_50'] > 0
-        assert metrics['sma_200'] > 0
-        assert metrics['current_price'] > 0
-        assert metrics['data_points'] > 0
-        assert abs(metrics['sma_50'] - sma_50) < 0.01
-        assert abs(metrics['sma_200'] - sma_200) < 0.01
-        
-        # Print captured output
-        captured = capsys.readouterr()
-        print(captured.out)
+        # Should return valid values
+        assert isinstance(movement, (int, float))
+        assert isinstance(is_positive, bool)
+        assert not (pd.isna(movement) or pd.isinf(movement))
 
