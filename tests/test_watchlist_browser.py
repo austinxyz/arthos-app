@@ -372,30 +372,53 @@ class TestWatchListBrowser:
     def test_remove_stock_from_portfolio(self, page: Page, live_server_url):
         """Test removing a stock from watchlist."""
         watchlist = create_watchlist("Test WatchList")
-        added, _ = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"])
+        
+        # Manually add stocks to watchlist (bypass yfinance validation in CI)
+        from app.models.watchlist import WatchListStock
+        from datetime import datetime
+        with Session(engine) as session:
+            for ticker in ["AAPL", "MSFT"]:
+                stock = WatchListStock(
+                    watchlist_id=watchlist.watchlist_id,
+                    ticker=ticker,
+                    date_added=datetime.now()
+                )
+                session.add(stock)
+            session.commit()
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
-        # Wait for stocks to load
+        # Wait for table to load
+        page.wait_for_selector('#stocksTable', state='visible', timeout=10000)
         page.wait_for_timeout(2000)
         
+        # Verify both stocks are visible before deletion
+        expect(page.locator("#stocksTable tbody tr").filter(has_text="AAPL")).to_be_visible()
+        expect(page.locator("#stocksTable tbody tr").filter(has_text="MSFT")).to_be_visible()
+        
         # Find delete button for AAPL (first stock)
-        # Note: This assumes the delete button is visible
-        # We'll need to check if the stock row exists first
-        delete_buttons = page.locator("button.btn-danger")
-        if delete_buttons.count() > 0:
-            # Set up dialog handler before clicking
-            page.once("dialog", lambda dialog: dialog.accept())
-            
-            # Click first delete button (use nth(0) instead of first() if first() is not callable)
-            delete_buttons.nth(0).click()
-            
-            # Wait for page to reload
-            page.wait_for_timeout(2000)
-            
-            # Verify stock is removed (MSFT should still be there)
-            # This is a basic check - in practice, we'd verify the specific stock is gone
-            expect(page.locator("text=MSFT")).to_be_visible(timeout=5000)
+        # Find the row containing AAPL and get its delete button
+        aapl_row = page.locator("#stocksTable tbody tr").filter(has_text="AAPL").first
+        delete_button = aapl_row.locator("button.btn-danger")
+        expect(delete_button).to_be_visible()
+        
+        # Set up dialog handler before clicking
+        page.once("dialog", lambda dialog: dialog.accept())
+        
+        # Click delete button
+        delete_button.click()
+        
+        # Wait for page to reload after deletion
+        page.wait_for_load_state("networkidle", timeout=10000)
+        page.wait_for_timeout(2000)
+        
+        # Verify AAPL is removed and MSFT is still there
+        # Check that AAPL is not in the table
+        aapl_rows = page.locator("#stocksTable tbody tr").filter(has_text="AAPL")
+        expect(aapl_rows).to_have_count(0, timeout=5000)
+        
+        # Check that MSFT is still visible
+        expect(page.locator("#stocksTable tbody tr").filter(has_text="MSFT")).to_be_visible(timeout=5000)
     
     def test_watchlist_name_link_navigation(self, page: Page, live_server_url):
         """Test that clicking watchlist name navigates to details page."""
