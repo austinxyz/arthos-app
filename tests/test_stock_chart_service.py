@@ -1,8 +1,10 @@
 """Tests for stock chart service."""
 import pytest
 from app.services.stock_chart_service import get_stock_chart_data
+from app.services.stock_price_service import fetch_and_save_stock_prices
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session
+from app.models.stock_price import StockPrice
 
 
 @pytest.fixture(autouse=True)
@@ -10,7 +12,14 @@ def setup_database():
     """Create database tables before each test."""
     create_db_and_tables()
     yield
-    # Cleanup is handled by cache service
+    # Cleanup
+    with Session(engine) as session:
+        from sqlmodel import select
+        statement = select(StockPrice)
+        all_prices = session.exec(statement).all()
+        for price in all_prices:
+            session.delete(price)
+        session.commit()
 
 
 class TestStockChartService:
@@ -18,6 +27,9 @@ class TestStockChartService:
     
     def test_get_stock_chart_data_success(self):
         """Test successfully getting chart data for a valid ticker."""
+        # Populate database with stock price data first
+        fetch_and_save_stock_prices("AAPL")
+        
         chart_data = get_stock_chart_data("AAPL")
         
         assert chart_data["ticker"] == "AAPL"
@@ -75,11 +87,15 @@ class TestStockChartService:
     
     def test_get_stock_chart_data_invalid_ticker(self):
         """Test getting chart data for invalid ticker."""
-        with pytest.raises(ValueError):
+        # No data in database for invalid ticker
+        with pytest.raises(ValueError, match="No price data found"):
             get_stock_chart_data("INVALIDTICKER12345")
     
     def test_get_stock_chart_data_candlestick_structure(self):
         """Test that candlestick data has correct structure."""
+        # Populate database with stock price data first
+        fetch_and_save_stock_prices("MSFT")
+        
         chart_data = get_stock_chart_data("MSFT")
         
         # Check all candles have required fields
@@ -101,6 +117,9 @@ class TestStockChartService:
     
     def test_get_stock_chart_data_sma_structure(self):
         """Test that SMA data has correct structure."""
+        # Populate database with stock price data first
+        fetch_and_save_stock_prices("GOOGL")
+        
         chart_data = get_stock_chart_data("GOOGL")
         
         # Check SMA 50 structure
@@ -119,6 +138,9 @@ class TestStockChartService:
     
     def test_get_stock_chart_data_std_bands_structure(self):
         """Test that STD dev bands have correct structure."""
+        # Populate database with stock price data first
+        fetch_and_save_stock_prices("MSFT")
+        
         chart_data = get_stock_chart_data("MSFT")
         
         std_bands = chart_data["std_bands"]
@@ -137,6 +159,9 @@ class TestStockChartService:
     
     def test_get_stock_chart_data_dates_match(self):
         """Test that dates match across all data arrays."""
+        # Populate database with stock price data first
+        fetch_and_save_stock_prices("TSLA")
+        
         chart_data = get_stock_chart_data("TSLA")
         
         dates = chart_data["dates"]
@@ -167,8 +192,11 @@ class TestStockChartService:
         assert dates == std2_lower_dates
     
     def test_chart_includes_todays_aggregated_candle(self):
-        """Test that today's intraday data is aggregated into a daily candle and shown on chart."""
+        """Test that today's data is shown on chart."""
         from datetime import datetime
+        # Populate database with stock price data first
+        fetch_and_save_stock_prices("AAPL")
+        
         chart_data = get_stock_chart_data("AAPL")
         
         # Get today's date

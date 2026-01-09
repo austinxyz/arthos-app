@@ -74,15 +74,18 @@ class TestStockDetailAPI:
     
     def test_sma_values_match_between_chart_and_metrics(self, client):
         """Test that SMA 50 and SMA 200 values in metrics table match chart values."""
-        from app.services.stock_service import get_stock_metrics
+        from app.services.stock_price_service import get_stock_metrics_from_db, fetch_and_save_stock_prices
         from app.services.stock_chart_service import get_stock_chart_data
         
         ticker = "AAPL"
         
-        # Get metrics
-        metrics = get_stock_metrics(ticker)
+        # Populate database with stock price data first
+        fetch_and_save_stock_prices(ticker)
         
-        # Get chart data
+        # Get metrics (from database)
+        metrics = get_stock_metrics_from_db(ticker)
+        
+        # Get chart data (from database)
         chart_data = get_stock_chart_data(ticker)
         
         # Extract SMA values from metrics

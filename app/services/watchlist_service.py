@@ -164,8 +164,9 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
     # Validate ticker formats - filter out invalid ones instead of raising error
     valid_format_tickers, invalid_format_tickers = validate_ticker_list(tickers)
     
-    # Now validate that tickers actually exist in yfinance
+    # Now validate that tickers actually exist in yfinance and fetch/save price data
     from app.services.stock_service import fetch_stock_data
+    from app.services.stock_price_service import fetch_and_save_stock_prices
     
     valid_tickers = []
     invalid_tickers = list(invalid_format_tickers)  # Start with format-invalid tickers
@@ -192,6 +193,14 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
                     print(f"Debug: Ticker {ticker} validated successfully, {len(data)} data points")
                     is_valid = True
                     valid_tickers.append(ticker)
+                    
+                    # Fetch and save stock price data to database
+                    try:
+                        price_data, new_records = fetch_and_save_stock_prices(ticker)
+                        print(f"Debug: Saved {new_records} new price records for {ticker}")
+                    except Exception as e:
+                        # Log error but don't fail the watchlist addition
+                        print(f"Warning: Could not save price data for {ticker}: {e}")
         except ValueError as e:
             # ValueError is raised when ticker doesn't exist or has no data
             print(f"Debug: Ticker {ticker} failed yfinance validation (ValueError): {e}")
@@ -309,6 +318,7 @@ def get_watchlist_stocks(watchlist_id: UUID) -> List[WatchListStock]:
 def get_watchlist_stocks_with_metrics(watchlist_id: UUID) -> List[Dict[str, Any]]:
     """
     Get all stocks in a watchlist with their current metrics.
+    Reads price data from stock_price table (not from yfinance cache).
     
     Args:
         watchlist_id: WatchList UUID
@@ -316,25 +326,27 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID) -> List[Dict[str, Any]
     Returns:
         List of dictionaries containing stock metrics
     """
+    from app.services.stock_price_service import get_stock_metrics_from_db
+    
     stocks = get_watchlist_stocks(watchlist_id)
     
     if not stocks:
         return []
     
-    # Get tickers
-    tickers = [stock.ticker for stock in stocks]
-    
-    # Fetch metrics for all tickers
-    metrics_list = get_multiple_stock_metrics(tickers)
-    
-    # Format numbers for display
-    for metric in metrics_list:
-        if 'error' not in metric:
+    # Get metrics from stock_price table for each ticker
+    metrics_list = []
+    for stock in stocks:
+        ticker = stock.ticker
+        try:
+            metric = get_stock_metrics_from_db(ticker)
+            
+            # Format numbers for display
             metric['current_price_formatted'] = f"${metric['current_price']:.2f}"
-            metric['sma_50_formatted'] = f"${metric['sma_50']:.2f}"
-            metric['sma_200_formatted'] = f"${metric['sma_200']:.2f}"
+            metric['sma_50_formatted'] = f"${metric['sma_50']:.2f}" if metric['sma_50'] else "N/A"
+            metric['sma_200_formatted'] = f"${metric['sma_200']:.2f}" if metric['sma_200'] else "N/A"
             metric['stddev_50d_formatted'] = f"{metric['devstep']:.1f}"
-            # Always set dividend_yield_formatted, even if dividend_yield is missing or None
+            
+            # Format dividend yield
             dividend_yield = metric.get('dividend_yield')
             if dividend_yield is not None and dividend_yield != '':
                 try:
@@ -343,6 +355,20 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID) -> List[Dict[str, Any]
                     metric['dividend_yield_formatted'] = "N/A"
             else:
                 metric['dividend_yield_formatted'] = "N/A"
+            
+            metrics_list.append(metric)
+        except ValueError as e:
+            # No price data found - add error entry
+            metrics_list.append({
+                "ticker": ticker,
+                "error": str(e)
+            })
+        except Exception as e:
+            # Other errors
+            metrics_list.append({
+                "ticker": ticker,
+                "error": f"Error fetching metrics: {str(e)}"
+            })
     
     return metrics_list
 

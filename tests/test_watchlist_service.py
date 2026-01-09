@@ -11,7 +11,8 @@ from app.services.watchlist_service import (
     delete_watchlist,
     add_stocks_to_watchlist,
     remove_stock_from_watchlist,
-    get_watchlist_stocks
+    get_watchlist_stocks,
+    get_watchlist_stocks_with_metrics
 )
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session
@@ -26,6 +27,8 @@ def setup_database():
     # Cleanup
     with Session(engine) as session:
         from sqlmodel import select
+        from app.models.stock_price import StockPrice, StockPriceWatermark
+        
         statement = select(WatchListStock)
         all_stocks = session.exec(statement).all()
         for stock in all_stocks:
@@ -35,6 +38,17 @@ def setup_database():
         all_watchlists = session.exec(statement).all()
         for watchlist in all_watchlists:
             session.delete(watchlist)
+        
+        # Cleanup stock price data
+        statement = select(StockPrice)
+        all_prices = session.exec(statement).all()
+        for price in all_prices:
+            session.delete(price)
+        
+        statement = select(StockPriceWatermark)
+        all_watermarks = session.exec(statement).all()
+        for watermark in all_watermarks:
+            session.delete(watermark)
         
         session.commit()
 
@@ -243,3 +257,64 @@ class TestRemoveStockFromWatchList:
         watchlist = create_watchlist("Test WatchList")
         with pytest.raises(ValueError, match="not found in watchlist"):
             remove_stock_from_watchlist(watchlist.watchlist_id, "AAPL")
+
+
+class TestGetWatchlistStocksWithMetrics:
+    """Tests for get_watchlist_stocks_with_metrics function."""
+    
+    def test_get_metrics_empty_watchlist(self):
+        """Test getting metrics for empty watchlist."""
+        watchlist = create_watchlist("Test WatchList")
+        metrics = get_watchlist_stocks_with_metrics(watchlist.watchlist_id)
+        
+        assert metrics == []
+    
+    def test_get_metrics_with_stocks(self):
+        """Test getting metrics for watchlist with stocks."""
+        watchlist = create_watchlist("Test WatchList")
+        
+        # Add stocks (this will also fetch and save stock prices)
+        added, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"])
+        assert len(added) == 2
+        
+        # Get metrics (should read from stock_price table)
+        metrics = get_watchlist_stocks_with_metrics(watchlist.watchlist_id)
+        
+        assert len(metrics) == 2
+        assert any(m["ticker"] == "AAPL" for m in metrics)
+        assert any(m["ticker"] == "MSFT" for m in metrics)
+        
+        # Verify each metric has required fields
+        for metric in metrics:
+            assert "ticker" in metric
+            assert "current_price" in metric
+            assert "sma_50" in metric
+            assert "sma_200" in metric
+            assert "devstep" in metric
+            assert "signal" in metric
+            assert "current_price_formatted" in metric
+            assert "sma_50_formatted" in metric
+            assert "sma_200_formatted" in metric
+            assert "dividend_yield_formatted" in metric
+    
+    def test_get_metrics_with_stock_no_price_data(self):
+        """Test getting metrics when stock exists but has no price data."""
+        watchlist = create_watchlist("Test WatchList")
+        
+        # Manually add stock without fetching prices
+        with Session(engine) as session:
+            from app.models.watchlist import WatchListStock
+            stock = WatchListStock(
+                watchlist_id=watchlist.watchlist_id,
+                ticker="TEST",
+                date_added=datetime.now()
+            )
+            session.add(stock)
+            session.commit()
+        
+        # Get metrics (should show error for missing price data)
+        metrics = get_watchlist_stocks_with_metrics(watchlist.watchlist_id)
+        
+        assert len(metrics) == 1
+        assert metrics[0]["ticker"] == "TEST"
+        assert "error" in metrics[0]

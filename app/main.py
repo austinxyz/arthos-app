@@ -141,16 +141,16 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         HTML page with stock chart and metrics
     """
     from app.services.stock_chart_service import get_stock_chart_data
-    from app.services.stock_service import get_stock_metrics
+    from app.services.stock_price_service import get_stock_metrics_from_db
     
     ticker = ticker.strip().upper()
     
     try:
-        # Get chart data
+        # Get chart data (reads from stock_price table)
         chart_data = get_stock_chart_data(ticker)
         
-        # Get metrics for display
-        metrics = get_stock_metrics(ticker)
+        # Get metrics for display (reads from stock_price table)
+        metrics = get_stock_metrics_from_db(ticker)
         
         # Format dividend yield for display
         if metrics.get('dividend_yield') is not None:
@@ -579,6 +579,94 @@ async def remove_stock_from_watchlist(watchlist_id: UUID = FPath(...), ticker: s
         return {"message": f"Stock {ticker} removed from watchlist"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/test/stock-price")
+async def test_stock_price_page(request: Request, ticker: str = Query("", description="Stock ticker symbol")):
+    """
+    Test page for displaying stock price data from database.
+    
+    Args:
+        ticker: Optional stock ticker symbol to display
+        
+    Returns:
+        HTML page with stock price data
+    """
+    from app.services.stock_price_service import get_stock_prices_from_db, get_watermark
+    
+    prices = []
+    watermark = None
+    error_message = None
+    
+    if ticker:
+        ticker = ticker.strip().upper()
+        try:
+            prices = get_stock_prices_from_db(ticker)
+            watermark = get_watermark(ticker)
+        except Exception as e:
+            error_message = f"Error fetching data: {str(e)}"
+    
+    # Format prices for display
+    prices_data = []
+    for price in prices:
+        prices_data.append({
+            "price_date": price.price_date.isoformat(),
+            "ticker": price.ticker,
+            "open_price": float(price.open_price),
+            "close_price": float(price.close_price),
+            "high_price": float(price.high_price),
+            "low_price": float(price.low_price),
+            "dma_50": float(price.dma_50) if price.dma_50 else None,
+            "dma_200": float(price.dma_200) if price.dma_200 else None
+        })
+    
+    watermark_data = None
+    if watermark:
+        watermark_data = {
+            "ticker": watermark.ticker,
+            "earliest_date": watermark.earliest_date.isoformat(),
+            "latest_date": watermark.latest_date.isoformat()
+        }
+    
+    return templates.TemplateResponse("test_stock_price.html", {
+        "request": request,
+        "ticker": ticker if ticker else "",
+        "prices": prices_data,
+        "watermark": watermark_data,
+        "error_message": error_message
+    })
+
+
+@app.post("/test/stock-price/fetch")
+async def fetch_stock_price_data(ticker: str = Query(..., description="Stock ticker symbol")):
+    """
+    Fetch and save stock price data from yfinance.
+    
+    Args:
+        ticker: Stock ticker symbol
+        
+    Returns:
+        JSON response with fetch status
+    """
+    from app.services.stock_price_service import fetch_and_save_stock_prices
+    
+    if not ticker or not ticker.strip():
+        raise HTTPException(status_code=400, detail="Ticker is required")
+    
+    try:
+        ticker = ticker.strip().upper()
+        price_data, new_records = fetch_and_save_stock_prices(ticker)
+        
+        return {
+            "message": f"Successfully fetched and saved {new_records} new records",
+            "ticker": ticker,
+            "new_records": new_records,
+            "data_points": len(price_data)
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
 
 
 
