@@ -14,6 +14,7 @@ from app.database import engine, create_db_and_tables
 from sqlmodel import Session
 from app.models.stock_cache import StockCache
 from app.models.watchlist import WatchList, WatchListStock
+from app.models.stock_price import StockPrice, StockPriceWatermark
 
 
 @pytest.fixture(autouse=True)
@@ -42,6 +43,17 @@ def setup_database():
         for watchlist in all_watchlists:
             session.delete(watchlist)
         
+        # Clean stock_price tables
+        statement = select(StockPrice)
+        all_prices = session.exec(statement).all()
+        for price in all_prices:
+            session.delete(price)
+        
+        statement = select(StockPriceWatermark)
+        all_watermarks = session.exec(statement).all()
+        for watermark in all_watermarks:
+            session.delete(watermark)
+        
         session.commit()
     
     yield
@@ -64,6 +76,17 @@ def setup_database():
         all_watchlists = session.exec(statement).all()
         for watchlist in all_watchlists:
             session.delete(watchlist)
+        
+        # Clean stock_price tables
+        statement = select(StockPrice)
+        all_prices = session.exec(statement).all()
+        for price in all_prices:
+            session.delete(price)
+        
+        statement = select(StockPriceWatermark)
+        all_watermarks = session.exec(statement).all()
+        for watermark in all_watermarks:
+            session.delete(watermark)
         
         session.commit()
 

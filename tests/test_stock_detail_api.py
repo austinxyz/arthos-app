@@ -1,6 +1,31 @@
 """Tests for stock detail API endpoint."""
 import pytest
 from fastapi import status
+from app.database import engine, create_db_and_tables
+from sqlmodel import Session
+from app.models.stock_price import StockPrice, StockPriceWatermark
+from tests.conftest import populate_test_stock_prices
+
+
+@pytest.fixture(autouse=True)
+def setup_database():
+    """Create database tables before each test."""
+    create_db_and_tables()
+    yield
+    # Cleanup
+    with Session(engine) as session:
+        from sqlmodel import select
+        statement = select(StockPrice)
+        all_prices = session.exec(statement).all()
+        for price in all_prices:
+            session.delete(price)
+        
+        statement = select(StockPriceWatermark)
+        all_watermarks = session.exec(statement).all()
+        for watermark in all_watermarks:
+            session.delete(watermark)
+        
+        session.commit()
 
 
 class TestStockDetailAPI:
@@ -8,6 +33,9 @@ class TestStockDetailAPI:
     
     def test_stock_detail_page_success(self, client):
         """Test successfully loading stock detail page."""
+        # Populate database with test stock price data
+        populate_test_stock_prices("AAPL")
+        
         response = client.get("/stock/AAPL")
         
         assert response.status_code == status.HTTP_200_OK
@@ -23,6 +51,9 @@ class TestStockDetailAPI:
     
     def test_stock_detail_page_contains_chart(self, client):
         """Test that stock detail page contains chart container."""
+        # Populate database with test stock price data
+        populate_test_stock_prices("MSFT")
+        
         response = client.get("/stock/MSFT")
         
         assert response.status_code == status.HTTP_200_OK
@@ -31,6 +62,9 @@ class TestStockDetailAPI:
     
     def test_stock_detail_page_contains_metrics(self, client):
         """Test that stock detail page contains metrics."""
+        # Populate database with test stock price data
+        populate_test_stock_prices("GOOGL")
+        
         response = client.get("/stock/GOOGL")
         
         assert response.status_code == status.HTTP_200_OK
@@ -41,6 +75,9 @@ class TestStockDetailAPI:
     
     def test_stock_detail_page_with_options_and_covered_calls(self, client):
         """Test that stock detail page loads with options data and covered calls section."""
+        # Populate database with test stock price data
+        populate_test_stock_prices("AAPL")
+        
         response = client.get("/stock/AAPL")
         
         assert response.status_code == status.HTTP_200_OK
@@ -66,6 +103,9 @@ class TestStockDetailAPI:
     
     def test_stock_detail_page_ticker_case_insensitive(self, client):
         """Test that ticker is case-insensitive."""
+        # Populate database with test stock price data
+        populate_test_stock_prices("AAPL")
+        
         response1 = client.get("/stock/aapl")
         response2 = client.get("/stock/AAPL")
         
@@ -74,13 +114,13 @@ class TestStockDetailAPI:
     
     def test_sma_values_match_between_chart_and_metrics(self, client):
         """Test that SMA 50 and SMA 200 values in metrics table match chart values."""
-        from app.services.stock_price_service import get_stock_metrics_from_db, fetch_and_save_stock_prices
+        from app.services.stock_price_service import get_stock_metrics_from_db
         from app.services.stock_chart_service import get_stock_chart_data
         
         ticker = "AAPL"
         
-        # Populate database with stock price data first
-        fetch_and_save_stock_prices(ticker)
+        # Populate database with test stock price data
+        populate_test_stock_prices(ticker)
         
         # Get metrics (from database)
         metrics = get_stock_metrics_from_db(ticker)

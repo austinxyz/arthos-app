@@ -1,7 +1,9 @@
 """Tests for API endpoints."""
 import pytest
 from fastapi import status
-from app.database import create_db_and_tables
+from app.database import engine, create_db_and_tables
+from sqlmodel import Session
+from app.models.stock_price import StockPrice, StockPriceWatermark
 
 
 @pytest.fixture(autouse=True)
@@ -9,7 +11,20 @@ def setup_database():
     """Create database tables before each test."""
     create_db_and_tables()
     yield
-    # Cleanup is handled by cache service tests if needed
+    # Cleanup stock_price tables
+    with Session(engine) as session:
+        from sqlmodel import select
+        statement = select(StockPrice)
+        all_prices = session.exec(statement).all()
+        for price in all_prices:
+            session.delete(price)
+        
+        statement = select(StockPriceWatermark)
+        all_watermarks = session.exec(statement).all()
+        for watermark in all_watermarks:
+            session.delete(watermark)
+        
+        session.commit()
 
 
 class TestStockAPI:
