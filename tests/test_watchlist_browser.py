@@ -239,7 +239,7 @@ class TestWatchListBrowser:
         stocks_table = page.locator("#stocksTable tbody tr")
         stock_count = stocks_table.count()
         
-        # Check that INVALIDT1 is not in any row
+        # Check that INV1 is not in any row
         for i in range(stock_count):
             row_text = stocks_table.nth(i).inner_text()
             assert invalid_ticker not in row_text, f"{invalid_ticker} should not be in the table, but found in row: {row_text}"
@@ -293,7 +293,7 @@ class TestWatchListBrowser:
         stocks_table = page.locator("#stocksTable tbody tr")
         stock_count = stocks_table.count()
         
-        # Check that INVALIDT2 is not in any row
+        # Check that INV2 is not in any row
         for i in range(stock_count):
             row_text = stocks_table.nth(i).inner_text()
             assert invalid_ticker not in row_text, f"{invalid_ticker} should not be in the table, but found in row: {row_text}"
