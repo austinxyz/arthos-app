@@ -94,7 +94,7 @@ class TestStockAdditionFlow:
         Requirement 2: On first entry, fetch past 2 years of data and store in stock_price table.
         """
         watchlist = create_watchlist("Test Portfolio")
-        added_stocks, invalid = add_stocks_to_watchlist(watchlist.id, ["AAPL"])
+        added_stocks, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
         
         # Verify stock_price table has data
         with Session(engine) as session:
@@ -114,7 +114,7 @@ class TestStockAdditionFlow:
         Requirement 3: latest_date should be set to latest available date (today if trading day).
         """
         watchlist = create_watchlist("Test Portfolio")
-        added_stocks, invalid = add_stocks_to_watchlist(watchlist.id, ["AAPL"])
+        added_stocks, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
         
         # Verify stock_attributes has latest_date set
         attributes = get_stock_attributes("AAPL")
@@ -135,7 +135,7 @@ class TestSchedulerUpdates:
         Requirement 6: latest_date updated every time stock_price is updated.
         """
         watchlist = create_watchlist("Test Portfolio")
-        added_stocks, invalid = add_stocks_to_watchlist(watchlist.id, ["AAPL"])
+        added_stocks, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
         
         # Get initial latest_date
         attributes_before = get_stock_attributes("AAPL")
@@ -153,7 +153,7 @@ class TestSchedulerUpdates:
         Requirement 7: If scheduler missed days, next run patches missing data.
         """
         watchlist = create_watchlist("Test Portfolio")
-        added_stocks, invalid = add_stocks_to_watchlist(watchlist.id, ["AAPL"])
+        added_stocks, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
         
         # Get initial latest_date
         attributes = get_stock_attributes("AAPL")
@@ -180,7 +180,7 @@ class TestSchedulerUpdates:
         Requirement 8: Manual trigger fills missing data and makes data current.
         """
         watchlist = create_watchlist("Test Portfolio")
-        added_stocks, invalid = add_stocks_to_watchlist(watchlist.id, ["AAPL"])
+        added_stocks, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
         
         # Manually set latest_date to 5 days ago
         with Session(engine) as session:
@@ -227,7 +227,7 @@ class TestSchedulerLogging:
         Requirement 9: Every scheduler run logs to scheduler_log.
         """
         watchlist = create_watchlist("Test Portfolio")
-        added_stocks, invalid = add_stocks_to_watchlist(watchlist.id, ["AAPL"])
+        added_stocks, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
         
         # Count log entries before
         with Session(engine) as session:
@@ -264,7 +264,7 @@ class TestNoOnDemandFetching:
         This test verifies that stock detail page reads from database, not yfinance.
         """
         watchlist = create_watchlist("Test Portfolio")
-        added_stocks, invalid = add_stocks_to_watchlist(watchlist.id, ["AAPL"])
+        added_stocks, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
         
         # Get stock metrics (should read from DB, not yfinance)
         from app.services.stock_price_service import get_stock_metrics_from_db
