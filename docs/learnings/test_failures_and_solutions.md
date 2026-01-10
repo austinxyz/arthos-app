@@ -303,6 +303,8 @@ When writing new tests, ensure:
 - [ ] Dialogs are handled before clicking buttons that trigger them
 - [ ] Tests wait for page reloads after actions that cause navigation
 - [ ] Error message assertions match actual error messages (not hardcoded strings)
+- [ ] **Tests are run in Docker before committing** (`./scripts/run-tests-local.sh unit`)
+- [ ] **Learnings from previous failures are reviewed and applied**
 
 ---
 
