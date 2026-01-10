@@ -216,25 +216,25 @@ class TestWatchListBrowser:
         # If stock_count is 0, that's expected - the table is empty, so INVALID12345 is definitely not there
     
     def test_add_stocks_sdsk_invalid_ticker(self, page: Page, live_server_url):
-        """Test adding INVALIDT1 (valid format but doesn't exist in yfinance) - should be rejected."""
-        # Use unique ticker to avoid conflicts with other tests
-        invalid_ticker = "INVALIDT1"
+        """Test adding INV1 (valid format but doesn't exist in yfinance) - should be rejected."""
+        # Use unique ticker (4 chars, valid format) to avoid conflicts with other tests
+        invalid_ticker = "INV1"
         watchlist = create_watchlist("Test WatchList")
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
-        # Try INVALIDT1 - valid format but doesn't exist in yfinance
+        # Try INV1 - valid format (4 chars) but doesn't exist in yfinance
         page.fill("#tickersInput", invalid_ticker)
         page.click("button[type='submit']")
         
-        # Should show error message about invalid ticker
+        # Should show error message about invalid ticker (from API, not format validation)
         expect(page.locator("#errorMessage")).to_be_visible(timeout=10000)
         expect(page.locator("#errorMessage")).to_contain_text(f"Ticker {invalid_ticker} is invalid")
         
         # Wait a bit to ensure no stock was added
         page.wait_for_timeout(3000)
         
-        # Verify INVALIDT1 is NOT in the table (should not appear even as an error row)
+        # Verify INV1 is NOT in the table (should not appear even as an error row)
         # If it was added, it would show as an error row, but it shouldn't be added at all
         stocks_table = page.locator("#stocksTable tbody tr")
         stock_count = stocks_table.count()
@@ -268,18 +268,18 @@ class TestWatchListBrowser:
         # We can't verify AAPL/MSFT were added because the form submission was blocked
     
     def test_add_stocks_mixed_valid_sdsk(self, page: Page, live_server_url):
-        """Test adding mix of valid ticker and INVALIDT2 - only valid one should be added."""
-        # Use unique ticker to avoid conflicts with other tests
-        invalid_ticker = "INVALIDT2"
+        """Test adding mix of valid ticker and INV2 - only valid one should be added."""
+        # Use unique ticker (4 chars, valid format) to avoid conflicts with other tests
+        invalid_ticker = "INV2"
         watchlist = create_watchlist("Test WatchList")
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
-        # Add mix of valid ticker and INVALIDT2 (valid format but doesn't exist)
+        # Add mix of valid ticker and INV2 (valid format but doesn't exist)
         page.fill("#tickersInput", f"AAPL,{invalid_ticker}")
         page.click("button[type='submit']")
         
-        # Should show error message about INVALIDT2 being invalid
+        # Should show error message about INV2 being invalid (from API, not format validation)
         expect(page.locator("#errorMessage")).to_be_visible(timeout=10000)
         expect(page.locator("#errorMessage")).to_contain_text(f"Ticker {invalid_ticker} is invalid")
         
@@ -289,7 +289,7 @@ class TestWatchListBrowser:
         # Valid stock should appear in table
         expect(page.locator("text=AAPL")).to_be_visible(timeout=10000)
         
-        # INVALIDT2 should NOT be in the table (should not be added at all)
+        # INV2 should NOT be in the table (should not be added at all)
         stocks_table = page.locator("#stocksTable tbody tr")
         stock_count = stocks_table.count()
         
@@ -300,8 +300,8 @@ class TestWatchListBrowser:
     
     def test_delete_button_visible_for_error_rows(self, page: Page, live_server_url):
         """Test that delete button is visible and actionable for error rows."""
-        # Use unique ticker to avoid conflicts with other tests
-        invalid_ticker = "INVALIDT3"
+        # Use unique ticker (4 chars, valid format) to avoid conflicts with other tests
+        invalid_ticker = "INV3"
         watchlist = create_watchlist("Test WatchList")
         # Add a stock that will fail to fetch (using a non-existent ticker)
         # We'll manually add it to the database to simulate an existing invalid ticker
@@ -353,7 +353,7 @@ class TestWatchListBrowser:
         # Wait for page to reload
         page.wait_for_timeout(2000)
         
-        # Verify the error row is removed (INVALIDT3 should not be visible)
+        # Verify the error row is removed (INV3 should not be visible)
         expect(page.locator(f"td:first-child strong:has-text('{invalid_ticker}')")).not_to_be_visible(timeout=5000)
     
     def test_edit_watchlist_name(self, page: Page, live_server_url):
