@@ -39,25 +39,40 @@ AssertionError: Error message should contain 'error' or 'no price data', got: No
    - If attributes don't exist, it returns early with "No stock attributes found"
    - The test was written expecting "no price data" error, but that code path is never reached
 
-### Why It Passed Locally
+### Why It Passed Locally in Docker But Failed in GitHub Actions
+
+**Critical Finding**: The test passed when run locally in Docker, but failed in GitHub Actions. This indicates a difference between the two environments.
 
 **Possible reasons:**
 
-1. **Code Version Difference**:
-   - Locally, you might have run the test with older code that checked price data first
-   - Or the test was written before the refactoring that changed the error message order
+1. **Test Execution Order**:
+   - GitHub Actions runs tests in a different order than local Docker
+   - Pytest execution order can vary based on:
+     - File system order (which can differ between systems)
+     - Test discovery order
+     - Parallel execution (if enabled)
+   - A previous test might have left `StockAttributes` for SDSK that wasn't cleaned up properly
+   - The `setup_database` fixture should prevent this, but race conditions or timing issues could occur
 
-2. **Test Execution Order**:
-   - If tests ran in a different order locally, previous tests might have created `StockAttributes` for SDSK
-   - The cleanup might not have been as thorough locally
+2. **Database Transaction Isolation**:
+   - PostgreSQL transaction isolation levels might differ
+   - GitHub Actions might have different default settings
+   - Concurrent test execution could cause isolation issues
 
-3. **Database State**:
-   - Locally, there might have been leftover `StockAttributes` data from previous test runs
-   - GitHub Actions starts with a clean database every time
+3. **Fixture Execution Timing**:
+   - The `autouse=True` fixture should run before each test
+   - But if tests run in parallel or with different timing, cleanup might not complete
+   - GitHub Actions might have different timing characteristics
 
-4. **Timing**:
-   - The test assertion was written before the refactoring
-   - Locally, you might not have run this specific test after the refactoring
+4. **Code Version at Time of Local Test**:
+   - The local Docker test might have run with code that had the fix already applied
+   - But the code pushed to GitHub might have been from before the fix
+   - This would explain why local passed but GitHub failed
+
+5. **Test Data Population**:
+   - The `setup_database` fixture populates test data for AAPL, MSFT, HD
+   - If a previous test created `StockAttributes` for SDSK and cleanup didn't work, it might affect this test
+   - GitHub Actions' clean environment might expose this issue more clearly
 
 ## The Fix
 
