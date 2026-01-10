@@ -187,5 +187,6 @@ class TestCalculate5DayPriceMovement:
         # Should return valid values
         assert isinstance(movement, (int, float))
         assert isinstance(is_positive, bool)
-        assert not (pd.isna(movement) or pd.isinf(movement))
+        import numpy as np
+        assert not (pd.isna(movement) or np.isinf(movement))
 

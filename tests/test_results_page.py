@@ -2,6 +2,32 @@
 import pytest
 from fastapi import status
 from app.services.stock_service import get_multiple_stock_metrics
+from app.database import engine, create_db_and_tables
+from sqlmodel import Session
+from tests.conftest import populate_test_stock_prices
+
+
+@pytest.fixture(autouse=True)
+def setup_database():
+    """Create database tables and populate test data before each test."""
+    create_db_and_tables()
+    
+    # Populate test data for tickers used in tests
+    populate_test_stock_prices("AAPL")
+    populate_test_stock_prices("MSFT")
+    
+    yield
+    
+    # Cleanup after test
+    with Session(engine) as session:
+        from sqlmodel import select
+        from app.models.stock_price import StockPrice, StockAttributes
+        
+        for price in session.exec(select(StockPrice)).all():
+            session.delete(price)
+        for attr in session.exec(select(StockAttributes)).all():
+            session.delete(attr)
+        session.commit()
 
 
 class TestMultipleStockMetrics:
