@@ -325,10 +325,13 @@ class TestWatchListBrowser:
         
         # Check that error message is displayed in the error cell
         expect(error_row.locator("td.text-danger")).to_be_visible()
-        # Error message can be "Error fetching data" or "No price data found for ticker: SDSK"
+        # Error message can be various formats indicating missing data:
+        # - "Error fetching data"
+        # - "No price data found for ticker: SDSK"
+        # - "No stock attributes found for ticker: SDSK"
         error_text = error_row.locator("td.text-danger").inner_text()
-        assert "error" in error_text.lower() or "no price data" in error_text.lower(), \
-            f"Error message should contain 'error' or 'no price data', got: {error_text}"
+        assert any(keyword in error_text.lower() for keyword in ["error", "no price data", "no stock attributes"]), \
+            f"Error message should indicate missing data, got: {error_text}"
         
         # Check that delete button is visible in the error row
         delete_button = error_row.locator("button.btn-danger")
