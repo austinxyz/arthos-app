@@ -3,6 +3,9 @@ import yfinance as yf
 import pandas as pd
 from typing import Dict, Any, Tuple, List, Optional
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def fetch_intraday_data(ticker: str) -> Optional[pd.DataFrame]:
@@ -503,7 +506,7 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
     except Exception as e:
         # If options data cannot be fetched, return empty
         import traceback
-        print(f"Error fetching options data for {ticker}: {str(e)}")
+        logger.error(f"Error fetching options data for {ticker}: {str(e)}")
         traceback.print_exc()
         return (None, {})
 
@@ -605,7 +608,7 @@ def calculate_covered_call_returns(options_data: Dict[float, Dict[str, Any]], cu
             })
     except Exception as e:
         # If there's an error processing options, log it and return what we have
-        print(f"Error processing covered call returns: {str(e)}")
+        logger.error(f"Error processing covered call returns: {str(e)}")
         import traceback
         traceback.print_exc()
     

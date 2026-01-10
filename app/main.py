@@ -673,4 +673,108 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
         raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
 
 
+@app.get("/debug/scheduler-log")
+async def scheduler_log_page(request: Request, limit: int = Query(50, description="Number of log entries to display")):
+    """
+    Debug page for displaying scheduler log data.
+    
+    Args:
+        limit: Number of log entries to display (default: 50)
+        
+    Returns:
+        HTML page with scheduler log data
+    """
+    from sqlmodel import Session, select
+    from app.database import engine
+    from app.models.scheduler_log import SchedulerLog
+    
+    try:
+        with Session(engine) as session:
+            statement = select(SchedulerLog).order_by(SchedulerLog.id.desc()).limit(limit)
+            log_entries = session.exec(statement).all()
+        
+        # Format log entries for display
+        log_data = []
+        completed_count = 0
+        in_progress_count = 0
+        
+        for entry in log_entries:
+            duration = None
+            if entry.end_time:
+                duration = (entry.end_time - entry.start_time).total_seconds()
+                completed_count += 1
+            else:
+                in_progress_count += 1
+            
+            log_data.append({
+                "id": entry.id,
+                "start_time": entry.start_time.isoformat() if entry.start_time else None,
+                "end_time": entry.end_time.isoformat() if entry.end_time else None,
+                "duration_seconds": round(duration, 2) if duration else None,
+                "duration_formatted": _format_duration(duration) if duration else "In Progress",
+                "notes": entry.notes
+            })
+        
+        return templates.TemplateResponse("scheduler_log.html", {
+            "request": request,
+            "log_entries": log_data,
+            "limit": limit,
+            "total_count": len(log_data),
+            "completed_count": completed_count,
+            "in_progress_count": in_progress_count
+        })
+    except Exception as e:
+        return templates.TemplateResponse("scheduler_log.html", {
+            "request": request,
+            "log_entries": [],
+            "limit": limit,
+            "total_count": 0,
+            "completed_count": 0,
+            "in_progress_count": 0,
+            "error_message": f"Error fetching log data: {str(e)}"
+        })
+
+
+def _format_duration(seconds: float) -> str:
+    """Format duration in seconds to human-readable string."""
+    if seconds is None:
+        return "N/A"
+    
+    if seconds < 60:
+        return f"{seconds:.1f}s"
+    elif seconds < 3600:
+        minutes = seconds / 60
+        return f"{minutes:.1f}m"
+    else:
+        hours = seconds / 3600
+        return f"{hours:.1f}h"
+
+
+@app.post("/debug/scheduler-log/trigger")
+async def trigger_scheduler_manual(bypass_market_hours: bool = Query(True, description="Bypass market hours check")):
+    """
+    Manually trigger the scheduler to fetch stock data.
+    This endpoint allows testing the scheduler at any time, regardless of market hours.
+    
+    Args:
+        bypass_market_hours: If True, run scheduler even when market is closed (default: True)
+        
+    Returns:
+        JSON response with trigger status and log entry ID
+    """
+    from app.services.scheduler_service import fetch_all_watchlist_stocks_manual
+    
+    try:
+        log_id = fetch_all_watchlist_stocks_manual(bypass_market_hours=bypass_market_hours)
+        
+        return {
+            "message": "Scheduler triggered successfully",
+            "log_id": log_id,
+            "bypass_market_hours": bypass_market_hours,
+            "status": "completed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error triggering scheduler: {str(e)}")
+
+
 

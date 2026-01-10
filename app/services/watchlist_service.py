@@ -8,6 +8,9 @@ from app.services.stock_service import get_multiple_stock_metrics
 from datetime import datetime, date
 from typing import List, Dict, Any
 from uuid import UUID
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def validate_watchlist_name(name: str) -> bool:
@@ -181,33 +184,34 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
             data = fetch_stock_data(ticker)
             # Double-check: data should not be None or empty, and should have required columns
             if data is None or len(data) == 0:
-                print(f"Debug: Ticker {ticker} returned empty data, marking as invalid")
+                logger.debug(f"Ticker {ticker} returned empty data, marking as invalid")
             elif 'Close' not in data.columns:
-                print(f"Debug: Ticker {ticker} missing 'Close' column, marking as invalid")
+                logger.debug(f"Ticker {ticker} missing 'Close' column, marking as invalid")
             elif len(data) < 1:
-                print(f"Debug: Ticker {ticker} has insufficient data points, marking as invalid")
+                logger.debug(f"Ticker {ticker} has insufficient data points, marking as invalid")
             else:
                 # Additional validation: check if Close prices are valid (not all NaN)
                 if data['Close'].isna().all():
-                    print(f"Debug: Ticker {ticker} has all NaN Close prices, marking as invalid")
+                    logger.debug(f"Ticker {ticker} has all NaN Close prices, marking as invalid")
                 else:
-                    print(f"Debug: Ticker {ticker} validated successfully, {len(data)} data points")
+                    logger.debug(f"Ticker {ticker} validated successfully, {len(data)} data points")
                     is_valid = True
                     valid_tickers.append(ticker)
                     
                     # Fetch and save stock price data to database
+                    # This is the ONLY time we fetch yfinance on demand (first time stock is added)
                     try:
                         price_data, new_records = fetch_and_save_stock_prices(ticker)
-                        print(f"Debug: Saved {new_records} new price records for {ticker}")
+                        logger.info(f"Saved {new_records} new price records for {ticker}")
                     except Exception as e:
                         # Log error but don't fail the watchlist addition
-                        print(f"Warning: Could not save price data for {ticker}: {e}")
+                        logger.warning(f"Could not save price data for {ticker}: {e}")
         except ValueError as e:
             # ValueError is raised when ticker doesn't exist or has no data
-            print(f"Debug: Ticker {ticker} failed yfinance validation (ValueError): {e}")
+            logger.debug(f"Ticker {ticker} failed yfinance validation (ValueError): {e}")
         except Exception as e:
             # Catch any other exceptions (network errors, etc.) and treat as invalid
-            print(f"Debug: Ticker {ticker} failed yfinance validation (Exception): {e}")
+            logger.debug(f"Ticker {ticker} failed yfinance validation (Exception): {e}")
         
         # If validation failed, add to invalid list
         if not is_valid:

@@ -2,12 +2,15 @@
 import yfinance as yf
 import pandas as pd
 import statistics
+import logging
 from sqlmodel import Session, select
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional, Tuple, Dict, Any
 from app.database import engine
 from app.models.stock_price import StockPrice, StockAttributes
+
+logger = logging.getLogger(__name__)
 
 
 def get_stock_attributes(ticker: str) -> Optional[StockAttributes]:
@@ -236,9 +239,23 @@ def save_stock_prices(ticker: str, price_data: pd.DataFrame):
         
         session.commit()
         
-        # Note: stock_attributes will be created/updated by fetch_and_save_stock_prices
-        # after successful data save. We don't update it here in save_stock_prices
-        # to ensure it's only created after successful fetch.
+        # Update latest_date in stock_attributes immediately after saving prices
+        # This ensures latest_date is always current, even if dividend fetch fails later
+        if latest_date is not None:
+            # Get or create stock_attributes
+            with Session(engine) as session:
+                attributes = session.get(StockAttributes, ticker_upper)
+                if attributes:
+                    # Update latest_date if we have newer data
+                    if latest_date > attributes.latest_date:
+                        attributes.latest_date = latest_date
+                    # Update earliest_date if we have older data
+                    if earliest_date and earliest_date < attributes.earliest_date:
+                        attributes.earliest_date = earliest_date
+                    session.add(attributes)
+                    session.commit()
+                # If attributes don't exist yet, they will be created by fetch_and_save_stock_prices
+                # after dividend information is fetched
 
 
 def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
@@ -269,33 +286,117 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
         fetch_intraday = False
     else:
         # Stock attributes exist - fetch data after latest_date
-        if attributes.latest_date >= today:
+        days_since_latest = (today - attributes.latest_date).days
+        
+        if days_since_latest == 0:
             # Latest date is today - fetch only current prices (intraday)
             start_date = None
             end_date = None
             fetch_intraday = True
+        elif days_since_latest < 0:
+            # Latest date is in the future (shouldn't happen, but handle gracefully)
+            logger.warning(f"Stock {ticker_upper} has latest_date {attributes.latest_date} in the future. Today is {today}. Skipping fetch.")
+            return pd.DataFrame(), 0
         else:
             # Fetch data from latest_date + 1 day to today
-            start_date = datetime.combine(attributes.latest_date + timedelta(days=1), datetime.min.time())
-            end_date = datetime.now()
-            fetch_intraday = False
+            # If latest_date + 1 is today, try intraday first, otherwise fetch historical
+            next_date = attributes.latest_date + timedelta(days=1)
+            
+            if next_date == today:
+                # Next date is today - try intraday first, fallback to daily
+                start_date = None
+                end_date = None
+                fetch_intraday = True
+            else:
+                # Fetch historical data from next_date to today
+                start_date = datetime.combine(next_date, datetime.min.time())
+                end_date = datetime.now()
+                fetch_intraday = False
     
     try:
-        stock = yf.Ticker(ticker_upper)
+        # Suppress yfinance warnings about missing data (common when market is closed)
+        # yfinance prints warnings to stderr, so we temporarily redirect stderr
+        import warnings
+        import sys
+        from io import StringIO
+        
+        # Suppress Python warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=FutureWarning)
+            
+            # Temporarily redirect stderr to suppress yfinance's "possibly delisted" messages
+            # These are normal when market is closed or no data available
+            old_stderr = sys.stderr
+            sys.stderr = StringIO()
+            
+            try:
+                stock = yf.Ticker(ticker_upper)
+            finally:
+                # Restore stderr
+                sys.stderr = old_stderr
         
         if fetch_intraday:
             # Fetch only today's intraday data
-            intraday = stock.history(period='1d', interval='1m')
+            # yfinance uses different interfaces:
+            # - period='1d', interval='1m' for intraday (minute-by-minute) - only during/after market hours
+            # - start/end dates for daily aggregated - only after market closes and data is finalized
+            logger.info(f"Fetching intraday data for {ticker_upper} for today ({today})")
+            
+            # Suppress yfinance stderr warnings
+            old_stderr = sys.stderr
+            sys.stderr = StringIO()
+            try:
+                # Try intraday first (minute-by-minute data)
+                intraday = stock.history(period='1d', interval='1m')
+            finally:
+                sys.stderr = old_stderr
             
             # Normalize index to timezone-naive if needed
             if not intraday.empty and intraday.index.tz is not None:
                 intraday.index = intraday.index.tz_localize(None)
             
             if intraday.empty:
-                # No intraday data, try daily data for today
-                hist = stock.history(start=today, end=today + timedelta(days=1))
+                # No intraday data, try daily aggregated data for today
+                # Note: This only works after market closes and data is finalized
+                old_stderr = sys.stderr
+                sys.stderr = StringIO()
+                try:
+                    hist = stock.history(start=today, end=today + timedelta(days=1))
+                finally:
+                    sys.stderr = old_stderr
                 if hist.empty:
-                    return pd.DataFrame(), 0
+                    # No daily data for today - market may be closed or it's a weekend/holiday
+                    # Use period='5d' as a better approach - this gets last 5 days of daily data
+                    # and includes today if available, or yesterday if today isn't available yet
+                    if attributes and attributes.latest_date < today:
+                        logger.info(f"No daily data for today ({today}), trying period='5d' for {ticker_upper} (gets recent days including today if available)")
+                        old_stderr = sys.stderr
+                        sys.stderr = StringIO()
+                        try:
+                            # period='5d' returns last 5 days of daily aggregated data
+                            # This is more reliable than start/end dates for current day
+                            hist = stock.history(period='5d', interval='1d')
+                        finally:
+                            sys.stderr = old_stderr
+                        
+                        if not hist.empty:
+                            logger.info(f"Found data using period='5d' for {ticker_upper}")
+                            # Normalize index
+                            if hist.index.tz is not None:
+                                hist.index = hist.index.tz_localize(None)
+                            # Filter to only dates after latest_date
+                            hist_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in hist.index]
+                            hist = hist[[d > attributes.latest_date for d in hist_dates]]
+                            
+                            if hist.empty:
+                                logger.info(f"No new data available for {ticker_upper} (all data already in database)")
+                                return pd.DataFrame(), 0
+                        else:
+                            logger.info(f"No data available for {ticker_upper} today (market may be closed)")
+                            return pd.DataFrame(), 0
+                    else:
+                        logger.info(f"No data available for {ticker_upper} today (market may be closed)")
+                        return pd.DataFrame(), 0
                 # Normalize index to timezone-naive if needed
                 if hist.index.tz is not None:
                     hist.index = hist.index.tz_localize(None)
@@ -316,18 +417,69 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
                     'Volume': intraday['Volume'].sum()
                 }], index=[pd.Timestamp(today).tz_localize(None)])
         else:
-            # Fetch historical data
-            hist = stock.history(start=start_date, end=end_date)
+            # Fetch historical data using start/end dates
+            # yfinance uses start/end dates for historical daily aggregated data
+            # This is the most reliable method for past dates
+            logger.info(f"Fetching historical data for {ticker_upper} from {start_date.date()} to {end_date.date()}")
+            
+            # Suppress yfinance stderr warnings
+            old_stderr = sys.stderr
+            sys.stderr = StringIO()
+            try:
+                hist = stock.history(start=start_date, end=end_date)
+            finally:
+                sys.stderr = old_stderr
             
             if hist.empty:
-                return pd.DataFrame(), 0
+                # No new data available for the requested range
+                # If we're trying to fetch today's data and it's not available, use period='5d' as fallback
+                # period='5d' is more reliable than start/end dates for current day data
+                if start_date.date() == today and attributes and attributes.latest_date < today:
+                    logger.info(f"No data for today ({today}) using start/end dates, trying period='5d' for {ticker_upper}")
+                    old_stderr = sys.stderr
+                    sys.stderr = StringIO()
+                    try:
+                        # period='5d' with interval='1d' returns last 5 days of daily data
+                        # This includes today if available, or yesterday if today isn't finalized yet
+                        hist = stock.history(period='5d', interval='1d')
+                    finally:
+                        sys.stderr = old_stderr
+                    
+                    if not hist.empty:
+                        logger.info(f"Found data using period='5d' for {ticker_upper}")
+                        # Normalize index
+                        if hist.index.tz is not None:
+                            hist.index = hist.index.tz_localize(None)
+                        # Filter to only dates after latest_date
+                        hist_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in hist.index]
+                        hist = hist[[d > attributes.latest_date for d in hist_dates]]
+                        
+                        if hist.empty:
+                            logger.info(f"No new data available for {ticker_upper} (all data already in database)")
+                            return pd.DataFrame(), 0
+                    else:
+                        logger.info(f"No new data available for {ticker_upper} from {start_date.date()} to {end_date.date()} (market may be closed or no updates)")
+                        return pd.DataFrame(), 0
+                else:
+                    # No new data available - this is normal when:
+                    # 1. Market is closed (evenings, weekends, holidays)
+                    # 2. No new data since last fetch
+                    logger.info(f"No new data available for {ticker_upper} from {start_date.date()} to {end_date.date()} (market may be closed or no updates)")
+                    return pd.DataFrame(), 0
             
             # Normalize index to timezone-naive if needed
             if hist.index.tz is not None:
                 hist.index = hist.index.tz_localize(None)
             
             # Try to fetch intraday data for today if available
-            intraday_today = stock.history(period='1d', interval='1m')
+            # Use period='1d' with interval='1m' for current day's minute-by-minute data
+            # This is different from start/end dates which return daily aggregated data
+            old_stderr = sys.stderr
+            sys.stderr = StringIO()
+            try:
+                intraday_today = stock.history(period='1d', interval='1m')
+            finally:
+                sys.stderr = old_stderr
             
             # Normalize index to timezone-naive if needed
             if not intraday_today.empty and intraday_today.index.tz is not None:
@@ -395,8 +547,20 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
         
         # Save to database - only proceed if we have data to save
         if price_data.empty:
+            # No new data available - this is normal when:
+            # 1. Market is closed (evenings, weekends, holidays)
+            # 2. No new data since last fetch
+            # 3. Date range is in the future
+            logger.info(f"No new price data available for {ticker_upper} (this is normal when market is closed)")
+            # Even if no new data, ensure stock_attributes exists (for first-time entries)
+            if attributes is None:
+                # Create minimal stock_attributes entry if it doesn't exist
+                # This handles the case where validation passed but no data was available
+                today = datetime.now().date()
+                update_stock_attributes(ticker_upper, today, today)
             return pd.DataFrame(), 0
         
+        # Save prices - this also updates latest_date in stock_attributes immediately
         save_stock_prices(ticker_upper, price_data)
         
         # Count records after saving
@@ -419,8 +583,14 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
         
         # Fetch and update dividend information from yfinance
         try:
-            stock = yf.Ticker(ticker_upper)
-            info = stock.info
+            # Suppress yfinance stderr warnings
+            old_stderr = sys.stderr
+            sys.stderr = StringIO()
+            try:
+                stock = yf.Ticker(ticker_upper)
+                info = stock.info
+            finally:
+                sys.stderr = old_stderr
             
             dividend_amt = None
             dividend_yield = None
@@ -465,7 +635,7 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
         except Exception as e:
             # Log error but don't fail the price data save
             # Still create stock_attributes with date range even if dividend fetch fails
-            print(f"Warning: Could not update dividend information for {ticker_upper}: {e}")
+            logger.warning(f"Could not update dividend information for {ticker_upper}: {e}")
             update_stock_attributes(
                 ticker_upper, 
                 earliest_date, 

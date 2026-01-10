@@ -3,6 +3,7 @@ import os
 from sqlmodel import SQLModel, create_engine, Session, text
 from app.models.watchlist import WatchList, WatchListStock  # Import to register with metadata
 from app.models.stock_price import StockPrice, StockAttributes  # Import to register with metadata
+from app.models.scheduler_log import SchedulerLog  # Import to register with metadata
 
 # Database URL - supports both SQLite (local dev) and PostgreSQL (production)
 # Railway provides DATABASE_URL environment variable automatically
