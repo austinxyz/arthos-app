@@ -317,9 +317,36 @@ The main lessons learned:
 5. **Use specific locators** - Avoid strict mode violations
 6. **Wait properly** - Give time for async operations and page reloads
 7. **Test isolation is critical** - Each test should start with a clean state
+8. **Always test in Docker before pushing** - Ensures tests pass in CI environment
+9. **Review learnings from previous failures** - Avoid repeating the same mistakes
 
 These patterns ensure tests are:
 - **Deterministic** - Always produce the same results
 - **Fast** - No waiting for external APIs
 - **Reliable** - Work consistently in CI environments
 - **Maintainable** - Clear patterns that are easy to follow
+
+## Development Process Requirements
+
+### Mandatory Pre-Commit Steps
+
+1. **Run Tests in Docker**
+   - Always run `./scripts/run-tests-local.sh unit` before pushing
+   - Docker environment matches GitHub Actions runners exactly
+   - If tests pass locally but fail in CI, Docker tests will catch it
+
+2. **Review Test Failure Learnings**
+   - Check this document (`test_failures_and_solutions.md`) for common patterns
+   - Review `docs/DEVELOPMENT_PROCESS.md` for best practices
+   - Apply learnings to avoid repeating the same mistakes
+
+### Common Mistakes to Avoid
+
+- ❌ **Assuming data exists**: Always populate test data
+- ❌ **Wrong attribute names**: Check model definitions (e.g., `watchlist.watchlist_id`, not `watchlist.id`)
+- ❌ **Library function assumptions**: Verify function exists (e.g., `pd.isinf` doesn't exist, use `np.isinf`)
+- ❌ **Broad Playwright locators**: Scope to specific sections
+- ❌ **Timezone mixing**: Normalize all timestamps
+- ❌ **Skipping Docker tests**: Always test in Docker before pushing
+
+See `docs/DEVELOPMENT_PROCESS.md` for detailed guidelines and step-by-step workflow.
