@@ -216,31 +216,33 @@ class TestWatchListBrowser:
         # If stock_count is 0, that's expected - the table is empty, so INVALID12345 is definitely not there
     
     def test_add_stocks_sdsk_invalid_ticker(self, page: Page, live_server_url):
-        """Test adding SDSK (valid format but doesn't exist in yfinance) - should be rejected."""
+        """Test adding INVALIDT1 (valid format but doesn't exist in yfinance) - should be rejected."""
+        # Use unique ticker to avoid conflicts with other tests
+        invalid_ticker = "INVALIDT1"
         watchlist = create_watchlist("Test WatchList")
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
-        # Try SDSK - valid format but doesn't exist in yfinance
-        page.fill("#tickersInput", "SDSK")
+        # Try INVALIDT1 - valid format but doesn't exist in yfinance
+        page.fill("#tickersInput", invalid_ticker)
         page.click("button[type='submit']")
         
         # Should show error message about invalid ticker
         expect(page.locator("#errorMessage")).to_be_visible(timeout=10000)
-        expect(page.locator("#errorMessage")).to_contain_text("Ticker SDSK is invalid")
+        expect(page.locator("#errorMessage")).to_contain_text(f"Ticker {invalid_ticker} is invalid")
         
         # Wait a bit to ensure no stock was added
         page.wait_for_timeout(3000)
         
-        # Verify SDSK is NOT in the table (should not appear even as an error row)
+        # Verify INVALIDT1 is NOT in the table (should not appear even as an error row)
         # If it was added, it would show as an error row, but it shouldn't be added at all
         stocks_table = page.locator("#stocksTable tbody tr")
         stock_count = stocks_table.count()
         
-        # Check that SDSK is not in any row
+        # Check that INVALIDT1 is not in any row
         for i in range(stock_count):
             row_text = stocks_table.nth(i).inner_text()
-            assert "SDSK" not in row_text, f"SDSK should not be in the table, but found in row: {row_text}"
+            assert invalid_ticker not in row_text, f"{invalid_ticker} should not be in the table, but found in row: {row_text}"
     
     def test_add_stocks_mixed_valid_invalid(self, page: Page, live_server_url):
         """Test adding mix of valid and invalid format tickers - format validation should catch invalid ones."""
@@ -266,18 +268,20 @@ class TestWatchListBrowser:
         # We can't verify AAPL/MSFT were added because the form submission was blocked
     
     def test_add_stocks_mixed_valid_sdsk(self, page: Page, live_server_url):
-        """Test adding mix of valid ticker and SDSK - only valid one should be added."""
+        """Test adding mix of valid ticker and INVALIDT2 - only valid one should be added."""
+        # Use unique ticker to avoid conflicts with other tests
+        invalid_ticker = "INVALIDT2"
         watchlist = create_watchlist("Test WatchList")
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
-        # Add mix of valid ticker and SDSK (valid format but doesn't exist)
-        page.fill("#tickersInput", "AAPL,SDSK")
+        # Add mix of valid ticker and INVALIDT2 (valid format but doesn't exist)
+        page.fill("#tickersInput", f"AAPL,{invalid_ticker}")
         page.click("button[type='submit']")
         
-        # Should show error message about SDSK being invalid
+        # Should show error message about INVALIDT2 being invalid
         expect(page.locator("#errorMessage")).to_be_visible(timeout=10000)
-        expect(page.locator("#errorMessage")).to_contain_text("Ticker SDSK is invalid")
+        expect(page.locator("#errorMessage")).to_contain_text(f"Ticker {invalid_ticker} is invalid")
         
         # Wait for page reload if stocks were added
         page.wait_for_timeout(3000)
@@ -285,17 +289,19 @@ class TestWatchListBrowser:
         # Valid stock should appear in table
         expect(page.locator("text=AAPL")).to_be_visible(timeout=10000)
         
-        # SDSK should NOT be in the table (should not be added at all)
+        # INVALIDT2 should NOT be in the table (should not be added at all)
         stocks_table = page.locator("#stocksTable tbody tr")
         stock_count = stocks_table.count()
         
-        # Check that SDSK is not in any row
+        # Check that INVALIDT2 is not in any row
         for i in range(stock_count):
             row_text = stocks_table.nth(i).inner_text()
-            assert "SDSK" not in row_text, f"SDSK should not be in the table, but found in row: {row_text}"
+            assert invalid_ticker not in row_text, f"{invalid_ticker} should not be in the table, but found in row: {row_text}"
     
     def test_delete_button_visible_for_error_rows(self, page: Page, live_server_url):
         """Test that delete button is visible and actionable for error rows."""
+        # Use unique ticker to avoid conflicts with other tests
+        invalid_ticker = "INVALIDT3"
         watchlist = create_watchlist("Test WatchList")
         # Add a stock that will fail to fetch (using a non-existent ticker)
         # We'll manually add it to the database to simulate an existing invalid ticker
@@ -304,7 +310,7 @@ class TestWatchListBrowser:
         with Session(engine) as session:
             invalid_stock = WatchListStock(
                 watchlist_id=watchlist.watchlist_id,
-                ticker="SDSK",  # This ticker doesn't exist and will cause an error
+                ticker=invalid_ticker,  # This ticker doesn't exist and will cause an error
                 date_added=datetime.now()
             )
             session.add(invalid_stock)
@@ -321,14 +327,14 @@ class TestWatchListBrowser:
         expect(error_row).to_be_visible()
         
         # Check that ticker name is displayed in the first column (more specific locator)
-        expect(error_row.locator("td:first-child strong:has-text('SDSK')")).to_be_visible()
+        expect(error_row.locator(f"td:first-child strong:has-text('{invalid_ticker}')")).to_be_visible()
         
         # Check that error message is displayed in the error cell
         expect(error_row.locator("td.text-danger")).to_be_visible()
         # Error message can be various formats indicating missing data:
         # - "Error fetching data"
-        # - "No price data found for ticker: SDSK"
-        # - "No stock attributes found for ticker: SDSK"
+        # - "No price data found for ticker: {invalid_ticker}"
+        # - "No stock attributes found for ticker: {invalid_ticker}"
         error_text = error_row.locator("td.text-danger").inner_text()
         assert any(keyword in error_text.lower() for keyword in ["error", "no price data", "no stock attributes"]), \
             f"Error message should indicate missing data, got: {error_text}"
@@ -347,8 +353,8 @@ class TestWatchListBrowser:
         # Wait for page to reload
         page.wait_for_timeout(2000)
         
-        # Verify the error row is removed (SDSK should not be visible)
-        expect(page.locator("td:first-child strong:has-text('SDSK')")).not_to_be_visible(timeout=5000)
+        # Verify the error row is removed (INVALIDT3 should not be visible)
+        expect(page.locator(f"td:first-child strong:has-text('{invalid_ticker}')")).not_to_be_visible(timeout=5000)
     
     def test_edit_watchlist_name(self, page: Page, live_server_url):
         """Test editing watchlist name."""
