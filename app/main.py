@@ -684,6 +684,57 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
         raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
 
 
+@app.get("/debug/database-status")
+async def debug_database_status():
+    """Debug endpoint to check database status and earnings data."""
+    from app.database import DATABASE_URL, engine
+    from sqlmodel import Session, select
+    from app.models.watchlist import WatchList, WatchListStock
+    from app.models.stock_price import StockAttributes
+    import os
+    
+    db_info = {
+        "database_url": DATABASE_URL,
+        "is_sqlite": DATABASE_URL.startswith("sqlite"),
+    }
+    
+    if DATABASE_URL.startswith("sqlite"):
+        db_file = DATABASE_URL.replace("sqlite:///", "")
+        if not os.path.isabs(db_file):
+            db_file = os.path.abspath(db_file)
+        db_info["database_file"] = db_file
+        db_info["file_exists"] = os.path.exists(db_file)
+        if os.path.exists(db_file):
+            db_info["file_size"] = os.path.getsize(db_file)
+    
+    with Session(engine) as session:
+        watchlists = session.exec(select(WatchList)).all()
+        db_info["watchlists_count"] = len(watchlists)
+        db_info["watchlists"] = []
+        
+        for wl in watchlists:
+            stocks = session.exec(select(WatchListStock).where(WatchListStock.watchlist_id == wl.watchlist_id)).all()
+            wl_info = {
+                "name": wl.watchlist_name,
+                "id": str(wl.watchlist_id),
+                "stocks_count": len(stocks),
+                "stocks": []
+            }
+            
+            for stock in stocks:
+                attr = session.get(StockAttributes, stock.ticker.upper())
+                stock_info = {
+                    "ticker": stock.ticker,
+                    "has_earnings": attr.next_earnings_date is not None if attr else False,
+                    "earnings_date": str(attr.next_earnings_date) if attr and attr.next_earnings_date else None,
+                }
+                wl_info["stocks"].append(stock_info)
+            
+            db_info["watchlists"].append(wl_info)
+    
+    return db_info
+
+
 @app.get("/debug/scheduler-log")
 async def scheduler_log_page(request: Request, limit: int = Query(50, description="Number of log entries to display")):
     """
