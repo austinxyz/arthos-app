@@ -746,6 +746,19 @@ async def debug_database_status():
     return db_info
 
 
+@app.get("/debug")
+async def debug_index(request: Request):
+    """
+    Debug tools index page - lists all available debug endpoints.
+    
+    Returns:
+        HTML page with links to all debug tools
+    """
+    return templates.TemplateResponse("debug_index.html", {
+        "request": request
+    })
+
+
 @app.get("/debug/scheduler-log")
 async def scheduler_log_page(request: Request, limit: int = Query(50, description="Number of log entries to display")):
     """

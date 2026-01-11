@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Tools - Arthos</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            padding: 20px 0;
+        }
+        .header h1 {
+            color: #4285f4;
+        }
+        .debug-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            height: 100%;
+        }
+        .debug-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .debug-card .card-body {
+            display: flex;
+            flex-direction: column;
+        }
+        .debug-card .card-title {
+            color: #4285f4;
+            margin-bottom: 10px;
+        }
+        .debug-card .card-text {
+            flex-grow: 1;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header mb-4">
+            <a href="/" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Home</a>
+            <h1>Debug Tools</h1>
+            <p class="text-muted">Development and debugging utilities for Arthos</p>
+        </div>
+        
+        <div class="row g-4">
+            <!-- Scheduler Log -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card debug-card">
+                    <div class="card-body">
+                        <h5 class="card-title">📋 Scheduler Log</h5>
+                        <p class="card-text">View scheduler execution history, run times, and status for debugging scheduled jobs.</p>
+                        <a href="/debug/scheduler-log" class="btn btn-primary">View Log</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Stock Price Debug -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card debug-card">
+                    <div class="card-body">
+                        <h5 class="card-title">📊 Stock Price Debug</h5>
+                        <p class="card-text">View stock price data and all stock attributes (earnings, dividends, dates) from the database.</p>
+                        <a href="/debug/stock-price" class="btn btn-primary">View Stock Data</a>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Database Status -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card debug-card">
+                    <div class="card-body">
+                        <h5 class="card-title">🗄️ Database Status</h5>
+                        <p class="card-text">Check database connection, file path, and view all watchlists and stock data in JSON format.</p>
+                        <a href="/debug/database-status" class="btn btn-primary" target="_blank">View Status</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-5">
+            <h3 class="mb-3">API Endpoints</h3>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">🔧 Trigger Scheduler</h5>
+                    <p class="card-text mb-2">Manually trigger the scheduler to fetch stock data. Can bypass market hours check for testing.</p>
+                    <code>POST /debug/scheduler-log/trigger?bypass_market_hours=true</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+</body>
+</html>
