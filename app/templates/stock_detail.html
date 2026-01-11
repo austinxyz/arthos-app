@@ -140,8 +140,8 @@
                     <div class="metric-item">
                         <div class="metric-label">Next Earnings</div>
                         <div class="metric-value">
-                            {% if metrics.next_earnings_date %}
-                                {{ metrics.next_earnings_date.strftime('%b %d, %Y') }}
+                            {% if metrics.next_earnings_date_formatted %}
+                                {{ metrics.next_earnings_date_formatted }}
                                 {% if metrics.is_earnings_date_estimate %}
                                     <small class="text-muted">(Est.)</small>
                                 {% endif %}

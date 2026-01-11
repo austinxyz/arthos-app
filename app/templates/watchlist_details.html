@@ -180,8 +180,8 @@
                             <td>{{ metric.sma_200_formatted }}</td>
                             <td>{{ metric.dividend_yield_formatted }}</td>
                             <td>
-                                {% if metric.next_earnings_date %}
-                                    {{ metric.next_earnings_date.strftime('%b %d, %Y') }}
+                                {% if metric.next_earnings_date_formatted %}
+                                    {{ metric.next_earnings_date_formatted }}
                                     {% if metric.is_earnings_date_estimate %}
                                         <small class="text-muted">(Est.)</small>
                                     {% endif %}

@@ -161,6 +161,17 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         else:
             metrics['dividend_yield_formatted'] = "N/A"
         
+        # Format earnings date for display
+        if metrics.get('next_earnings_date'):
+            from datetime import date
+            earnings_date = metrics['next_earnings_date']
+            if isinstance(earnings_date, date):
+                metrics['next_earnings_date_formatted'] = earnings_date.strftime('%b %d, %Y')
+            else:
+                metrics['next_earnings_date_formatted'] = str(earnings_date)
+        else:
+            metrics['next_earnings_date_formatted'] = None
+        
         # Get options data with error handling
         options_expiration = None
         options_data = {}
