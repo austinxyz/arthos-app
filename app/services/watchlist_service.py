@@ -400,6 +400,8 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID) -> List[Dict[str, Any]
                 "sma_200": float(current_price_record.dma_200) if current_price_record.dma_200 else None,
                 "dividend_amt": float(attributes.dividend_amt) if attributes.dividend_amt else None,
                 "dividend_yield": float(attributes.dividend_yield) if attributes.dividend_yield else None,
+                "next_earnings_date": attributes.next_earnings_date,
+                "is_earnings_date_estimate": attributes.is_earnings_date_estimate,
                 "earliest_date": attributes.earliest_date.isoformat(),
                 "latest_date": attributes.latest_date.isoformat(),
                 # Use calculated metrics for trading range widget

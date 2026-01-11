@@ -76,3 +76,11 @@ class StockAttributes(SQLModel, table=True):
         sa_column=Column(Numeric(12, 4)),
         description="Dividend yield as a percentage (dividend amount divided by current stock price)"
     )
+    next_earnings_date: Optional[date] = Field(
+        default=None,
+        description="Next earnings announcement date"
+    )
+    is_earnings_date_estimate: Optional[bool] = Field(
+        default=None,
+        description="Whether the earnings date is an estimate"
+    )

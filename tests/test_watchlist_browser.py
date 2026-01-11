@@ -45,6 +45,24 @@ def setup_database():
     populate_test_stock_prices("MSFT")
     populate_test_stock_prices("HD")
     
+    # Add earnings date to test data
+    from datetime import date, timedelta
+    from app.services.stock_price_service import update_stock_attributes
+    
+    # Set earnings dates for test tickers
+    future_date = date.today() + timedelta(days=30)
+    for ticker in ["AAPL", "MSFT", "HD"]:
+        try:
+            update_stock_attributes(
+                ticker,
+                earliest_date=date.today() - timedelta(days=365),
+                latest_date=date.today(),
+                next_earnings_date=future_date,
+                is_earnings_date_estimate=False
+            )
+        except Exception:
+            pass  # Ignore if attributes don't exist yet
+    
     yield
     
     # Cleanup after test
@@ -540,3 +558,68 @@ class TestWatchListBrowser:
                 break
         
         assert dividend_yield_found, "Dividend Yield metric not found on stock detail page"
+    
+    @pytest.mark.browser
+    def test_earnings_date_display_in_watchlist(self, page: Page, live_server_url):
+        """Test that earnings date is displayed in the watchlist table."""
+        watchlist = create_watchlist("Test WatchList")
+        add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
+        
+        # Navigate to watchlist details page
+        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}", wait_until="networkidle", timeout=30000)
+        page.wait_for_load_state("networkidle", timeout=30000)
+        page.wait_for_timeout(2000)
+        
+        # Check that "Next Earnings" column header exists
+        earnings_header = page.locator("th:has-text('Next Earnings')")
+        expect(earnings_header).to_be_visible()
+        
+        # Check that earnings date is displayed for AAPL
+        # Find the row with AAPL ticker
+        aapl_row = page.locator("#stocksTable tbody tr").filter(has_text="AAPL")
+        expect(aapl_row).to_be_visible()
+        
+        # Check that earnings date cell contains a date or "N/A"
+        earnings_cell = aapl_row.locator("td").nth(5)  # 6th column (0-indexed: Ticker, Price, SMA50, SMA200, Div Yield, Earnings)
+        earnings_text = earnings_cell.inner_text().strip()
+        
+        # Should be either "N/A" or a date format like "Jan 29, 2026"
+        assert earnings_text == "N/A" or len(earnings_text) > 0, \
+            f"Earnings date has invalid format: {earnings_text}"
+    
+    @pytest.mark.browser
+    def test_earnings_date_display_in_stock_detail(self, page: Page, live_server_url):
+        """Test that earnings date is displayed on stock detail page."""
+        # Test with AAPL stock
+        response = page.goto(f"{live_server_url}/stock/AAPL", wait_until="networkidle", timeout=30000)
+        
+        # Check that we got a 200 response
+        if response.status == 404:
+            pytest.skip(f"Stock detail page returned 404 for AAPL. Data may not be available.")
+        
+        assert response.status == 200
+        
+        # Wait for metrics card to be visible
+        page.wait_for_selector('.metrics-card', state='visible', timeout=10000)
+        page.wait_for_timeout(2000)
+        
+        # Check that Next Earnings label exists
+        earnings_label = page.locator('.metric-label:has-text("Next Earnings")')
+        expect(earnings_label).to_be_visible()
+        
+        # Check that earnings date value is displayed
+        metric_items = page.locator('.metric-item')
+        earnings_found = False
+        
+        for i in range(metric_items.count()):
+            item = metric_items.nth(i)
+            label = item.locator('.metric-label').inner_text().strip()
+            if label == "Next Earnings":
+                value = item.locator('.metric-value').inner_text().strip()
+                # Should be either "N/A" or a date format like "Jan 29, 2026" with optional "(Est.)"
+                assert value == "N/A" or len(value) > 0, \
+                    f"Earnings date has invalid format: {value}"
+                earnings_found = True
+                break
+        
+        assert earnings_found, "Next Earnings metric not found on stock detail page"

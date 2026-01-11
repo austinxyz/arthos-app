@@ -26,6 +26,8 @@ def create_db_and_tables():
     _migrate_stock_price_dma_columns()
     # Migrate stock_price_wtrmrk to stock_attributes (rename table and add new columns)
     _migrate_stock_attributes_table()
+    # Add earnings date columns to stock_attributes if they don't exist
+    _migrate_stock_attributes_earnings_columns()
     # Create indexes on stock_price and stock_attributes for faster queries
     _create_stock_price_index()
     _create_stock_attributes_index()
@@ -179,6 +181,58 @@ def _migrate_stock_attributes_table():
     except Exception as e:
         # If migration fails, log but don't crash
         print(f"Warning: Could not migrate stock_attributes table: {e}")
+
+
+def _migrate_stock_attributes_earnings_columns():
+    """Add next_earnings_date and is_earnings_date_estimate columns to stock_attributes table if they don't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            if is_sqlite:
+                # SQLite - check if columns exist
+                result = session.exec(text(
+                    "PRAGMA table_info(stock_attributes)"
+                )).all()
+                columns = {row[1] for row in result}
+                
+                if 'next_earnings_date' not in columns:
+                    session.exec(text(
+                        "ALTER TABLE stock_attributes ADD COLUMN next_earnings_date DATE"
+                    ))
+                    session.commit()
+                    print("Added next_earnings_date column to stock_attributes table")
+                
+                if 'is_earnings_date_estimate' not in columns:
+                    session.exec(text(
+                        "ALTER TABLE stock_attributes ADD COLUMN is_earnings_date_estimate BOOLEAN"
+                    ))
+                    session.commit()
+                    print("Added is_earnings_date_estimate column to stock_attributes table")
+            else:
+                # PostgreSQL - check if columns exist
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'stock_attributes' AND column_name IN ('next_earnings_date', 'is_earnings_date_estimate')"
+                )).all()
+                existing_columns = {row[0] for row in result}
+                
+                if 'next_earnings_date' not in existing_columns:
+                    session.exec(text(
+                        "ALTER TABLE stock_attributes ADD COLUMN next_earnings_date DATE"
+                    ))
+                    session.commit()
+                    print("Added next_earnings_date column to stock_attributes table")
+                
+                if 'is_earnings_date_estimate' not in existing_columns:
+                    session.exec(text(
+                        "ALTER TABLE stock_attributes ADD COLUMN is_earnings_date_estimate BOOLEAN"
+                    ))
+                    session.commit()
+                    print("Added is_earnings_date_estimate column to stock_attributes table")
+    except Exception as e:
+        # If migration fails, log but don't crash
+        print(f"Warning: Could not migrate stock_attributes earnings columns: {e}")
 
 
 def _create_stock_price_index():

@@ -318,3 +318,46 @@ class TestGetWatchlistStocksWithMetrics:
         assert len(metrics) == 1
         assert metrics[0]["ticker"] == "TEST"
         assert "error" in metrics[0]
+    
+    def test_get_metrics_includes_earnings_data(self):
+        """Test that get_watchlist_stocks_with_metrics includes earnings data."""
+        from datetime import date, timedelta
+        from app.services.stock_price_service import update_stock_attributes
+        from tests.conftest import populate_test_stock_prices
+        
+        watchlist = create_watchlist("Test WatchList")
+        ticker = "AAPL"
+        
+        # Populate test data
+        populate_test_stock_prices(ticker)
+        
+        # Add stock to watchlist
+        with Session(engine) as session:
+            from app.models.watchlist import WatchListStock
+            stock = WatchListStock(
+                watchlist_id=watchlist.watchlist_id,
+                ticker=ticker,
+                date_added=datetime.now()
+            )
+            session.add(stock)
+            session.commit()
+        
+        # Set earnings date in attributes
+        future_date = date.today() + timedelta(days=30)
+        update_stock_attributes(
+            ticker,
+            earliest_date=date.today() - timedelta(days=365),
+            latest_date=date.today(),
+            next_earnings_date=future_date,
+            is_earnings_date_estimate=True
+        )
+        
+        # Get metrics
+        metrics = get_watchlist_stocks_with_metrics(watchlist.watchlist_id)
+        
+        assert len(metrics) == 1
+        assert metrics[0]["ticker"] == ticker
+        assert "next_earnings_date" in metrics[0]
+        assert "is_earnings_date_estimate" in metrics[0]
+        assert metrics[0]["next_earnings_date"] == future_date
+        assert metrics[0]["is_earnings_date_estimate"] is True

@@ -146,6 +146,7 @@
                         <th>SMA 50</th>
                         <th>SMA 200</th>
                         <th>Dividend Yield</th>
+                        <th>Next Earnings</th>
                         <th>Signal</th>
                         <th>Trading Range</th>
                         <th>Actions</th>
@@ -164,7 +165,7 @@
                             {% endif %}
                         </td>
                         {% if 'error' in metric %}
-                            <td colspan="6" class="text-danger fw-bold">{{ metric.error }}</td>
+                            <td colspan="7" class="text-danger fw-bold">{{ metric.error }}</td>
                             <td class="text-center">
                                 <button class="btn btn-sm btn-danger" onclick="removeStock('{{ metric.ticker }}')">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
@@ -178,6 +179,16 @@
                             <td>{{ metric.sma_50_formatted }}</td>
                             <td>{{ metric.sma_200_formatted }}</td>
                             <td>{{ metric.dividend_yield_formatted }}</td>
+                            <td>
+                                {% if metric.next_earnings_date %}
+                                    {{ metric.next_earnings_date.strftime('%b %d, %Y') }}
+                                    {% if metric.is_earnings_date_estimate %}
+                                        <small class="text-muted">(Est.)</small>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </td>
                             <td data-sort="{% if metric.signal == 'Extreme Oversold' %}5{% elif metric.signal == 'Oversold' %}4{% elif metric.signal == 'Neutral' %}3{% elif metric.signal == 'Overbought' %}2{% elif metric.signal == 'Extreme Overbought' %}1{% else %}0{% endif %}">
                                 {% if metric.signal == "Extreme Oversold" %}
                                     <span class="badge bg-success">Extreme OS</span>

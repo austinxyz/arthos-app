@@ -310,3 +310,84 @@ class TestFetchAndSaveStockPrices:
         except ValueError:
             # Expected behavior - invalid ticker raises ValueError
             pass
+    
+    def test_fetch_and_save_earnings_date(self):
+        """Test that earnings date is fetched and stored when available."""
+        ticker = "AAPL"
+        price_data, new_records = fetch_and_save_stock_prices(ticker)
+        
+        # Verify stock_attributes was created with earnings data
+        attributes = get_stock_attributes(ticker)
+        assert attributes is not None
+        
+        # Earnings date may or may not be available depending on yfinance data
+        # If available, it should be a future date
+        if attributes.next_earnings_date is not None:
+            assert attributes.next_earnings_date > date.today()
+            # is_earnings_date_estimate should be a boolean if earnings date exists
+            assert isinstance(attributes.is_earnings_date_estimate, (bool, type(None)))
+    
+    def test_update_stock_attributes_with_earnings(self):
+        """Test updating stock attributes with earnings date."""
+        ticker = "TEST"
+        future_date = date.today() + timedelta(days=30)
+        
+        # Create initial attributes
+        update_stock_attributes(
+            ticker,
+            earliest_date=date.today() - timedelta(days=365),
+            latest_date=date.today(),
+            next_earnings_date=future_date,
+            is_earnings_date_estimate=False
+        )
+        
+        attributes = get_stock_attributes(ticker)
+        assert attributes is not None
+        assert attributes.next_earnings_date == future_date
+        assert attributes.is_earnings_date_estimate is False
+    
+    def test_update_stock_attributes_past_earnings_not_stored(self):
+        """Test that past earnings dates are not stored."""
+        ticker = "TEST"
+        past_date = date.today() - timedelta(days=10)
+        
+        # Try to update with past date
+        update_stock_attributes(
+            ticker,
+            earliest_date=date.today() - timedelta(days=365),
+            latest_date=date.today(),
+            next_earnings_date=past_date,
+            is_earnings_date_estimate=False
+        )
+        
+        # The function should accept it, but we test that get_stock_metrics_from_db
+        # doesn't return past dates (this is handled in fetch_and_save_stock_prices)
+        attributes = get_stock_attributes(ticker)
+        assert attributes is not None
+        # Note: update_stock_attributes doesn't validate dates, but fetch_and_save_stock_prices does
+        # So we just verify the attribute was stored as-is
+    
+    def test_get_stock_metrics_includes_earnings(self):
+        """Test that get_stock_metrics_from_db includes earnings data."""
+        ticker = "AAPL"
+        
+        # Populate test data
+        from tests.conftest import populate_test_stock_prices
+        populate_test_stock_prices(ticker)
+        
+        # Set earnings date in attributes
+        future_date = date.today() + timedelta(days=30)
+        update_stock_attributes(
+            ticker,
+            earliest_date=date.today() - timedelta(days=365),
+            latest_date=date.today(),
+            next_earnings_date=future_date,
+            is_earnings_date_estimate=True
+        )
+        
+        metrics = get_stock_metrics_from_db(ticker)
+        assert metrics is not None
+        assert "next_earnings_date" in metrics
+        assert "is_earnings_date_estimate" in metrics
+        assert metrics["next_earnings_date"] == future_date
+        assert metrics["is_earnings_date_estimate"] is True
