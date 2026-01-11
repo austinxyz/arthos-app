@@ -594,16 +594,16 @@ async def remove_stock_from_watchlist(watchlist_id: UUID = FPath(...), ticker: s
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@app.get("/test/stock-price")
-async def test_stock_price_page(request: Request, ticker: str = Query("", description="Stock ticker symbol")):
+@app.get("/debug/stock-price")
+async def debug_stock_price_page(request: Request, ticker: str = Query("", description="Stock ticker symbol")):
     """
-    Test page for displaying stock price data from database.
+    Debug page for displaying stock price data and all stock attributes from database.
     
     Args:
         ticker: Optional stock ticker symbol to display
         
     Returns:
-        HTML page with stock price data
+        HTML page with stock price data and all stock attributes
     """
     from app.services.stock_price_service import get_stock_prices_from_db, get_stock_attributes
     
@@ -633,17 +633,28 @@ async def test_stock_price_page(request: Request, ticker: str = Query("", descri
             "dma_200": float(price.dma_200) if price.dma_200 else None
         })
     
+    # Format all stock attributes for display
     attributes_data = None
     if attributes:
+        # Format earnings date
+        next_earnings_date_formatted = None
+        if attributes.next_earnings_date:
+            next_earnings_date_formatted = attributes.next_earnings_date.strftime('%b %d, %Y')
+            if attributes.is_earnings_date_estimate:
+                next_earnings_date_formatted += ' (Est.)'
+        
         attributes_data = {
             "ticker": attributes.ticker,
             "earliest_date": attributes.earliest_date.isoformat(),
             "latest_date": attributes.latest_date.isoformat(),
             "dividend_amt": float(attributes.dividend_amt) if attributes.dividend_amt else None,
-            "dividend_yield": float(attributes.dividend_yield) if attributes.dividend_yield else None
+            "dividend_yield": float(attributes.dividend_yield) if attributes.dividend_yield else None,
+            "next_earnings_date": attributes.next_earnings_date.isoformat() if attributes.next_earnings_date else None,
+            "next_earnings_date_formatted": next_earnings_date_formatted,
+            "is_earnings_date_estimate": attributes.is_earnings_date_estimate
         }
     
-    return templates.TemplateResponse("test_stock_price.html", {
+    return templates.TemplateResponse("debug_stock_price.html", {
         "request": request,
         "ticker": ticker if ticker else "",
         "prices": prices_data,
@@ -652,7 +663,7 @@ async def test_stock_price_page(request: Request, ticker: str = Query("", descri
     })
 
 
-@app.post("/test/stock-price/fetch")
+@app.post("/debug/stock-price/fetch")
 async def fetch_stock_price_data(ticker: str = Query(..., description="Stock ticker symbol")):
     """
     Fetch and save stock price data from yfinance.
