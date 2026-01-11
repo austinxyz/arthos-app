@@ -372,6 +372,36 @@ Add earnings date to the metrics cards section:
 - **Testing**: 2-3 hours
 - **Total**: ~6-8 hours
 
+## Data Validation Results
+
+### Test Results from Real Tickers
+
+| Ticker | Earnings Date | Is Future | Is Estimate | Status |
+|--------|--------------|-----------|-------------|--------|
+| AAPL   | 2026-01-29   | Yes       | No          | ✅ Valid |
+| MSFT   | 2026-01-28   | Yes       | No          | ✅ Valid |
+| GOOGL  | 2026-02-04   | Yes       | No          | ✅ Valid |
+| TSLA   | 2026-01-28   | Yes       | No          | ✅ Valid |
+| NVDA   | 2026-02-25   | Yes       | No          | ✅ Valid |
+| META   | 2025-10-29   | No        | Yes         | ❌ Past date (filter out) |
+| BRK.A  | None         | N/A       | N/A         | ⚠️ No data (handle gracefully) |
+| SPY    | None         | N/A       | N/A         | ⚠️ ETF (no earnings) |
+
+### Key Observations
+
+1. **Most stocks have earnings data**: Major stocks consistently have `earningsTimestamp`
+2. **Some dates may be in the past**: Need to filter for future dates only (e.g., META had past date)
+3. **ETFs don't have earnings**: ETFs like SPY return None (expected behavior)
+4. **Estimate flag is available**: `isEarningsDateEstimate` indicates if date is confirmed or estimated
+5. **Data is reliable**: For stocks that have earnings, the data appears consistent
+
+### Edge Cases to Handle
+
+- **Past earnings dates**: Filter out (don't store)
+- **Missing earnings data**: Display "N/A" gracefully
+- **ETFs and non-earnings stocks**: Handle None values
+- **Invalid timestamps**: Log warning, skip storage
+
 ## Next Steps
 
 1. Review and approve this implementation plan
