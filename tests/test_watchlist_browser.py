@@ -562,30 +562,77 @@ class TestWatchListBrowser:
     @pytest.mark.browser
     def test_earnings_date_display_in_watchlist(self, page: Page, live_server_url):
         """Test that earnings date is displayed in the watchlist table."""
-        watchlist = create_watchlist("Test WatchList")
-        add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"])
+        # Use JPM as it's a fresh stock that should have earnings data
+        watchlist = create_watchlist("Test Earnings WatchList")
+        added, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["JPM"])
+        
+        # Verify stock was added
+        assert len(added) > 0, "JPM should have been added to watchlist"
+        assert len(invalid) == 0, f"JPM should be valid, but got invalid: {invalid}"
+        
+        # Verify earnings data is in database before testing UI
+        from app.services.stock_price_service import get_stock_attributes
+        attributes = get_stock_attributes("JPM")
+        assert attributes is not None, "JPM attributes should exist after adding to watchlist"
+        assert attributes.next_earnings_date is not None, f"JPM should have earnings date, but got: {attributes.next_earnings_date}"
+        print(f"\nDEBUG: JPM earnings date in DB: {attributes.next_earnings_date}")
+        
+        # Verify metrics function returns earnings data
+        from app.services.watchlist_service import get_watchlist_stocks_with_metrics
+        metrics = get_watchlist_stocks_with_metrics(watchlist.watchlist_id)
+        assert len(metrics) > 0, "Should have metrics for JPM"
+        jpm_metric = next((m for m in metrics if m.get("ticker") == "JPM"), None)
+        assert jpm_metric is not None, "Should have metric for JPM"
+        assert jpm_metric.get("next_earnings_date") is not None, f"JPM metric should have earnings date: {jpm_metric}"
+        assert jpm_metric.get("next_earnings_date_formatted") is not None, f"JPM metric should have formatted earnings date: {jpm_metric}"
+        print(f"\nDEBUG: JPM metric earnings_date_formatted: {jpm_metric.get('next_earnings_date_formatted')}")
         
         # Navigate to watchlist details page
-        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}", wait_until="networkidle", timeout=30000)
+        response = page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}", wait_until="networkidle", timeout=30000)
+        assert response.status == 200, f"Page should load successfully, got status {response.status}"
+        
         page.wait_for_load_state("networkidle", timeout=30000)
-        page.wait_for_timeout(2000)
+        page.wait_for_timeout(3000)  # Give more time for data to load
+        
+        # Check that page loaded
+        page_title = page.title()
+        print(f"\nDEBUG: Page title: {page_title}")
+        
+        # Check that table exists
+        table = page.locator("#stocksTable")
+        expect(table).to_be_visible(timeout=10000)
         
         # Check that "Next Earnings" column header exists
         earnings_header = page.locator("th:has-text('Next Earnings')")
-        expect(earnings_header).to_be_visible()
+        expect(earnings_header).to_be_visible(timeout=10000)
         
-        # Check that earnings date is displayed for AAPL
-        # Find the row with AAPL ticker
-        aapl_row = page.locator("#stocksTable tbody tr").filter(has_text="AAPL")
-        expect(aapl_row).to_be_visible()
+        # Check that earnings date is displayed for JPM
+        # Find the row with JPM ticker
+        jpm_row = page.locator("#stocksTable tbody tr").filter(has_text="JPM")
+        expect(jpm_row).to_be_visible(timeout=10000)
         
-        # Check that earnings date cell contains a date or "N/A"
-        earnings_cell = aapl_row.locator("td").nth(5)  # 6th column (0-indexed: Ticker, Price, SMA50, SMA200, Div Yield, Earnings)
+        # Check that earnings date cell contains a date (not "N/A")
+        # Column order: Ticker(0), Price(1), SMA50(2), SMA200(3), Div Yield(4), Earnings(5), Signal(6), Trading Range(7), Actions(8)
+        earnings_cell = jpm_row.locator("td").nth(5)
+        expect(earnings_cell).to_be_visible(timeout=10000)
         earnings_text = earnings_cell.inner_text().strip()
         
-        # Should be either "N/A" or a date format like "Jan 29, 2026"
-        assert earnings_text == "N/A" or len(earnings_text) > 0, \
-            f"Earnings date has invalid format: {earnings_text}"
+        # Debug: Print what we actually see
+        print(f"\nDEBUG: Earnings cell text for JPM: '{earnings_text}'")
+        
+        # Should NOT be "N/A" - JPM should have earnings data
+        assert earnings_text != "N/A", \
+            f"JPM earnings date should not be N/A. Got: '{earnings_text}'. " \
+            f"DB has: {attributes.next_earnings_date}, " \
+            f"Metric has: {jpm_metric.get('next_earnings_date_formatted')}"
+        
+        # Should be a date format like "Jan 13, 2026"
+        assert len(earnings_text) > 0, \
+            f"Earnings date should not be empty. Got: '{earnings_text}'"
+        
+        # Verify it looks like a date (contains month name and year)
+        assert any(month in earnings_text for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']), \
+            f"Earnings date should contain month name. Got: '{earnings_text}'"
     
     @pytest.mark.browser
     def test_earnings_date_display_in_stock_detail(self, page: Page, live_server_url):
