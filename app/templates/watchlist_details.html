@@ -480,15 +480,15 @@
             
             $('#stocksTable').DataTable({
                 "pageLength": 100,
-                "order": [[5, "desc"]], // Sort by Signal column descending (Extreme Oversold=5 first)
+                "order": [[6, "desc"]], // Sort by Signal column descending (Extreme Oversold=5 first)
                 "columnDefs": [
                     { 
                         "type": "dom-data-sort",
-                        "targets": [5] // Signal column (0-indexed)
+                        "targets": [6] // Signal column (0-indexed)
                     },
                     { 
                         "orderable": false, 
-                        "targets": [6] // Trading Range column (0-indexed) - not sortable
+                        "targets": [7] // Trading Range column (0-indexed) - not sortable
                     },
                     { 
                         "orderable": true, 
