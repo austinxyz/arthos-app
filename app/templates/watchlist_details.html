@@ -147,9 +147,9 @@
                         <th>SMA 200</th>
                         <th>Dividend Yield</th>
                         <th>Next Earnings</th>
-                        <th>Signal</th>
-                        <th>Trading Range</th>
-                        <th>Actions</th>
+                        <th data-column="signal">Signal</th>
+                        <th data-column="trading-range" data-orderable="false">Trading Range</th>
+                        <th data-column="actions" data-orderable="false">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -478,23 +478,37 @@
                 });
             };
             
+            // Find Signal column index dynamically by data attribute
+            const signalColumnIndex = $('#stocksTable thead th[data-column="signal"]').index();
+            const tradingRangeColumnIndex = $('#stocksTable thead th[data-column="trading-range"]').index();
+            const actionsColumnIndex = $('#stocksTable thead th[data-column="actions"]').index();
+            
+            // Build columnDefs dynamically
+            const columnDefs = [
+                { 
+                    "type": "dom-data-sort",
+                    "targets": [signalColumnIndex] // Signal column - uses custom sort
+                }
+            ];
+            
+            // Add non-sortable columns if they exist
+            if (tradingRangeColumnIndex >= 0) {
+                columnDefs.push({
+                    "orderable": false,
+                    "targets": [tradingRangeColumnIndex]
+                });
+            }
+            if (actionsColumnIndex >= 0) {
+                columnDefs.push({
+                    "orderable": false,
+                    "targets": [actionsColumnIndex]
+                });
+            }
+            
             $('#stocksTable').DataTable({
                 "pageLength": 100,
-                "order": [[6, "desc"]], // Sort by Signal column descending (Extreme Oversold=5 first)
-                "columnDefs": [
-                    { 
-                        "type": "dom-data-sort",
-                        "targets": [6] // Signal column (0-indexed)
-                    },
-                    { 
-                        "orderable": false, 
-                        "targets": [7] // Trading Range column (0-indexed) - not sortable
-                    },
-                    { 
-                        "orderable": true, 
-                        "targets": "_all" 
-                    }
-                ]
+                "order": [[signalColumnIndex, "desc"]], // Sort by Signal column descending (Extreme Oversold=5 first)
+                "columnDefs": columnDefs
             });
         });
     </script>
