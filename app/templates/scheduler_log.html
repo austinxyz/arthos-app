@@ -103,9 +103,9 @@
                                 </td>
                                 <td>
                                     {% if entry.end_time %}
-                                        {% if 'Error' in entry.notes %}
+                                        {% if entry.notes and (entry.notes.startswith('Error:') or entry.notes.startswith('Manual fetch error:') or entry.notes.startswith('Error in')) %}
                                             <span class="badge bg-danger status-badge">Error</span>
-                                        {% elif 'Skipped' in entry.notes %}
+                                        {% elif entry.notes and 'Skipped' in entry.notes %}
                                             <span class="badge bg-warning text-dark status-badge">Skipped</span>
                                         {% else %}
                                             <span class="badge bg-success status-badge">Completed</span>
