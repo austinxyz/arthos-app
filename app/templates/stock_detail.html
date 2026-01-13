@@ -626,24 +626,8 @@
                                                             <span class="text-muted">-</span>
                                                         {% endif %}
                                                     </td>
-                                                    <td>
-                                                        {% if strategy.cost < 0 %}
-                                                            <span class="text-success fw-bold">${{ "%.2f"|format(strategy.cost) }}</span>
-                                                        {% elif strategy.cost > 0 %}
-                                                            <span class="text-danger fw-bold">${{ "%.2f"|format(strategy.cost) }}</span>
-                                                        {% else %}
-                                                            <span>${{ "%.2f"|format(strategy.cost) }}</span>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td>
-                                                        {% if strategy.cost_pct < 0 %}
-                                                            <span class="text-success">{{ "%.2f"|format(strategy.cost_pct) }}%</span>
-                                                        {% elif strategy.cost_pct > 0 %}
-                                                            <span class="text-danger">{{ "%.2f"|format(strategy.cost_pct) }}%</span>
-                                                        {% else %}
-                                                            <span>{{ "%.2f"|format(strategy.cost_pct) }}%</span>
-                                                        {% endif %}
-                                                    </td>
+                                                    <td>${{ "%.2f"|format(strategy.cost) }}</td>
+                                                    <td>{{ "%.2f"|format(strategy.cost_pct) }}%</td>
                                                     <td><strong>{{ strategy.days_to_expiration }}</strong></td>
                                                     <td>${{ strategy.put_risk_formatted }}</td>
                                                     <td>
