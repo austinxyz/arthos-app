@@ -655,35 +655,68 @@ class TestStockDetailBrowser:
                 # Check Risk Reversal tables have DataTables
                 risk_reversal_tables = page.locator(".risk-reversal-table")
                 if risk_reversal_tables.count() > 0:
-                    # Get first table ID
-                    first_table_id = risk_reversal_tables.first.get_attribute("id")
-                    if first_table_id:
-                        # Wait a bit for DataTables to initialize
-                        page.wait_for_timeout(1000)
+                        # Get first table
+                        first_table = risk_reversal_tables.first
+                        first_table_id = first_table.get_attribute("id")
+                        if first_table_id:
+                            # Wait a bit for DataTables to initialize
+                            page.wait_for_timeout(1500)
+                            
+                            # Check for DataTables search box
+                            search_input = page.locator(f"#{first_table_id}_filter input")
+                            expect(search_input).to_be_visible(timeout=5000)
+                            
+                            # Get initial row count with 1:1 filter
+                            initial_rows = first_table.locator("tbody tr").count()
+                            initial_1_1_rows = first_table.locator("tbody tr").filter(has_text="1:1").count()
                         
-                        # Check for DataTables search box
-                        search_input = page.locator(f"#{first_table_id}_filter input")
-                        expect(search_input).to_be_visible(timeout=5000)
+                        print(f"\n=== Risk Reversal Filter Test ===")
+                        print(f"Initial rows (1:1 filter): {initial_rows}")
+                        print(f"Initial 1:1 rows: {initial_1_1_rows}")
                         
                         # Test filtering - click 1:2 filter
                         ratio_filter_1_2.click()
-                        page.wait_for_timeout(1000)  # Wait for filter to apply
+                        page.wait_for_timeout(1500)  # Wait for filter to apply
                         
-                        # Verify filter is applied (table should redraw)
-                        # We can't easily verify the filtered content without knowing the data,
-                        # but we can verify the filter button state changed
+                        # Verify filter is applied
                         assert ratio_filter_1_2.is_checked(), "1:2 filter should be checked after clicking"
                         assert not ratio_filter_1_1.is_checked(), "1:1 filter should not be checked after switching"
                         
+                        # Verify table filtered (should show different rows)
+                        rows_after_1_2 = first_table.locator("tbody tr").count()
+                        rows_with_1_2 = first_table.locator("tbody tr").filter(has_text="1:2").count()
+                        
+                        print(f"Rows after 1:2 filter: {rows_after_1_2}")
+                        print(f"Rows with 1:2: {rows_with_1_2}")
+                        
+                        # If there are 1:2 strategies, verify they're shown
+                        if rows_with_1_2 > 0:
+                            assert rows_after_1_2 == rows_with_1_2, \
+                                f"After 1:2 filter, all visible rows should be 1:2. Found {rows_after_1_2} rows, {rows_with_1_2} with 1:2"
+                        
                         # Click All filter
                         ratio_filter_all.click()
-                        page.wait_for_timeout(1000)
+                        page.wait_for_timeout(1500)
                         assert ratio_filter_all.is_checked(), "All filter should be checked after clicking"
+                        
+                        rows_after_all = first_table.locator("tbody tr").count()
+                        print(f"Rows after All filter: {rows_after_all}")
+                        
+                        # All filter should show more or equal rows compared to 1:1 filter
+                        assert rows_after_all >= initial_rows, \
+                            f"All filter should show at least as many rows as 1:1 filter. Got {rows_after_all}, expected >= {initial_rows}"
                         
                         # Click back to 1:1
                         ratio_filter_1_1.click()
-                        page.wait_for_timeout(1000)
+                        page.wait_for_timeout(1500)
                         assert ratio_filter_1_1.is_checked(), "1:1 filter should be checked after clicking back"
+                        
+                        rows_after_1_1_again = first_table.locator("tbody tr").count()
+                        print(f"Rows after switching back to 1:1: {rows_after_1_1_again}")
+                        
+                        # Should match initial count
+                        assert rows_after_1_1_again == initial_rows, \
+                            f"After switching back to 1:1, should have same row count. Got {rows_after_1_1_again}, expected {initial_rows}"
     
     def test_options_table_column_count_fixed(self, page: Page, live_server_url):
         """Test that options table has consistent column count for all rows (fixes HD stock issue)."""
@@ -770,4 +803,266 @@ class TestStockDetailBrowser:
                     # Clear search
                     search_input.fill("")
                     page.wait_for_timeout(500)
+    
+    def test_risk_reversal_filter_functionality(self, page: Page, live_server_url):
+        """Test that Risk Reversal ratio filter buttons work correctly."""
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        page.wait_for_timeout(2000)
+        
+        # Switch to Risk Reversal tab
+        risk_reversal_tab = page.locator("button#risk-reversal-tab")
+        if risk_reversal_tab.count() == 0:
+            pytest.skip("Risk Reversal tab not found")
+        
+        risk_reversal_tab.click()
+        page.wait_for_timeout(1500)  # Wait for tab switch and table initialization
+        
+        # Check for ratio filter buttons
+        ratio_filter_1_1 = page.locator("#ratioFilter1_1")
+        ratio_filter_1_2 = page.locator("#ratioFilter1_2")
+        ratio_filter_all = page.locator("#ratioFilterAll")
+        
+        if ratio_filter_1_1.count() == 0:
+            pytest.skip("Risk Reversal filter buttons not found")
+        
+        expect(ratio_filter_1_1).to_be_visible()
+        expect(ratio_filter_1_2).to_be_visible()
+        expect(ratio_filter_all).to_be_visible()
+        
+        # Check that 1:1 is selected by default
+        assert ratio_filter_1_1.is_checked(), "1:1 filter should be selected by default"
+        assert not ratio_filter_1_2.is_checked(), "1:2 filter should not be selected by default"
+        assert not ratio_filter_all.is_checked(), "All filter should not be selected by default"
+        
+        # Get all Risk Reversal tables
+        risk_reversal_tables = page.locator(".risk-reversal-table")
+        if risk_reversal_tables.count() == 0:
+            pytest.skip("No Risk Reversal tables found")
+        
+        # Get initial row count with 1:1 filter
+        first_table = risk_reversal_tables.first
+        initial_rows = first_table.locator("tbody tr").count()
+        
+        # Count rows with 1:1 ratio in the first table
+        initial_1_1_rows = first_table.locator("tbody tr").filter(has_text="1:1").count()
+        
+        print(f"\n=== Risk Reversal Filter Test for {ticker} ===")
+        print(f"Initial rows (1:1 filter): {initial_rows}")
+        print(f"Initial 1:1 rows: {initial_1_1_rows}")
+        
+        # Test 1:2 filter
+        ratio_filter_1_2.click()
+        page.wait_for_timeout(1000)  # Wait for filter to apply
+        
+        assert ratio_filter_1_2.is_checked(), "1:2 filter should be checked after clicking"
+        assert not ratio_filter_1_1.is_checked(), "1:1 filter should not be checked after switching"
+        
+        # Verify table filtered (should show different rows)
+        rows_after_1_2 = first_table.locator("tbody tr").count()
+        rows_with_1_2 = first_table.locator("tbody tr").filter(has_text="1:2").count()
+        
+        print(f"Rows after 1:2 filter: {rows_after_1_2}")
+        print(f"Rows with 1:2: {rows_with_1_2}")
+        
+        # If there are 1:2 strategies, verify they're shown
+        if rows_with_1_2 > 0:
+            assert rows_after_1_2 == rows_with_1_2, \
+                f"After 1:2 filter, all visible rows should be 1:2. Found {rows_after_1_2} rows, {rows_with_1_2} with 1:2"
+        
+        # Test All filter
+        ratio_filter_all.click()
+        page.wait_for_timeout(1000)
+        assert ratio_filter_all.is_checked(), "All filter should be checked after clicking"
+        
+        rows_after_all = first_table.locator("tbody tr").count()
+        print(f"Rows after All filter: {rows_after_all}")
+        
+        # All filter should show more or equal rows compared to 1:1 filter
+        assert rows_after_all >= initial_rows, \
+            f"All filter should show at least as many rows as 1:1 filter. Got {rows_after_all}, expected >= {initial_rows}"
+        
+        # Test switching back to 1:1
+        ratio_filter_1_1.click()
+        page.wait_for_timeout(1000)
+        assert ratio_filter_1_1.is_checked(), "1:1 filter should be checked after clicking back"
+        
+        rows_after_1_1_again = first_table.locator("tbody tr").count()
+        print(f"Rows after switching back to 1:1: {rows_after_1_1_again}")
+        
+        # Should match initial count
+        assert rows_after_1_1_again == initial_rows, \
+            f"After switching back to 1:1, should have same row count. Got {rows_after_1_1_again}, expected {initial_rows}"
+        
+        # Verify all visible rows have 1:1 ratio
+        visible_1_1_rows = first_table.locator("tbody tr").filter(has_text="1:1").count()
+        assert visible_1_1_rows == rows_after_1_1_again, \
+            f"All visible rows should be 1:1. Found {rows_after_1_1_again} rows, {visible_1_1_rows} with 1:1"
+    
+    def test_risk_reversal_filter_functionality_msft(self, page: Page, live_server_url):
+        """Test that Risk Reversal ratio filter buttons work correctly with MSFT stock - comprehensive test."""
+        ticker = "MSFT"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        page.wait_for_timeout(3000)  # Wait for page to fully load
+        
+        # Switch to Risk Reversal tab
+        risk_reversal_tab = page.locator("button#risk-reversal-tab")
+        if risk_reversal_tab.count() == 0:
+            pytest.skip("Risk Reversal tab not found")
+        
+        risk_reversal_tab.click()
+        page.wait_for_timeout(2000)  # Wait for tab switch and table initialization
+        
+        # Check for ratio filter buttons
+        ratio_filter_1_1 = page.locator("#ratioFilter1_1")
+        ratio_filter_1_2 = page.locator("#ratioFilter1_2")
+        ratio_filter_all = page.locator("#ratioFilterAll")
+        
+        if ratio_filter_1_1.count() == 0:
+            pytest.skip("Risk Reversal filter buttons not found")
+        
+        expect(ratio_filter_1_1).to_be_visible()
+        expect(ratio_filter_1_2).to_be_visible()
+        expect(ratio_filter_all).to_be_visible()
+        
+        # Check that 1:1 is selected by default
+        assert ratio_filter_1_1.is_checked(), "1:1 filter should be selected by default"
+        assert not ratio_filter_1_2.is_checked(), "1:2 filter should not be selected by default"
+        assert not ratio_filter_all.is_checked(), "All filter should not be selected by default"
+        
+        # Get all Risk Reversal tables
+        risk_reversal_tables = page.locator(".risk-reversal-table")
+        if risk_reversal_tables.count() == 0:
+            pytest.skip("No Risk Reversal tables found")
+        
+        # Get first table for testing
+        first_table = risk_reversal_tables.first
+        
+        # Wait for table to be fully initialized
+        page.wait_for_timeout(1000)
+        
+        # Get initial row count with 1:1 filter (default)
+        initial_rows = first_table.locator("tbody tr:visible").count()
+        initial_1_1_rows = first_table.locator("tbody tr:visible").filter(has_text="1:1").count()
+        initial_1_2_rows = first_table.locator("tbody tr:visible").filter(has_text="1:2").count()
+        
+        print(f"\n=== Risk Reversal Filter Test for {ticker} ===")
+        print(f"Initial visible rows (1:1 filter): {initial_rows}")
+        print(f"Initial 1:1 rows: {initial_1_1_rows}")
+        print(f"Initial 1:2 rows (should be 0): {initial_1_2_rows}")
+        
+        # Verify that initially only 1:1 rows are shown
+        assert initial_1_2_rows == 0, f"Initially, 1:2 rows should be hidden. Found {initial_1_2_rows} visible 1:2 rows"
+        assert initial_1_1_rows == initial_rows, \
+            f"Initially, all visible rows should be 1:1. Found {initial_rows} total, {initial_1_1_rows} with 1:1"
+        
+        # Test 1: Filter 1:2 - should show only 1:2 rows
+        print("\n--- Testing 1:2 filter ---")
+        ratio_filter_1_2.click()
+        page.wait_for_timeout(2000)  # Wait for filter to apply
+        
+        assert ratio_filter_1_2.is_checked(), "1:2 filter should be checked after clicking"
+        assert not ratio_filter_1_1.is_checked(), "1:1 filter should not be checked after switching"
+        
+        # Verify table filtered - should show only 1:2 rows
+        rows_after_1_2 = first_table.locator("tbody tr:visible").count()
+        rows_with_1_2 = first_table.locator("tbody tr:visible").filter(has_text="1:2").count()
+        rows_with_1_1_after_1_2 = first_table.locator("tbody tr:visible").filter(has_text="1:1").count()
+        
+        print(f"Rows after 1:2 filter: {rows_after_1_2}")
+        print(f"Rows with 1:2: {rows_with_1_2}")
+        print(f"Rows with 1:1 (should be 0): {rows_with_1_1_after_1_2}")
+        
+        # If there are 1:2 strategies, verify only they're shown
+        if rows_with_1_2 > 0:
+            assert rows_after_1_2 == rows_with_1_2, \
+                f"After 1:2 filter, all visible rows should be 1:2. Found {rows_after_1_2} rows, {rows_with_1_2} with 1:2"
+            assert rows_with_1_1_after_1_2 == 0, \
+                f"After 1:2 filter, no 1:1 rows should be visible. Found {rows_with_1_1_after_1_2} visible 1:1 rows"
+        else:
+            # If no 1:2 strategies exist, table might be empty or show a message
+            print("No 1:2 strategies found for this stock")
+        
+        # Test 2: Filter All - should show all rows
+        print("\n--- Testing All filter ---")
+        ratio_filter_all.click()
+        page.wait_for_timeout(2000)
+        assert ratio_filter_all.is_checked(), "All filter should be checked after clicking"
+        
+        rows_after_all = first_table.locator("tbody tr:visible").count()
+        rows_with_1_1_after_all = first_table.locator("tbody tr:visible").filter(has_text="1:1").count()
+        rows_with_1_2_after_all = first_table.locator("tbody tr:visible").filter(has_text="1:2").count()
+        
+        print(f"Rows after All filter: {rows_after_all}")
+        print(f"Rows with 1:1: {rows_with_1_1_after_all}")
+        print(f"Rows with 1:2: {rows_with_1_2_after_all}")
+        
+        # All filter should show more or equal rows compared to 1:1 filter
+        assert rows_after_all >= initial_rows, \
+            f"All filter should show at least as many rows as 1:1 filter. Got {rows_after_all}, expected >= {initial_rows}"
+        
+        # Verify both 1:1 and 1:2 are visible (if they exist)
+        assert rows_with_1_1_after_all == initial_1_1_rows, \
+            f"All filter should show all 1:1 rows. Got {rows_with_1_1_after_all}, expected {initial_1_1_rows}"
+        
+        # Test 3: Switch back to 1:1 - should show only 1:1 rows again
+        print("\n--- Testing switch back to 1:1 filter ---")
+        ratio_filter_1_1.click()
+        page.wait_for_timeout(2000)
+        assert ratio_filter_1_1.is_checked(), "1:1 filter should be checked after clicking back"
+        
+        rows_after_1_1_again = first_table.locator("tbody tr:visible").count()
+        rows_with_1_1_again = first_table.locator("tbody tr:visible").filter(has_text="1:1").count()
+        rows_with_1_2_again = first_table.locator("tbody tr:visible").filter(has_text="1:2").count()
+        
+        print(f"Rows after switching back to 1:1: {rows_after_1_1_again}")
+        print(f"Rows with 1:1: {rows_with_1_1_again}")
+        print(f"Rows with 1:2 (should be 0): {rows_with_1_2_again}")
+        
+        # Should match initial count
+        assert rows_after_1_1_again == initial_rows, \
+            f"After switching back to 1:1, should have same row count. Got {rows_after_1_1_again}, expected {initial_rows}"
+        
+        # Verify all visible rows have 1:1 ratio and no 1:2 rows are visible
+        assert rows_with_1_1_again == rows_after_1_1_again, \
+            f"All visible rows should be 1:1. Found {rows_after_1_1_again} rows, {rows_with_1_1_again} with 1:1"
+        assert rows_with_1_2_again == 0, \
+            f"After switching back to 1:1, no 1:2 rows should be visible. Found {rows_with_1_2_again} visible 1:2 rows"
+        
+        # Test 4: Test all combinations - 1:1 -> 1:2 -> All -> 1:1 -> 1:2
+        print("\n--- Testing multiple filter switches ---")
+        
+        # 1:1 -> 1:2
+        ratio_filter_1_2.click()
+        page.wait_for_timeout(1500)
+        rows_1_2 = first_table.locator("tbody tr:visible").count()
+        assert ratio_filter_1_2.is_checked()
+        
+        # 1:2 -> All
+        ratio_filter_all.click()
+        page.wait_for_timeout(1500)
+        rows_all = first_table.locator("tbody tr:visible").count()
+        assert ratio_filter_all.is_checked()
+        assert rows_all >= rows_1_2, "All filter should show at least as many rows as 1:2 filter"
+        
+        # All -> 1:1
+        ratio_filter_1_1.click()
+        page.wait_for_timeout(1500)
+        rows_1_1_final = first_table.locator("tbody tr:visible").count()
+        assert ratio_filter_1_1.is_checked()
+        assert rows_1_1_final == initial_rows, \
+            f"After multiple switches, 1:1 filter should show initial count. Got {rows_1_1_final}, expected {initial_rows}"
+        
+        # 1:1 -> 1:2 again
+        ratio_filter_1_2.click()
+        page.wait_for_timeout(1500)
+        rows_1_2_final = first_table.locator("tbody tr:visible").count()
+        assert ratio_filter_1_2.is_checked()
+        if rows_with_1_2 > 0:
+            assert rows_1_2_final == rows_with_1_2, \
+                f"After multiple switches, 1:2 filter should show same count. Got {rows_1_2_final}, expected {rows_with_1_2}"
+        
+        print("\n=== All filter tests passed ===")
 
