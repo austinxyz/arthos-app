@@ -49,6 +49,37 @@
             font-size: 1.2em;
             color: #333;
         }
+        /* Make DataTables use full width */
+        .dataTables_wrapper {
+            width: 100%;
+        }
+        .dataTables_wrapper .dataTables_scroll {
+            width: 100%;
+        }
+        .table-responsive {
+            width: 100%;
+        }
+        /* Ensure tables expand to fill available space */
+        table.dataTable {
+            width: 100% !important;
+        }
+        /* Spread out columns when there are few columns */
+        #coveredCallsTable,
+        #optionsDataTable,
+        .risk-reversal-table {
+            table-layout: auto;
+        }
+        #coveredCallsTable th,
+        #optionsDataTable th,
+        .risk-reversal-table th {
+            white-space: nowrap;
+            padding: 12px 15px;
+        }
+        #coveredCallsTable td,
+        #optionsDataTable td,
+        .risk-reversal-table td {
+            padding: 12px 15px;
+        }
         .trading-range-container {
             display: flex;
             flex-direction: column;
@@ -832,7 +863,10 @@
                     pageLength: 50,
                     lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
                     order: [[6, 'asc']], // Sort by strike price (column index 6)
-                    searching: true
+                    searching: true,
+                    responsive: true,
+                    autoWidth: false,
+                    scrollX: false
                 });
             }
             
@@ -843,7 +877,9 @@
                     lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, "All"]],
                     order: [[0, 'asc']], // Sort by strike price
                     searching: true,
-                    responsive: true
+                    responsive: true,
+                    autoWidth: false,
+                    scrollX: false
                 });
             }
             
@@ -860,6 +896,8 @@
                         order: [[6, 'asc']], // Sort by Net Cost $ ascending
                         searching: true,
                         responsive: true,
+                        autoWidth: false,
+                        scrollX: false,
                         columnDefs: [
                             {
                                 targets: 0, // Ratio column
