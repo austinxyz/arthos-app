@@ -827,9 +827,11 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 
                 # Now try 1:2 strategies (sell 1 put, buy 2 calls)
                 # For 1:2, we need higher put premiums to offset 2x call cost
-                # Try all puts in the filtered range - prioritize those with higher premiums
-                # (which typically come from strikes closer to or above current price)
-                for _, put_row in puts_filtered.iterrows():
+                # Filter: Only consider puts with strikes HIGHER than current price
+                # Higher strikes = higher premiums (more ITM puts have higher intrinsic value)
+                puts_1_2_filtered = puts_filtered[puts_filtered['strike'] > current_price]
+                
+                for _, put_row in puts_1_2_filtered.iterrows():
                     put_strike = round(float(put_row['strike']), 2)
                     put_bid = put_row.get('bid')
                     
