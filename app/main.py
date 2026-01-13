@@ -99,6 +99,133 @@ async def create_watchlist_page(request: Request):
     return templates.TemplateResponse("create_watchlist.html", {"request": request})
 
 
+@app.get("/rr-list")
+async def rr_list_page(request: Request):
+    """
+    Display RR watchlist page with all Risk Reversal entries.
+    
+    Returns:
+        HTML page with list of RR watchlist entries
+    """
+    from app.services.rr_watchlist_service import get_all_rr_watchlist_entries, get_latest_net_cost
+    
+    entries = get_all_rr_watchlist_entries()
+    
+    # Format entries for display
+    formatted_entries = []
+    for entry in entries:
+        # Create contract description
+        expiration_date = entry.expiration
+        expiration_str = expiration_date.strftime('%b %Y')
+        
+        if entry.ratio == '1:2':
+            contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} calls"
+        else:
+            contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} call"
+        
+        # Get latest net cost from history
+        latest_net_cost = get_latest_net_cost(entry.id)
+        current_price = float(latest_net_cost) if latest_net_cost is not None else None
+        
+        # Calculate Change and Change %
+        entry_price = float(entry.entry_price)
+        if current_price is not None:
+            change = current_price - entry_price
+            change_pct = (change / entry_price * 100) if entry_price != 0 else None
+        else:
+            change = None
+            change_pct = None
+        
+        formatted_entries.append({
+            'id': entry.id,
+            'contract': contract,
+            'stock_price': float(entry.stock_price),
+            'date_added': entry.date_added,
+            'entry_price': entry_price,
+            'current_price': current_price,
+            'change': change,
+            'change_pct': change_pct,
+            'call_option_quote': float(entry.call_option_quote),
+            'put_option_quote': float(entry.put_option_quote),
+            'expiration': entry.expiration
+        })
+    
+    return templates.TemplateResponse("rr_list.html", {
+        "request": request,
+        "entries": formatted_entries
+    })
+
+
+@app.get("/rr-details/{rr_uuid}")
+async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
+    """
+    Display RR details page with chart and history table.
+    
+    Args:
+        rr_uuid: UUID of the RR watchlist entry
+        
+    Returns:
+        HTML page with RR details, chart, and history
+    """
+    from app.services.rr_watchlist_service import get_rr_watchlist_entry, get_rr_history
+    from datetime import date
+    
+    entry = get_rr_watchlist_entry(rr_uuid)
+    
+    if not entry:
+        raise HTTPException(status_code=404, detail="RR entry not found")
+    
+    # Get history
+    history = get_rr_history(rr_uuid)
+    
+    # Format entry for display
+    expiration_str = entry.expiration.strftime('%b %Y')
+    if entry.ratio == '1:2':
+        contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} calls"
+    else:
+        contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} call"
+    
+    # Format history for chart
+    chart_data = []
+    table_data = []
+    for hist in history:
+        chart_data.append({
+            'x': hist.history_date.isoformat(),
+            'y': float(hist.net_cost)
+        })
+        table_data.append({
+            'history_date': hist.history_date,
+            'net_cost': float(hist.net_cost)
+        })
+    
+    # Sort by date
+    chart_data.sort(key=lambda x: x['x'])
+    table_data.sort(key=lambda x: x['history_date'])
+    
+    return templates.TemplateResponse("rr_details.html", {
+        "request": request,
+        "entry": {
+            'id': entry.id,
+            'contract': contract,
+            'ticker': entry.ticker,
+            'call_strike': float(entry.call_strike),
+            'call_quantity': entry.call_quantity,
+            'put_strike': float(entry.put_strike),
+            'put_quantity': entry.put_quantity,
+            'stock_price': float(entry.stock_price),
+            'date_added': entry.date_added,
+            'entry_price': float(entry.entry_price),
+            'call_option_quote': float(entry.call_option_quote),
+            'put_option_quote': float(entry.put_option_quote),
+            'expiration': entry.expiration,
+            'ratio': entry.ratio,
+            'expired_yn': entry.expired_yn
+        },
+        "chart_data": chart_data,
+        "table_data": table_data
+    })
+
+
 @app.get("/watchlist/{watchlist_id}")
 async def watchlist_details_page(request: Request, watchlist_id: UUID = FPath(...)):
     """
@@ -276,6 +403,58 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error fetching stock data: {str(e)}")
+
+
+@app.post("/api/rr-watchlist/save")
+async def save_rr_to_watchlist_api(request: Request):
+    """Save a Risk Reversal strategy to the watchlist."""
+    from app.services.rr_watchlist_service import save_rr_to_watchlist
+    from fastapi import Form
+    
+    try:
+        data = await request.json()
+        ticker = data.get('ticker')
+        expiration = data.get('expiration')
+        put_strike = float(data.get('put_strike'))
+        call_strike = float(data.get('call_strike'))
+        ratio = data.get('ratio', '1:1')
+        current_price = float(data.get('current_price'))
+        
+        if not all([ticker, expiration, put_strike, call_strike, current_price]):
+            return {"success": False, "error": "Missing required fields"}
+        
+        result = save_rr_to_watchlist(
+            ticker=ticker,
+            expiration=expiration,
+            put_strike=put_strike,
+            call_strike=call_strike,
+            ratio=ratio,
+            current_price=current_price
+        )
+        
+        return result
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": f"Error: {str(e)}"}
+
+
+@app.delete("/api/rr-watchlist/delete/{rr_uuid}")
+async def delete_rr_watchlist_api(rr_uuid: UUID = FPath(...)):
+    """Delete a Risk Reversal watchlist entry and all associated history."""
+    from app.services.rr_watchlist_service import delete_rr_watchlist_entry
+    
+    try:
+        success = delete_rr_watchlist_entry(rr_uuid)
+        if success:
+            return {"success": True, "message": "Risk Reversal entry deleted successfully"}
+        else:
+            return {"success": False, "error": "Entry not found or could not be deleted"}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": f"Error: {str(e)}"}
 
 
 @app.get("/results")
@@ -875,6 +1054,101 @@ def _format_duration(seconds: float) -> str:
     else:
         hours = seconds / 3600
         return f"{hours:.1f}h"
+
+
+@app.get("/debug/rr-history-log")
+async def rr_history_log_page(request: Request, limit: int = Query(50, description="Number of log entries to display")):
+    """
+    Debug page for displaying RR history update log data.
+    
+    Args:
+        limit: Number of log entries to display (default: 50)
+        
+    Returns:
+        HTML page with RR history log data
+    """
+    from sqlmodel import Session, select
+    from app.database import engine
+    from app.models.rr_history_log import RRHistoryLog
+    
+    try:
+        with Session(engine) as session:
+            statement = select(RRHistoryLog).order_by(RRHistoryLog.id.desc()).limit(limit)
+            log_entries = session.exec(statement).all()
+        
+        # Format log entries for display
+        log_data = []
+        completed_count = 0
+        in_progress_count = 0
+        
+        for entry in log_entries:
+            duration = None
+            if entry.end_time:
+                duration = (entry.end_time - entry.start_time).total_seconds()
+                completed_count += 1
+            else:
+                in_progress_count += 1
+            
+            log_data.append({
+                "id": entry.id,
+                "start_time": entry.start_time.isoformat() if entry.start_time else None,
+                "end_time": entry.end_time.isoformat() if entry.end_time else None,
+                "duration_seconds": round(duration, 2) if duration else None,
+                "duration_formatted": _format_duration(duration) if duration else "In Progress",
+                "notes": entry.notes
+            })
+        
+        return templates.TemplateResponse("rr_history_log.html", {
+            "request": request,
+            "log_entries": log_data,
+            "limit": limit,
+            "total_count": len(log_data),
+            "completed_count": completed_count,
+            "in_progress_count": in_progress_count
+        })
+    except Exception as e:
+        return templates.TemplateResponse("rr_history_log.html", {
+            "request": request,
+            "log_entries": [],
+            "limit": limit,
+            "total_count": 0,
+            "completed_count": 0,
+            "in_progress_count": 0,
+            "error_message": f"Error fetching log data: {str(e)}"
+        })
+
+
+@app.post("/debug/rr-history-log/trigger")
+async def trigger_rr_history_manual(bypass_market_hours: bool = Query(True, description="Bypass market hours check")):
+    """
+    Manually trigger the RR history update.
+    This endpoint allows testing the RR history update at any time, regardless of market hours.
+    
+    Args:
+        bypass_market_hours: If True, run update even when market is closed (default: True)
+        
+    Returns:
+        JSON response with trigger status and log entry ID
+    """
+    from app.services.scheduler_service import update_rr_history_manual
+    
+    try:
+        log_id = update_rr_history_manual(bypass_market_hours=bypass_market_hours)
+        
+        return {
+            "message": "RR history update triggered successfully",
+            "log_id": log_id,
+            "bypass_market_hours": bypass_market_hours,
+            "status": "completed"
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "message": "Error triggering RR history update",
+            "error": str(e),
+            "status": "error"
+        }
 
 
 @app.post("/debug/scheduler-log/trigger")

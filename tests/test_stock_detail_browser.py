@@ -574,16 +574,200 @@ class TestStockDetailBrowser:
         # Get today's date
         today = datetime.now().date().strftime('%Y-%m-%d')
         
-        # Check if chart data includes today's date
-        # We can verify this by checking the JavaScript chart data
-        chart_data_script = page.locator("script").filter(has_text="candlestickData")
-        if chart_data_script.count() > 0:
-            script_content = chart_data_script.inner_text()
-            # Check if today's date appears in the candlestick data
-            # The date format in the chart data should be YYYY-MM-DD
-            if today in script_content:
-                # Today's date is in the chart data, which means today's aggregated candle is included
-                # Verify the data structure is correct by checking for the date in the JSON
-                assert f'"x":"{today}"' in script_content or f'"x": "{today}"' in script_content, \
-                    f"Today's date {today} should be in chart candlestick data"
+            # Check if chart data includes today's date
+            # We can verify this by checking the JavaScript chart data
+            chart_data_script = page.locator("script").filter(has_text="candlestickData")
+            if chart_data_script.count() > 0:
+                script_content = chart_data_script.inner_text()
+                # Check if today's date appears in the candlestick data
+                # The date format in the chart data should be YYYY-MM-DD
+                if today in script_content:
+                    # Today's date is in the chart data, which means today's aggregated candle is included
+                    # Verify the data structure is correct by checking for the date in the JSON
+                    assert f'"x":"{today}"' in script_content or f'"x": "{today}"' in script_content, \
+                        f"Today's date {today} should be in chart candlestick data"
+    
+    def test_options_tables_have_datatables(self, page: Page, live_server_url):
+        """Test that all options tables are initialized with DataTables and have search functionality."""
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        
+        # Wait for DataTables to initialize
+        page.wait_for_timeout(2000)
+        
+        # Check Option Data table has DataTables
+        option_table = page.locator("#optionsDataTable")
+        if option_table.count() > 0:
+            # Check for DataTables search box
+            search_input = page.locator("#optionsDataTable_filter input")
+            expect(search_input).to_be_visible(timeout=5000)
+            
+            # Check for DataTables pagination
+            pagination = page.locator("#optionsDataTable_paginate")
+            expect(pagination).to_be_visible()
+            
+            # Check for page length selector
+            length_select = page.locator("#optionsDataTable_length select")
+            expect(length_select).to_be_visible()
+            
+            # Verify page length is set to 50
+            length_value = length_select.input_value()
+            assert length_value == "50", f"Expected page length 50, got {length_value}"
+        
+        # Switch to Covered Calls tab
+        covered_calls_tab = page.locator("button#covered-calls-tab")
+        if covered_calls_tab.count() > 0:
+            covered_calls_tab.click()
+            page.wait_for_timeout(1000)
+            
+            # Check Covered Calls table has DataTables
+            covered_calls_table = page.locator("#coveredCallsTable")
+            if covered_calls_table.count() > 0:
+                search_input = page.locator("#coveredCallsTable_filter input")
+                expect(search_input).to_be_visible(timeout=5000)
+                
+                length_select = page.locator("#coveredCallsTable_length select")
+                expect(length_select).to_be_visible()
+                
+                length_value = length_select.input_value()
+                assert length_value == "50", f"Expected page length 50, got {length_value}"
+        
+        # Switch to Risk Reversal tab
+        risk_reversal_tab = page.locator("button#risk-reversal-tab")
+        if risk_reversal_tab.count() > 0:
+            risk_reversal_tab.click()
+            page.wait_for_timeout(1000)
+            
+            # Check for ratio filter buttons
+            ratio_filter_1_1 = page.locator("#ratioFilter1_1")
+            ratio_filter_1_2 = page.locator("#ratioFilter1_2")
+            ratio_filter_all = page.locator("#ratioFilterAll")
+            
+            if ratio_filter_1_1.count() > 0:
+                expect(ratio_filter_1_1).to_be_visible()
+                expect(ratio_filter_1_2).to_be_visible()
+                expect(ratio_filter_all).to_be_visible()
+                
+                # Check that 1:1 is selected by default
+                assert ratio_filter_1_1.is_checked(), "1:1 filter should be selected by default"
+                
+                # Check Risk Reversal tables have DataTables
+                risk_reversal_tables = page.locator(".risk-reversal-table")
+                if risk_reversal_tables.count() > 0:
+                    # Get first table ID
+                    first_table_id = risk_reversal_tables.first.get_attribute("id")
+                    if first_table_id:
+                        # Wait a bit for DataTables to initialize
+                        page.wait_for_timeout(1000)
+                        
+                        # Check for DataTables search box
+                        search_input = page.locator(f"#{first_table_id}_filter input")
+                        expect(search_input).to_be_visible(timeout=5000)
+                        
+                        # Test filtering - click 1:2 filter
+                        ratio_filter_1_2.click()
+                        page.wait_for_timeout(1000)  # Wait for filter to apply
+                        
+                        # Verify filter is applied (table should redraw)
+                        # We can't easily verify the filtered content without knowing the data,
+                        # but we can verify the filter button state changed
+                        assert ratio_filter_1_2.is_checked(), "1:2 filter should be checked after clicking"
+                        assert not ratio_filter_1_1.is_checked(), "1:1 filter should not be checked after switching"
+                        
+                        # Click All filter
+                        ratio_filter_all.click()
+                        page.wait_for_timeout(1000)
+                        assert ratio_filter_all.is_checked(), "All filter should be checked after clicking"
+                        
+                        # Click back to 1:1
+                        ratio_filter_1_1.click()
+                        page.wait_for_timeout(1000)
+                        assert ratio_filter_1_1.is_checked(), "1:1 filter should be checked after clicking back"
+    
+    def test_options_table_column_count_fixed(self, page: Page, live_server_url):
+        """Test that options table has consistent column count for all rows (fixes HD stock issue)."""
+        # Test with HD stock which was reported to have the issue
+        ticker = "HD"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        
+        # Wait for DataTables to initialize
+        page.wait_for_timeout(2000)
+        
+        # Check for console errors
+        console_errors = []
+        def handle_console(msg):
+            if msg.type == "error":
+                console_errors.append(msg.text)
+        page.on("console", handle_console)
+        
+        # Check Option Data table
+        option_table = page.locator("#optionsDataTable")
+        if option_table.count() > 0:
+            # Get all rows
+            rows = option_table.locator("tbody tr")
+            row_count = rows.count()
+            
+            if row_count > 0:
+                # Check each row has exactly 13 columns (6 put + 1 strike + 6 call)
+                for i in range(min(10, row_count)):  # Check first 10 rows
+                    row = rows.nth(i)
+                    cells = row.locator("td")
+                    cell_count = cells.count()
+                    assert cell_count == 13, \
+                        f"Row {i} should have 13 columns, but has {cell_count}. " \
+                        f"Row HTML: {row.inner_html()[:200]}"
+        
+        # Check for DataTables errors
+        page.wait_for_timeout(1000)
+        datatables_errors = [err for err in console_errors if "DataTables" in err and "column count" in err.lower()]
+        assert len(datatables_errors) == 0, \
+            f"DataTables column count errors found: {datatables_errors}"
+    
+    def test_datatables_search_functionality(self, page: Page, live_server_url):
+        """Test that DataTables search works correctly on options tables."""
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        page.wait_for_timeout(2000)
+        
+        # Test Option Data table search
+        option_table = page.locator("#optionsDataTable")
+        if option_table.count() > 0:
+            search_input = page.locator("#optionsDataTable_filter input")
+            if search_input.count() > 0:
+                # Type a search term (e.g., a strike price)
+                search_input.fill("100")
+                page.wait_for_timeout(500)
+                
+                # Verify table filtered (should show fewer rows or no rows)
+                # We can't easily verify the exact content, but we can check the table updated
+                rows_after = option_table.locator("tbody tr").count()
+                
+                # Clear search
+                search_input.fill("")
+                page.wait_for_timeout(500)
+                rows_after_clear = option_table.locator("tbody tr").count()
+                
+                # After clearing, should have same or more rows
+                assert rows_after_clear >= rows_after, \
+                    "After clearing search, should have same or more rows"
+        
+        # Test Covered Calls table search
+        covered_calls_tab = page.locator("button#covered-calls-tab")
+        if covered_calls_tab.count() > 0:
+            covered_calls_tab.click()
+            page.wait_for_timeout(1000)
+            
+            covered_calls_table = page.locator("#coveredCallsTable")
+            if covered_calls_table.count() > 0:
+                search_input = page.locator("#coveredCallsTable_filter input")
+                if search_input.count() > 0:
+                    search_input.fill("150")
+                    page.wait_for_timeout(500)
+                    
+                    # Clear search
+                    search_input.fill("")
+                    page.wait_for_timeout(500)
 

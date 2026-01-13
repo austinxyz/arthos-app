@@ -79,15 +79,33 @@
                     </div>
                 </div>
             </div>
+            
+            <!-- RR History Log -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card debug-card">
+                    <div class="card-body">
+                        <h5 class="card-title">📈 RR History Log</h5>
+                        <p class="card-text">View RR history update execution history, run times, and status for debugging scheduled RR history updates.</p>
+                        <a href="/debug/rr-history-log" class="btn btn-primary">View Log</a>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <div class="mt-5">
             <h3 class="mb-3">API Endpoints</h3>
-            <div class="card">
+            <div class="card mb-3">
                 <div class="card-body">
                     <h5 class="card-title">🔧 Trigger Scheduler</h5>
                     <p class="card-text mb-2">Manually trigger the scheduler to fetch stock data. Can bypass market hours check for testing.</p>
                     <code>POST /debug/scheduler-log/trigger?bypass_market_hours=true</code>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">🔧 Trigger RR History Update</h5>
+                    <p class="card-text mb-2">Manually trigger the RR history update to recalculate net costs. Can bypass market hours check for testing.</p>
+                    <code>POST /debug/rr-history-log/trigger?bypass_market_hours=true</code>
                 </div>
             </div>
         </div>

@@ -564,6 +564,7 @@
                                                     <th>Net Cost (%)</th>
                                                     <th>Days to Exp</th>
                                                     <th>Put Risk</th>
+                                                    <th>Action</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -613,6 +614,17 @@
                                                     </td>
                                                     <td><strong>{{ strategy.days_to_expiration }}</strong></td>
                                                     <td>${{ strategy.put_risk_formatted }}</td>
+                                                    <td>
+                                                        <button class="btn btn-sm btn-primary save-rr-btn" 
+                                                                data-ticker="{{ ticker }}"
+                                                                data-expiration="{{ expiration }}"
+                                                                data-put-strike="{{ strategy.put_strike }}"
+                                                                data-call-strike="{{ strategy.call_strike }}"
+                                                                data-ratio="{{ strategy.ratio if strategy.ratio else '1:1' }}"
+                                                                data-current-price="{{ current_price }}">
+                                                            Save
+                                                        </button>
+                                                    </td>
                                                 </tr>
                                                 {% endfor %}
                                             </tbody>
@@ -622,7 +634,7 @@
                                 {% endfor %}
                             {% else %}
                                 <div class="alert alert-info">
-                                    No risk reversal strategies found. Risk reversal strategies require LEAPS options (Jan of next year or later) with strikes within 30% of current price and net cost within ±5% of current stock price.
+                                    No risk reversal strategies found. Risk reversal strategies require LEAPS options (Jan of next year or later) with strikes within 30% of current price and net cost within ±3% of current stock price. Check server logs for detailed debugging information.
                                 </div>
                             {% endif %}
                         </div>
@@ -951,6 +963,46 @@
                         }
                     });
                 }, 100);
+            });
+            
+            // Handle Save RR button clicks
+            $(document).on('click', '.save-rr-btn', function() {
+                const btn = $(this);
+                const originalText = btn.text();
+                
+                // Disable button and show loading
+                btn.prop('disabled', true).text('Saving...');
+                
+                const data = {
+                    ticker: btn.data('ticker'),
+                    expiration: btn.data('expiration'),
+                    put_strike: btn.data('put-strike'),
+                    call_strike: btn.data('call-strike'),
+                    ratio: btn.data('ratio'),
+                    current_price: btn.data('current-price')
+                };
+                
+                $.ajax({
+                    url: '/api/rr-watchlist/save',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify(data),
+                    success: function(response) {
+                        if (response.success) {
+                            btn.removeClass('btn-primary').addClass('btn-success').text('Saved!');
+                            setTimeout(function() {
+                                btn.prop('disabled', false).removeClass('btn-success').addClass('btn-primary').text(originalText);
+                            }, 2000);
+                        } else {
+                            alert('Error: ' + (response.error || 'Failed to save Risk Reversal'));
+                            btn.prop('disabled', false).text(originalText);
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        alert('Error saving Risk Reversal: ' + error);
+                        btn.prop('disabled', false).text(originalText);
+                    }
+                });
             });
         });
     </script>

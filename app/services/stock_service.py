@@ -640,9 +640,15 @@ def get_leaps_expirations(ticker: str) -> List[str]:
             try:
                 exp_date = datetime.strptime(exp_str, '%Y-%m-%d')
                 # Include Jan of next year or any date in future years
+                # For next year: include January or later months
+                # For years beyond next year: include all months
                 if exp_date.year >= next_year:
-                    # Prioritize January expirations, but include all future year expirations
-                    if exp_date.month == 1 or exp_date.year > next_year:
+                    if exp_date.year == next_year:
+                        # For next year, include January or later
+                        if exp_date.month >= 1:
+                            leaps.append(exp_str)
+                    else:
+                        # For years beyond next year, include all months
                         leaps.append(exp_str)
             except ValueError:
                 continue
@@ -688,15 +694,20 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
         stock = yf.Ticker(ticker)
         leaps_expirations = get_leaps_expirations(ticker)
         
+        logger.info(f"Risk Reversal for {ticker}: Found {len(leaps_expirations)} LEAPS expirations: {leaps_expirations}")
+        
         if not leaps_expirations:
+            logger.warning(f"Risk Reversal for {ticker}: No LEAPS expirations found")
             return strategies_by_expiration
         
-        # Calculate cost range (±5% of current price)
+        # Calculate cost range (±3% of current price)
         cost_range = current_price * 0.03
         
         # Strike price range (within 30% of current price)
         strike_range_low = current_price * 0.7
         strike_range_high = current_price * 1.3
+        
+        logger.info(f"Risk Reversal for {ticker}: Current price=${current_price:.2f}, Cost range=±${cost_range:.2f}, Strike range=${strike_range_low:.2f}-${strike_range_high:.2f}")
         
         # Get current date for days to expiration calculation
         today = datetime.now().date()
@@ -708,8 +719,10 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 
                 # Get puts and calls within strike range
                 if opt_chain.puts is None or opt_chain.puts.empty:
+                    logger.debug(f"Risk Reversal for {ticker} {expiration}: No puts available")
                     continue
                 if opt_chain.calls is None or opt_chain.calls.empty:
+                    logger.debug(f"Risk Reversal for {ticker} {expiration}: No calls available")
                     continue
                 
                 puts_filtered = opt_chain.puts[
@@ -721,8 +734,16 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                     (opt_chain.calls['strike'] <= strike_range_high)
                 ]
                 
+                logger.debug(f"Risk Reversal for {ticker} {expiration}: Filtered {len(puts_filtered)} puts, {len(calls_filtered)} calls within strike range")
+                
                 if puts_filtered.empty or calls_filtered.empty:
+                    logger.debug(f"Risk Reversal for {ticker} {expiration}: No puts or calls after strike filtering")
                     continue
+                
+                # Count how many have valid bid/ask
+                puts_with_bid = puts_filtered[puts_filtered['bid'].notna() & (puts_filtered['bid'] > 0)]
+                calls_with_ask = calls_filtered[calls_filtered['ask'].notna() & (calls_filtered['ask'] > 0)]
+                logger.debug(f"Risk Reversal for {ticker} {expiration}: {len(puts_with_bid)} puts with valid bid, {len(calls_with_ask)} calls with valid ask")
                 
                 # Try to find 1:1 strategies (same strike or nearby strikes)
                 # First, try same strikes for 1:1 ratio
@@ -943,7 +964,13 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                     
             except Exception as e:
                 logger.error(f"Error processing expiration {expiration} for {ticker}: {str(e)}")
+                import traceback
+                traceback.print_exc()
                 continue
+        
+        logger.info(f"Risk Reversal for {ticker}: Total expirations with strategies: {len(strategies_by_expiration)}")
+        if not strategies_by_expiration:
+            logger.warning(f"Risk Reversal for {ticker}: No strategies found for any expiration. Possible reasons: no valid bid/ask prices, no strategies within cost range (±3%), or no strikes within 30% of current price")
         
         return strategies_by_expiration
         
