@@ -206,6 +206,42 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
                     import traceback
                     traceback.print_exc()
                     covered_calls = []
+                
+                # Calculate risk reversal strategies
+                try:
+                    from app.services.stock_service import calculate_risk_reversal_strategies
+                    risk_reversals = calculate_risk_reversal_strategies(ticker, metrics['current_price'])
+                    
+                    # Calculate minimum distance from current price to closest strike (put or call) for highlighting
+                    min_distance_rr = None
+                    if risk_reversals and metrics['current_price'] and metrics['current_price'] > 0:
+                        for expiration, strategies in risk_reversals.items():
+                            for strategy in strategies:
+                                # Calculate distance for both put and call strikes, use the minimum
+                                distances = []
+                                if strategy.get('put_strike'):
+                                    put_strike = strategy['put_strike']
+                                    if put_strike > metrics['current_price']:
+                                        distances.append(put_strike - metrics['current_price'])
+                                    else:
+                                        distances.append(metrics['current_price'] - put_strike)
+                                if strategy.get('call_strike'):
+                                    call_strike = strategy['call_strike']
+                                    if call_strike > metrics['current_price']:
+                                        distances.append(call_strike - metrics['current_price'])
+                                    else:
+                                        distances.append(metrics['current_price'] - call_strike)
+                                
+                                if distances:
+                                    min_strategy_distance = min(distances)
+                                    if min_distance_rr is None or min_strategy_distance < min_distance_rr:
+                                        min_distance_rr = min_strategy_distance
+                except Exception as e:
+                    print(f"Error calculating risk reversal strategies for {ticker}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    risk_reversals = {}
+                    min_distance_rr = None
         except Exception as e:
             # If options data fails, continue without it
             print(f"Error fetching options data for {ticker}: {str(e)}")
@@ -215,7 +251,10 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             options_data = {}
             sorted_strikes = []
             covered_calls = []
+            risk_reversals = {}
             min_distance = None
+            min_distance_rr = None
+            min_distance_rr = None
         
         return templates.TemplateResponse("stock_detail.html", {
             "request": request,
@@ -226,8 +265,10 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             "options_data": options_data,
             "sorted_strikes": sorted_strikes,
             "covered_calls": covered_calls,
+            "risk_reversals": risk_reversals,
             "current_price": metrics['current_price'],
-            "min_distance": min_distance
+            "min_distance": min_distance,
+            "min_distance_rr": min_distance_rr
         })
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
