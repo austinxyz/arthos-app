@@ -910,7 +910,35 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 # Sort strategies by cost (prefer credits/negative costs), then by ratio (1:1 first)
                 strategies.sort(key=lambda x: (x['cost'], x.get('ratio', '1:1') != '1:1'))
                 
+                # Find strategies closest to $0 (one negative, one positive) and mark them for highlighting
                 if strategies:
+                    closest_negative = None
+                    closest_positive = None
+                    closest_negative_abs = None
+                    closest_positive_abs = None
+                    
+                    for strategy in strategies:
+                        cost = strategy['cost']
+                        if cost < 0:
+                            # Negative cost - find the one closest to $0 (smallest absolute value)
+                            abs_cost = abs(cost)
+                            if closest_negative_abs is None or abs_cost < closest_negative_abs:
+                                closest_negative = strategy
+                                closest_negative_abs = abs_cost
+                        elif cost > 0:
+                            # Positive cost - find the one closest to $0 (smallest positive)
+                            if closest_positive_abs is None or cost < closest_positive_abs:
+                                closest_positive = strategy
+                                closest_positive_abs = cost
+                    
+                    # Mark the closest strategies for highlighting
+                    for strategy in strategies:
+                        strategy['highlight'] = (
+                            strategy == closest_negative or 
+                            strategy == closest_positive or
+                            strategy['cost'] == 0
+                        )
+                    
                     strategies_by_expiration[expiration] = strategies
                     
             except Exception as e:
