@@ -574,18 +574,18 @@ class TestStockDetailBrowser:
         # Get today's date
         today = datetime.now().date().strftime('%Y-%m-%d')
         
-            # Check if chart data includes today's date
-            # We can verify this by checking the JavaScript chart data
-            chart_data_script = page.locator("script").filter(has_text="candlestickData")
-            if chart_data_script.count() > 0:
-                script_content = chart_data_script.inner_text()
-                # Check if today's date appears in the candlestick data
-                # The date format in the chart data should be YYYY-MM-DD
-                if today in script_content:
-                    # Today's date is in the chart data, which means today's aggregated candle is included
-                    # Verify the data structure is correct by checking for the date in the JSON
-                    assert f'"x":"{today}"' in script_content or f'"x": "{today}"' in script_content, \
-                        f"Today's date {today} should be in chart candlestick data"
+        # Check if chart data includes today's date
+        # We can verify this by checking the JavaScript chart data
+        chart_data_script = page.locator("script").filter(has_text="candlestickData")
+        if chart_data_script.count() > 0:
+            script_content = chart_data_script.inner_text()
+            # Check if today's date appears in the candlestick data
+            # The date format in the chart data should be YYYY-MM-DD
+            if today in script_content:
+                # Today's date is in the chart data, which means today's aggregated candle is included
+                # Verify the data structure is correct by checking for the date in the JSON
+                assert f'"x":"{today}"' in script_content or f'"x": "{today}"' in script_content, \
+                    f"Today's date {today} should be in chart candlestick data"
     
     def test_options_tables_have_datatables(self, page: Page, live_server_url):
         """Test that all options tables are initialized with DataTables and have search functionality."""
