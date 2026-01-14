@@ -750,29 +750,36 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 for _, put_row in puts_filtered.iterrows():
                     put_strike = round(float(put_row['strike']), 2)
                     put_bid = put_row.get('bid')
+                    put_ask = put_row.get('ask')
                     
-                    if pd.isna(put_bid) or put_bid <= 0:
+                    if pd.isna(put_bid) or pd.isna(put_ask) or put_bid <= 0 or put_ask <= 0:
                         continue
                     
                     # Look for call at same strike
                     call_at_strike = calls_filtered[calls_filtered['strike'] == put_strike]
                     if not call_at_strike.empty:
                         call_row = call_at_strike.iloc[0]
+                        call_bid = call_row.get('bid')
                         call_ask = call_row.get('ask')
                         
-                        if pd.isna(call_ask) or call_ask <= 0:
+                        if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
                             continue
                         
-                        # Calculate net cost: we pay call_ask, receive put_bid
+                        # Calculate average of bid/ask for both options
+                        put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
+                        call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
+                        
+                        # Calculate net cost using average of bid/ask for consistency
+                        # For risk reversal: we receive put premium, pay call premium
                         # Negative cost = we get paid (credit)
-                        net_cost = float(call_ask) - float(put_bid)
+                        net_cost = call_option_quote - put_option_quote
                         
                         # Filter by cost range (±5% of current price)
                         if abs(net_cost) <= cost_range:
                             put_risk = put_strike * 100
                             cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
-                            put_breakeven = put_strike - float(put_bid)
-                            call_breakeven = put_strike + float(call_ask)
+                            put_breakeven = put_strike - put_option_quote
+                            call_breakeven = put_strike + call_option_quote
                             strike_spread = abs(put_strike - put_strike)  # 0 for same strikes
                             
                             # Calculate days to expiration
@@ -787,8 +794,8 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                                 'put_risk_formatted': f"{put_risk:,.2f}",
                                 'put_strike': put_strike,
                                 'call_strike': put_strike,
-                                'put_bid': round(float(put_bid), 2),
-                                'call_ask': round(float(call_ask), 2),
+                                'put_bid': round(put_option_quote, 2),
+                                'call_ask': round(call_option_quote, 2),
                                 'put_breakeven': round(put_breakeven, 2),
                                 'call_breakeven': round(call_breakeven, 2),
                                 'strike_spread': round(strike_spread, 2),
@@ -806,22 +813,29 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                     
                     for _, call_row in nearby_calls.iterrows():
                         call_strike = round(float(call_row['strike']), 2)
+                        call_bid = call_row.get('bid')
                         call_ask = call_row.get('ask')
                         
-                        if pd.isna(call_ask) or call_ask <= 0:
+                        if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
                             continue
                         
                         # Skip if we already added this exact strike combination
                         if call_strike == put_strike:
                             continue
                         
-                        net_cost = float(call_ask) - float(put_bid)
+                        # Calculate average of bid/ask for both options
+                        put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
+                        call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
+                        
+                        # Calculate net cost using average of bid/ask for consistency
+                        # For risk reversal: we receive put premium, pay call premium
+                        net_cost = call_option_quote - put_option_quote
                         
                         if abs(net_cost) <= cost_range:
                             put_risk = put_strike * 100
                             cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
-                            put_breakeven = put_strike - float(put_bid)
-                            call_breakeven = call_strike + float(call_ask)
+                            put_breakeven = put_strike - put_option_quote
+                            call_breakeven = call_strike + call_option_quote
                             strike_spread = abs(call_strike - put_strike)
                             
                             # Calculate days to expiration
@@ -836,8 +850,8 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                                 'put_risk_formatted': f"{put_risk:,.2f}",
                                 'put_strike': put_strike,
                                 'call_strike': call_strike,
-                                'put_bid': round(float(put_bid), 2),
-                                'call_ask': round(float(call_ask), 2),
+                                'put_bid': round(put_option_quote, 2),
+                                'call_ask': round(call_option_quote, 2),
                                 'put_breakeven': round(put_breakeven, 2),
                                 'call_breakeven': round(call_breakeven, 2),
                                 'strike_spread': round(strike_spread, 2),
@@ -855,8 +869,9 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 for _, put_row in puts_1_2_filtered.iterrows():
                     put_strike = round(float(put_row['strike']), 2)
                     put_bid = put_row.get('bid')
+                    put_ask = put_row.get('ask')
                     
-                    if pd.isna(put_bid) or put_bid <= 0:
+                    if pd.isna(put_bid) or pd.isna(put_ask) or put_bid <= 0 or put_ask <= 0:
                         continue
                     
                     # For 1:2, prioritize calls at higher strikes (lower premiums) to reduce 2x cost
@@ -890,20 +905,26 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                         if call_row.empty:
                             continue
                         call_row = call_row.iloc[0]
+                        call_bid = call_row.get('bid')
                         call_ask = call_row.get('ask')
                         
-                        if pd.isna(call_ask) or call_ask <= 0:
+                        if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
                             continue
                         
-                        # Calculate net cost for 1:2: we pay 2 × call_ask, receive put_bid
-                        net_cost_1_2 = (2 * float(call_ask)) - float(put_bid)
+                        # Calculate average of bid/ask for both options
+                        put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
+                        call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
+                        
+                        # Calculate net cost for 1:2 using average of bid/ask for consistency
+                        # For risk reversal 1:2: we receive put premium, pay 2 × call premium
+                        net_cost_1_2 = (2 * call_option_quote) - put_option_quote
                         
                         # Filter by cost range (±5% of current price)
                         if abs(net_cost_1_2) <= cost_range:
                             put_risk = put_strike * 100
                             cost_pct = (net_cost_1_2 / current_price) * 100 if current_price > 0 else 0
-                            put_breakeven = put_strike - float(put_bid)
-                            call_breakeven = call_strike + float(call_ask)
+                            put_breakeven = put_strike - put_option_quote
+                            call_breakeven = call_strike + call_option_quote
                             strike_spread = abs(call_strike - put_strike)
                             
                             # Calculate days to expiration
@@ -918,8 +939,8 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                                 'put_risk_formatted': f"{put_risk:,.2f}",
                                 'put_strike': put_strike,
                                 'call_strike': call_strike,
-                                'put_bid': round(float(put_bid), 2),
-                                'call_ask': round(float(call_ask), 2),
+                                'put_bid': round(put_option_quote, 2),
+                                'call_ask': round(call_option_quote, 2),
                                 'put_breakeven': round(put_breakeven, 2),
                                 'call_breakeven': round(call_breakeven, 2),
                                 'strike_spread': round(strike_spread, 2),

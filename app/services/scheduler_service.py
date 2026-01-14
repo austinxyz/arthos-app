@@ -468,9 +468,10 @@ def update_rr_history():
                 
                 put_row = put_row.iloc[0]
                 put_bid = put_row.get('bid')
+                put_ask = put_row.get('ask')
                 
-                if pd.isna(put_bid) or put_bid <= 0:
-                    logger.warning(f"Put option with strike ${entry.put_strike} has missing or invalid bid for {entry.ticker} {expiration_str}")
+                if pd.isna(put_bid) or pd.isna(put_ask) or put_bid <= 0 or put_ask <= 0:
+                    logger.warning(f"Put option with strike ${entry.put_strike} has missing or invalid bid/ask for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
                 
@@ -484,19 +485,26 @@ def update_rr_history():
                     continue
                 
                 call_row = call_row.iloc[0]
+                call_bid = call_row.get('bid')
                 call_ask = call_row.get('ask')
                 
-                if pd.isna(call_ask) or call_ask <= 0:
-                    logger.warning(f"Call option with strike ${entry.call_strike} has missing or invalid ask for {entry.ticker} {expiration_str}")
+                if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
+                    logger.warning(f"Call option with strike ${entry.call_strike} has missing or invalid bid/ask for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
                 
-                # Calculate current value: (call_ask * call_quantity) - (put_bid * put_quantity)
-                curr_value = (float(call_ask) * entry.call_quantity) - (float(put_bid) * entry.put_quantity)
+                # Calculate average of bid/ask for both options
+                put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
+                call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
                 
-                # Store the prices used in calculation
-                call_price = Decimal(str(call_ask))
-                put_price = Decimal(str(put_bid))
+                # Calculate current value using average of bid/ask for consistency
+                # For risk reversal: we receive put premium, pay call premium
+                # Current value = (call_option_quote * call_quantity) - (put_option_quote * put_quantity)
+                curr_value = (call_option_quote * entry.call_quantity) - (put_option_quote * entry.put_quantity)
+                
+                # Store the prices used in calculation (average of bid/ask)
+                call_price = Decimal(str(call_option_quote))
+                put_price = Decimal(str(put_option_quote))
                 
                 # Check if history entry already exists for today
                 with Session(engine) as session:
@@ -704,9 +712,10 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
                 
                 put_row = put_row.iloc[0]
                 put_bid = put_row.get('bid')
+                put_ask = put_row.get('ask')
                 
-                if pd.isna(put_bid) or put_bid <= 0:
-                    logger.warning(f"Put option with strike ${entry.put_strike} has missing or invalid bid for {entry.ticker} {expiration_str}")
+                if pd.isna(put_bid) or pd.isna(put_ask) or put_bid <= 0 or put_ask <= 0:
+                    logger.warning(f"Put option with strike ${entry.put_strike} has missing or invalid bid/ask for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
                 
@@ -720,19 +729,26 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
                     continue
                 
                 call_row = call_row.iloc[0]
+                call_bid = call_row.get('bid')
                 call_ask = call_row.get('ask')
                 
-                if pd.isna(call_ask) or call_ask <= 0:
-                    logger.warning(f"Call option with strike ${entry.call_strike} has missing or invalid ask for {entry.ticker} {expiration_str}")
+                if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
+                    logger.warning(f"Call option with strike ${entry.call_strike} has missing or invalid bid/ask for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
                 
-                # Calculate current value: (call_ask * call_quantity) - (put_bid * put_quantity)
-                curr_value = (float(call_ask) * entry.call_quantity) - (float(put_bid) * entry.put_quantity)
+                # Calculate average of bid/ask for both options
+                put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
+                call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
                 
-                # Store the prices used in calculation
-                call_price = Decimal(str(call_ask))
-                put_price = Decimal(str(put_bid))
+                # Calculate current value using average of bid/ask for consistency
+                # For risk reversal: we receive put premium, pay call premium
+                # Current value = (call_option_quote * call_quantity) - (put_option_quote * put_quantity)
+                curr_value = (call_option_quote * entry.call_quantity) - (put_option_quote * entry.put_quantity)
+                
+                # Store the prices used in calculation (average of bid/ask)
+                call_price = Decimal(str(call_option_quote))
+                put_price = Decimal(str(put_option_quote))
                 
                 # Check if history entry already exists for today
                 with Session(engine) as session:

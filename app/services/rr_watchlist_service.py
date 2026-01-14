@@ -80,8 +80,9 @@ def save_rr_to_watchlist(
         
         # Calculate net cost (entry price)
         # For risk reversal: we receive put premium, pay call premium
-        # Net cost = (call_ask * call_quantity) - (put_bid * put_quantity)
-        entry_price = (float(call_ask) * call_quantity) - (float(put_bid) * put_quantity)
+        # Use average of bid/ask for both options for consistency
+        # Net cost = (call_option_quote * call_quantity) - (put_option_quote * put_quantity)
+        entry_price = (call_option_quote * call_quantity) - (put_option_quote * put_quantity)
         
         # Parse expiration date
         exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
