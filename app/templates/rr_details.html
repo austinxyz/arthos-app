@@ -42,7 +42,9 @@
                     <div class="card-body">
                         <p><strong>Ticker:</strong> {{ entry.ticker }}</p>
                         <p><strong>Call Strike:</strong> ${{ "%.2f"|format(entry.call_strike) }} (Qty: {{ entry.call_quantity }})</p>
+                        <p><strong>Call Entry Price:</strong> ${{ "%.2f"|format(entry.call_option_quote) }}</p>
                         <p><strong>Put Strike:</strong> ${{ "%.2f"|format(entry.put_strike) }} (Qty: {{ entry.put_quantity }})</p>
+                        <p><strong>Put Entry Price:</strong> ${{ "%.2f"|format(entry.put_option_quote) }}</p>
                         <p><strong>Ratio:</strong> {{ entry.ratio }}</p>
                         <p><strong>Expiration:</strong> {{ entry.expiration.strftime('%Y-%m-%d') }}</p>
                         <p><strong>Entry Price:</strong> ${{ "%.2f"|format(entry.entry_price) }}</p>
