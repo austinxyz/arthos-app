@@ -131,13 +131,13 @@ def get_all_rr_watchlist_entries() -> list[RRWatchlist]:
 
 
 def get_latest_net_cost(rr_uuid: UUID) -> Optional[Decimal]:
-    """Get the latest net cost from rr_history for a given RR entry."""
+    """Get the latest current value from rr_history for a given RR entry."""
     with Session(engine) as session:
         statement = select(RRHistory).where(
             RRHistory.rr_uuid == rr_uuid
         ).order_by(RRHistory.history_date.desc()).limit(1)
         latest = session.exec(statement).first()
-        return latest.net_cost if latest else None
+        return latest.curr_value if latest else None
 
 
 def get_rr_watchlist_entry(rr_uuid: UUID) -> Optional[RRWatchlist]:

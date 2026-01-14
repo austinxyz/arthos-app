@@ -491,8 +491,12 @@ def update_rr_history():
                     error_count += 1
                     continue
                 
-                # Calculate net cost: (call_ask * call_quantity) - (put_bid * put_quantity)
-                net_cost = (float(call_ask) * entry.call_quantity) - (float(put_bid) * entry.put_quantity)
+                # Calculate current value: (call_ask * call_quantity) - (put_bid * put_quantity)
+                curr_value = (float(call_ask) * entry.call_quantity) - (float(put_bid) * entry.put_quantity)
+                
+                # Store the prices used in calculation
+                call_price = Decimal(str(call_ask))
+                put_price = Decimal(str(put_bid))
                 
                 # Check if history entry already exists for today
                 with Session(engine) as session:
@@ -505,7 +509,9 @@ def update_rr_history():
                     
                     if existing:
                         # Update existing entry
-                        existing.net_cost = Decimal(str(net_cost))
+                        existing.curr_value = Decimal(str(curr_value))
+                        existing.call_price = call_price
+                        existing.put_price = put_price
                         session.add(existing)
                     else:
                         # Create new history entry
@@ -513,13 +519,15 @@ def update_rr_history():
                             rr_uuid=entry.id,
                             ticker=entry.ticker,
                             history_date=today,
-                            net_cost=Decimal(str(net_cost))
+                            curr_value=Decimal(str(curr_value)),
+                            call_price=call_price,
+                            put_price=put_price
                         )
                         session.add(history_entry)
                     
                     session.commit()
                     success_count += 1
-                    logger.debug(f"Updated RR history for {entry.ticker} {expiration_str} - Net Cost: ${net_cost:.2f}")
+                    logger.debug(f"Updated RR history for {entry.ticker} {expiration_str} - Current Value: ${curr_value:.2f}")
                     
             except Exception as e:
                 error_count += 1
@@ -719,8 +727,12 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
                     error_count += 1
                     continue
                 
-                # Calculate net cost: (call_ask * call_quantity) - (put_bid * put_quantity)
-                net_cost = (float(call_ask) * entry.call_quantity) - (float(put_bid) * entry.put_quantity)
+                # Calculate current value: (call_ask * call_quantity) - (put_bid * put_quantity)
+                curr_value = (float(call_ask) * entry.call_quantity) - (float(put_bid) * entry.put_quantity)
+                
+                # Store the prices used in calculation
+                call_price = Decimal(str(call_ask))
+                put_price = Decimal(str(put_bid))
                 
                 # Check if history entry already exists for today
                 with Session(engine) as session:
@@ -733,7 +745,9 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
                     
                     if existing:
                         # Update existing entry
-                        existing.net_cost = Decimal(str(net_cost))
+                        existing.curr_value = Decimal(str(curr_value))
+                        existing.call_price = call_price
+                        existing.put_price = put_price
                         session.add(existing)
                     else:
                         # Create new history entry
@@ -741,13 +755,15 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
                             rr_uuid=entry.id,
                             ticker=entry.ticker,
                             history_date=today,
-                            net_cost=Decimal(str(net_cost))
+                            curr_value=Decimal(str(curr_value)),
+                            call_price=call_price,
+                            put_price=put_price
                         )
                         session.add(history_entry)
                     
                     session.commit()
                     success_count += 1
-                    logger.debug(f"Updated RR history for {entry.ticker} {expiration_str} - Net Cost: ${net_cost:.2f}")
+                    logger.debug(f"Updated RR history for {entry.ticker} {expiration_str} - Current Value: ${curr_value:.2f}")
                     
             except Exception as e:
                 error_count += 1

@@ -30,6 +30,10 @@ def create_db_and_tables():
     _migrate_stock_attributes_table()
     # Add earnings date columns to stock_attributes if they don't exist
     _migrate_stock_attributes_earnings_columns()
+    # Add call_price and put_price columns to rr_history if they don't exist
+    _migrate_rr_history_price_columns()
+    # Rename net_cost to curr_value in rr_history if needed
+    _migrate_rr_history_rename_net_cost()
     # Create indexes on stock_price and stock_attributes for faster queries
     _create_stock_price_index()
     _create_stock_attributes_index()
@@ -235,6 +239,115 @@ def _migrate_stock_attributes_earnings_columns():
     except Exception as e:
         # If migration fails, log but don't crash
         print(f"Warning: Could not migrate stock_attributes earnings columns: {e}")
+
+
+def _migrate_rr_history_price_columns():
+    """Add call_price and put_price columns to rr_history table if they don't exist."""
+    try:
+        with Session(engine) as session:
+            # Check database type
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            if is_sqlite:
+                # SQLite-specific migration
+                result = session.exec(text(
+                    "PRAGMA table_info(rr_history)"
+                )).all()
+                
+                column_names = [row[1] for row in result]
+                
+                # Add call_price column if it doesn't exist
+                if 'call_price' not in column_names:
+                    session.exec(text(
+                        "ALTER TABLE rr_history ADD COLUMN call_price DECIMAL"
+                    ))
+                    session.commit()
+                    print("Added call_price column to rr_history table")
+                
+                # Add put_price column if it doesn't exist
+                if 'put_price' not in column_names:
+                    session.exec(text(
+                        "ALTER TABLE rr_history ADD COLUMN put_price DECIMAL"
+                    ))
+                    session.commit()
+                    print("Added put_price column to rr_history table")
+            else:
+                # PostgreSQL-specific migration
+                # Check if call_price column exists
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'rr_history' AND column_name = 'call_price'"
+                )).first()
+                
+                if not result:
+                    session.exec(text(
+                        "ALTER TABLE rr_history ADD COLUMN call_price DECIMAL"
+                    ))
+                    session.commit()
+                    print("Added call_price column to rr_history table")
+                
+                # Check if put_price column exists
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'rr_history' AND column_name = 'put_price'"
+                )).first()
+                
+                if not result:
+                    session.exec(text(
+                        "ALTER TABLE rr_history ADD COLUMN put_price DECIMAL"
+                    ))
+                    session.commit()
+                    print("Added put_price column to rr_history table")
+    except Exception as e:
+        print(f"Warning: Could not migrate rr_history price columns: {e}")
+
+
+def _migrate_rr_history_rename_net_cost():
+    """Rename net_cost column to curr_value in rr_history table if it exists."""
+    try:
+        with Session(engine) as session:
+            # Check database type
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            if is_sqlite:
+                # SQLite-specific migration
+                result = session.exec(text(
+                    "PRAGMA table_info(rr_history)"
+                )).all()
+                
+                column_names = [row[1] for row in result]
+                
+                # Rename net_cost to curr_value if net_cost exists and curr_value doesn't
+                if 'net_cost' in column_names and 'curr_value' not in column_names:
+                    # SQLite doesn't support ALTER TABLE RENAME COLUMN directly in older versions
+                    # We'll use a workaround: create new table, copy data, drop old, rename new
+                    session.exec(text(
+                        "CREATE TABLE rr_history_new AS "
+                        "SELECT id, rr_uuid, ticker, history_date, "
+                        "net_cost AS curr_value, call_price, put_price "
+                        "FROM rr_history"
+                    ))
+                    session.exec(text("DROP TABLE rr_history"))
+                    session.exec(text("ALTER TABLE rr_history_new RENAME TO rr_history"))
+                    session.commit()
+                    print("Renamed net_cost column to curr_value in rr_history table")
+            else:
+                # PostgreSQL-specific migration
+                # Check if net_cost column exists and curr_value doesn't
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'rr_history' AND column_name IN ('net_cost', 'curr_value')"
+                )).all()
+                existing_columns = {row[0] for row in result}
+                
+                if 'net_cost' in existing_columns and 'curr_value' not in existing_columns:
+                    session.exec(text(
+                        "ALTER TABLE rr_history RENAME COLUMN net_cost TO curr_value"
+                    ))
+                    session.commit()
+                    print("Renamed net_cost column to curr_value in rr_history table")
+    except Exception as e:
+        print(f"Warning: Could not migrate rr_history net_cost column: {e}")
 
 
 def _create_stock_price_index():

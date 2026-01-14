@@ -191,11 +191,13 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
     for hist in history:
         chart_data.append({
             'x': hist.history_date.isoformat(),
-            'y': float(hist.net_cost)
+            'y': float(hist.curr_value)
         })
         table_data.append({
             'history_date': hist.history_date,
-            'net_cost': float(hist.net_cost)
+            'curr_value': float(hist.curr_value),
+            'call_price': float(hist.call_price) if hist.call_price else None,
+            'put_price': float(hist.put_price) if hist.put_price else None
         })
     
     # Sort by date

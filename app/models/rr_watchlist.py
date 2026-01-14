@@ -87,8 +87,14 @@ class RRHistory(SQLModel, table=True):
     history_date: date = Field(
         description="Date for which the data represents"
     )
-    net_cost: Decimal = Field(
-        description="Recomputed net cost based on current option quote prices"
+    curr_value: Decimal = Field(
+        description="Current value based on current option quote prices"
+    )
+    call_price: Decimal = Field(
+        description="Call option price used in net cost calculation"
+    )
+    put_price: Decimal = Field(
+        description="Put option price used in net cost calculation"
     )
     
     # Relationship to watchlist entry
