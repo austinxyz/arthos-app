@@ -47,35 +47,22 @@
             font-size: 1.2em;
             color: #333;
         }
-        /* Make DataTables use full width */
-        .dataTables_wrapper {
-            width: 100%;
-        }
-        .dataTables_wrapper .dataTables_scroll {
-            width: 100%;
-        }
-        .table-responsive {
-            width: 100%;
-        }
         /* Ensure tables expand to fill available space */
         table.dataTable {
             width: 100% !important;
         }
         /* Spread out columns when there are few columns */
         #coveredCallsTable,
-        #optionsDataTable,
-        .risk-reversal-table {
+        #optionsDataTable {
             table-layout: auto;
         }
         #coveredCallsTable th,
-        #optionsDataTable th,
-        .risk-reversal-table th {
+        #optionsDataTable th {
             white-space: nowrap;
             padding: 12px 15px;
         }
         #coveredCallsTable td,
-        #optionsDataTable td,
-        .risk-reversal-table td {
+        #optionsDataTable td {
             padding: 12px 15px;
         }
         /* Prevent Option Data table from wrapping */
@@ -627,7 +614,7 @@
                                 {% for expiration, strategies in risk_reversals.items() %}
                                 <div class="mb-4">
                                     <h5 class="mb-3">Expiration: {{ expiration }}</h5>
-                                    <div class="table-responsive">
+                                    <div>
                                         <table id="riskReversalTable_{{ expiration|replace('-', '_') }}" class="table table-striped table-hover table-bordered risk-reversal-table">
                                             <thead class="table-dark">
                                                 <tr>
@@ -906,6 +893,9 @@
                     if (tableId) {
                         const table = initDataTable(tableId, {
                             order: [[6, 'asc']], // Sort by Net Cost $ ascending
+                            responsive: false, // Disable responsive mode to prevent horizontal scroll
+                            scrollX: false, // No horizontal scrolling
+                            autoWidth: true, // Auto-adjust column widths to fit
                             columnDefs: [
                                 {
                                     targets: 0, // Ratio column

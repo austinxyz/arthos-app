@@ -1,3 +1,52 @@
 <!-- DataTables CSS -->
 <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
 <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
+<style>
+    /* Add padding to DataTables wrapper to prevent tables from being chopped at edges */
+    .dataTables_wrapper {
+        padding: 15px;
+        margin: 0;
+    }
+    
+    /* Ensure tables use full available width within their container */
+    .dataTables_wrapper .dataTables_scroll {
+        width: 100%;
+    }
+    
+    /* Make sure table containers don't overflow */
+    .dataTables_wrapper .dataTables_scrollBody {
+        width: 100% !important;
+    }
+    
+    /* Risk Reversal tables - ensure they fit on screen without horizontal scroll */
+    .risk-reversal-table {
+        width: 100% !important;
+        table-layout: auto;
+        font-size: 0.9em;
+    }
+    
+    /* Remove horizontal scroll for Risk Reversal tables when there's screen space */
+    .table-responsive:has(.risk-reversal-table) {
+        overflow-x: visible;
+    }
+    
+    /* Ensure Risk Reversal table wrapper uses full width and no horizontal scroll */
+    /* DataTables creates wrappers with pattern: {tableId}_wrapper */
+    div[id*="riskReversalTable"]:has(table.risk-reversal-table),
+    div[id*="riskReversalTable"]_wrapper {
+        width: 100% !important;
+        overflow-x: visible !important;
+    }
+    
+    /* Target all DataTables wrappers that contain risk reversal tables */
+    .dataTables_wrapper:has(.risk-reversal-table) {
+        overflow-x: visible !important;
+    }
+    
+    /* Reduce padding for Risk Reversal tables to fit more columns */
+    .risk-reversal-table th,
+    .risk-reversal-table td {
+        padding: 8px 10px;
+        white-space: nowrap;
+    }
+</style>
