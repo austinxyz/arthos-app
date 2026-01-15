@@ -148,12 +148,13 @@ class TestStockDetailBrowser:
             covered_calls_tab.click()
             page.wait_for_timeout(500)  # Wait for tab switch animation
             
-            # Check table headers for covered calls
-            expect(page.locator("th:has-text('Strike Price')")).to_be_visible(timeout=5000)
-            expect(page.locator("th:has-text('Call Premium')")).to_be_visible()
-            expect(page.locator("th:has-text('Total Return Exercised')")).to_be_visible()
-            expect(page.locator("th:has-text('Total Return Not Exercised')")).to_be_visible()
-            expect(page.locator("th:has-text('Return Breakdown')")).to_be_visible()
+            # Check table headers for covered calls (scope to covered calls table)
+            covered_calls_table = page.locator("#coveredCallsTable")
+            expect(covered_calls_table.locator("th:has-text('Strike Price')")).to_be_visible(timeout=5000)
+            expect(covered_calls_table.locator("th:has-text('Call Premium')")).to_be_visible()
+            expect(covered_calls_table.locator("th:has-text('Total Return Exercised')")).to_be_visible()
+            expect(covered_calls_table.locator("th:has-text('Total Return Not Exercised')")).to_be_visible()
+            expect(covered_calls_table.locator("th:has-text('Return Breakdown')")).to_be_visible()
         
         # Check for any error messages
         error_messages = page.locator(".alert-danger, .text-danger, .error")
