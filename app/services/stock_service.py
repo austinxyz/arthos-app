@@ -752,46 +752,51 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 )
                 strategies_1_1 = strategies_1_1[:5]
 
-                # --- 1:2 strategies (higher strikes) ---
-                puts_high = [p for p in puts if p['strike'] > current_price]
-                calls_high = [c for c in calls if c['strike'] > current_price]
+                # --- 1:2 strategies (closest strikes, minimize out-of-pocket) ---
+                puts_near_1_2 = sorted(puts, key=lambda p: abs(p['strike'] - current_price))
+                calls_near_1_2 = sorted(calls, key=lambda c: abs(c['strike'] - current_price))
 
-                puts_high.sort(key=lambda p: p['strike'], reverse=True)
-                calls_high.sort(key=lambda c: c['strike'], reverse=True)
+                # Prefer strikes at or above current price; fallback to overall nearest if none
+                puts_near_1_2 = [p for p in puts_near_1_2 if p['strike'] >= current_price] or puts_near_1_2
+                calls_near_1_2 = [c for c in calls_near_1_2 if c['strike'] >= current_price] or calls_near_1_2
 
                 strategies_1_2 = []
-                for put in puts_high[:10]:
-                    # Prefer calls at or above the put strike; fallback to highest calls above current
-                    call_candidates = [c for c in calls_high if c['strike'] >= put['strike']]
-                    if not call_candidates:
-                        call_candidates = calls_high
-                    if not call_candidates:
-                        continue
-                    call = call_candidates[0]  # highest strike (cheapest calls)
-                    net_cost = (2 * call['mid']) - put['mid']
-                    cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
-                    put_risk = put['strike'] * 100
-                    strategies_1_2.append({
-                        'strategy': f"{ticker.upper()} {expiration} Sell 1 ${put['strike']:.2f} put and Buy 2 ${call['strike']:.2f} calls",
-                        'cost': round(net_cost, 2),
-                        'cost_pct': round(cost_pct, 2),
-                        'put_risk': round(put_risk, 2),
-                        'put_risk_formatted': f"{put_risk:,.2f}",
-                        'put_strike': put['strike'],
-                        'call_strike': call['strike'],
-                        'put_bid': round(put['mid'], 2),
-                        'call_ask': round(call['mid'], 2),
-                        'put_breakeven': round(put['strike'] - put['mid'], 2),
-                        'call_breakeven': round(call['strike'] + call['mid'], 2),
-                        'strike_spread': round(abs(call['strike'] - put['strike']), 2),
-                        'days_to_expiration': days_to_exp,
-                        'expiration': expiration,
-                        'ratio': '1:2'
-                    })
+                for put in puts_near_1_2[:10]:
+                    for call in calls_near_1_2[:12]:
+                        # Keep call strike at or above put strike for 1:2 shape
+                        if call['strike'] < put['strike']:
+                            continue
+                        net_cost = (2 * call['mid']) - put['mid']
+                        cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
+                        put_risk = put['strike'] * 100
+                        strike_distance = abs(put['strike'] - current_price) + abs(call['strike'] - current_price)
 
-                # Prioritize lowest out-of-pocket cost, then higher strikes
-                strategies_1_2.sort(key=lambda s: (s['cost'], -s['put_strike'], -s['call_strike']))
+                        strategies_1_2.append({
+                            'strategy': f"{ticker.upper()} {expiration} Sell 1 ${put['strike']:.2f} put and Buy 2 ${call['strike']:.2f} calls",
+                            'cost': round(net_cost, 2),
+                            'cost_pct': round(cost_pct, 2),
+                            'put_risk': round(put_risk, 2),
+                            'put_risk_formatted': f"{put_risk:,.2f}",
+                            'put_strike': put['strike'],
+                            'call_strike': call['strike'],
+                            'put_bid': round(put['mid'], 2),
+                            'call_ask': round(call['mid'], 2),
+                            'put_breakeven': round(put['strike'] - put['mid'], 2),
+                            'call_breakeven': round(call['strike'] + call['mid'], 2),
+                            'strike_spread': round(abs(call['strike'] - put['strike']), 2),
+                            'days_to_expiration': days_to_exp,
+                            'expiration': expiration,
+                            'ratio': '1:2',
+                            '_distance': strike_distance
+                        })
+
+                # Prioritize closest strikes first, then lowest cost
+                strategies_1_2.sort(key=lambda s: (s['_distance'], s['cost']))
                 strategies_1_2 = strategies_1_2[:5]
+
+                # Cleanup internal helper key
+                for strategy in strategies_1_2:
+                    strategy.pop('_distance', None)
 
                 strategies.extend(strategies_1_1 + strategies_1_2)
                 
