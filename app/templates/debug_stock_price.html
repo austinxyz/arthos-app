@@ -8,7 +8,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
-    {% include 'partials/datatables_includes.html' %}
+    {% include 'partials/tabulator_includes.html' %}
     <style>
         body {
             background-color: #f5f5f5;
@@ -76,7 +76,8 @@
         <div class="card attributes-card">
             <div class="card-body">
                 <h5 class="card-title">Stock Attributes (All Fields)</h5>
-                <table class="table table-bordered">
+                <div id="attributesTableTabulator"></div>
+                <table id="attributesTable" class="table table-bordered">
                     <thead class="table-light">
                         <tr>
                             <th>Field</th>
@@ -146,6 +147,7 @@
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Stock Price Data ({{ prices|length }} records)</h5>
+                <div id="pricesTableTabulator"></div>
                 <div class="table-responsive">
                     <table id="pricesTable" class="table table-striped table-hover table-bordered">
                         <thead class="table-dark">
@@ -185,8 +187,8 @@
         {% endif %}
     </div>
 
-    {% include 'partials/datatables_scripts.html' %}
-    <script src="/static/js/datatables_init.js"></script>
+    {% include 'partials/tabulator_scripts.html' %}
+    <script src="/static/js/tabulator_init.js"></script>
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
     
@@ -238,12 +240,17 @@
             }
         }
         
-        // Initialize DataTable if prices table exists
-        $(document).ready(function() {
-            if ($('#pricesTable').length) {
-                initDataTable('pricesTable', {
-                    pageLength: 50,
-                    order: [[0, "desc"]] // Sort by date descending
+        // Initialize Tabulator tables
+        document.addEventListener('DOMContentLoaded', () => {
+            if (document.getElementById('attributesTable')) {
+                initTabulatorFromTable('attributesTable', {
+                    pageSize: 25
+                });
+            }
+            if (document.getElementById('pricesTable')) {
+                initTabulatorFromTable('pricesTable', {
+                    pageSize: 50,
+                    initialSort: [{ column: 'Date', dir: 'desc' }]
                 });
             }
         });
