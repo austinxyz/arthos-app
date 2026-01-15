@@ -41,67 +41,55 @@ def populate_test_stock_prices(ticker: str, num_days: int = 365, base_price: flo
     """
     ticker_upper = ticker.upper()
     
+    # Precompute price data
+    base_date = date.today() - timedelta(days=num_days)
+    earliest_date = base_date
+    latest_date = base_date + timedelta(days=num_days - 1)
+    prices = []
+    
+    for i in range(num_days):
+        price_date = base_date + timedelta(days=i)
+        
+        # Create a simple price pattern (slight upward trend with some variation)
+        price_variation = (i % 10) * 0.5  # Small variation
+        close_price = base_price + (i * 0.1) + price_variation
+        open_price = close_price - 0.5
+        high_price = close_price + 0.5
+        low_price = close_price - 1.0
+        
+        # Calculate moving averages (simplified)
+        dma_50 = None
+        dma_200 = None
+        if i >= 49:  # Have enough data for 50-day MA
+            # Simple calculation: average of last 50 days
+            dma_50 = Decimal(str(base_price + ((i - 24.5) * 0.1)))
+        if i >= 199:  # Have enough data for 200-day MA
+            dma_200 = Decimal(str(base_price + ((i - 99.5) * 0.1)))
+        
+        prices.append(StockPrice(
+            price_date=price_date,
+            ticker=ticker_upper,
+            open_price=Decimal(str(open_price)).quantize(Decimal('0.0001')),
+            close_price=Decimal(str(close_price)).quantize(Decimal('0.0001')),
+            high_price=Decimal(str(high_price)).quantize(Decimal('0.0001')),
+            low_price=Decimal(str(low_price)).quantize(Decimal('0.0001')),
+            dma_50=dma_50,
+            dma_200=dma_200
+        ))
+    
     with Session(engine) as session:
         # Remove any existing data for this ticker to avoid duplicate key errors
         session.exec(delete(StockPrice).where(StockPrice.ticker == ticker_upper))
-
-        # Create price data
-        base_date = date.today() - timedelta(days=num_days)
-        earliest_date = None
-        latest_date = None
+        session.exec(delete(StockAttributes).where(StockAttributes.ticker == ticker_upper))
         
-        for i in range(num_days):
-            price_date = base_date + timedelta(days=i)
-            
-            # Create a simple price pattern (slight upward trend with some variation)
-            price_variation = (i % 10) * 0.5  # Small variation
-            close_price = base_price + (i * 0.1) + price_variation
-            open_price = close_price - 0.5
-            high_price = close_price + 0.5
-            low_price = close_price - 1.0
-            
-            # Calculate moving averages (simplified)
-            dma_50 = None
-            dma_200 = None
-            if i >= 49:  # Have enough data for 50-day MA
-                # Simple calculation: average of last 50 days
-                dma_50 = Decimal(str(base_price + ((i - 24.5) * 0.1)))
-            if i >= 199:  # Have enough data for 200-day MA
-                dma_200 = Decimal(str(base_price + ((i - 99.5) * 0.1)))
-            
-            price = StockPrice(
-                price_date=price_date,
-                ticker=ticker_upper,
-                open_price=Decimal(str(open_price)).quantize(Decimal('0.0001')),
-                close_price=Decimal(str(close_price)).quantize(Decimal('0.0001')),
-                high_price=Decimal(str(high_price)).quantize(Decimal('0.0001')),
-                low_price=Decimal(str(low_price)).quantize(Decimal('0.0001')),
-                dma_50=dma_50,
-                dma_200=dma_200
-            )
-            session.add(price)
-            
-            # Track date range
-            if earliest_date is None or price_date < earliest_date:
-                earliest_date = price_date
-            if latest_date is None or price_date > latest_date:
-                latest_date = price_date
-        
-        session.commit()
-        
-        # Create or update stock attributes
-        attributes = session.get(StockAttributes, ticker_upper)
-        if attributes:
-            attributes.earliest_date = earliest_date
-            attributes.latest_date = latest_date
-        else:
-            attributes = StockAttributes(
-                ticker=ticker_upper,
-                earliest_date=earliest_date,
-                latest_date=latest_date,
-                dividend_amt=None,
-                dividend_yield=None
-            )
-            session.add(attributes)
+        # Insert fresh data
+        session.add_all(prices)
+        session.add(StockAttributes(
+            ticker=ticker_upper,
+            earliest_date=earliest_date,
+            latest_date=latest_date,
+            dividend_amt=None,
+            dividend_yield=None
+        ))
         
         session.commit()
