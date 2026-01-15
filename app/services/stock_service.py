@@ -717,15 +717,18 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
                 days_to_exp = (exp_date - today).days
 
-                # --- 1:1 strategies (closest strikes) ---
+                cost_limit = current_price * 0.03
+
+                # --- 1:1 strategies (closest strikes first, then net cost) ---
                 puts_near = sorted(puts, key=lambda p: abs(p['strike'] - current_price))[:10]
                 calls_near = sorted(calls, key=lambda c: abs(c['strike'] - current_price))[:10]
 
                 strategies_1_1 = []
-                if calls_near:
-                    for put in puts_near:
-                        call = min(calls_near, key=lambda c: abs(c['strike'] - put['strike']))
+                for put in puts_near:
+                    for call in calls_near:
                         net_cost = call['mid'] - put['mid']
+                        if abs(net_cost) > cost_limit:
+                            continue
                         cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
                         put_risk = put['strike'] * 100
                         strategies_1_1.append({
@@ -746,13 +749,16 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                             'ratio': '1:1'
                         })
 
-                # Prioritize lowest out-of-pocket cost, then closest strikes
                 strategies_1_1.sort(
-                    key=lambda s: (s['cost'], abs(s['put_strike'] - current_price), abs(s['call_strike'] - current_price))
+                    key=lambda s: (
+                        abs(s['put_strike'] - current_price),
+                        abs(s['call_strike'] - current_price),
+                        abs(s['cost'])
+                    )
                 )
                 strategies_1_1 = strategies_1_1[:5]
 
-                # --- 1:2 strategies (closest strikes, minimize out-of-pocket) ---
+                # --- 1:2 strategies (closest strikes first, then net cost) ---
                 puts_near_1_2 = sorted(puts, key=lambda p: abs(p['strike'] - current_price))
                 calls_near_1_2 = sorted(calls, key=lambda c: abs(c['strike'] - current_price))
 
@@ -767,10 +773,10 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                         if call['strike'] < put['strike']:
                             continue
                         net_cost = (2 * call['mid']) - put['mid']
+                        if abs(net_cost) > cost_limit:
+                            continue
                         cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
                         put_risk = put['strike'] * 100
-                        strike_distance = abs(put['strike'] - current_price) + abs(call['strike'] - current_price)
-
                         strategies_1_2.append({
                             'strategy': f"{ticker.upper()} {expiration} Sell 1 ${put['strike']:.2f} put and Buy 2 ${call['strike']:.2f} calls",
                             'cost': round(net_cost, 2),
@@ -786,17 +792,17 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                             'strike_spread': round(abs(call['strike'] - put['strike']), 2),
                             'days_to_expiration': days_to_exp,
                             'expiration': expiration,
-                            'ratio': '1:2',
-                            '_distance': strike_distance
+                            'ratio': '1:2'
                         })
 
-                # Prioritize closest strikes first, then lowest cost
-                strategies_1_2.sort(key=lambda s: (s['_distance'], s['cost']))
+                strategies_1_2.sort(
+                    key=lambda s: (
+                        abs(s['put_strike'] - current_price),
+                        abs(s['call_strike'] - current_price),
+                        abs(s['cost'])
+                    )
+                )
                 strategies_1_2 = strategies_1_2[:5]
-
-                # Cleanup internal helper key
-                for strategy in strategies_1_2:
-                    strategy.pop('_distance', None)
 
                 strategies.extend(strategies_1_1 + strategies_1_2)
                 
