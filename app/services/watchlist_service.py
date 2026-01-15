@@ -428,12 +428,12 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID) -> List[Dict[str, Any]
             else:
                 metric['dividend_yield_formatted'] = "N/A"
             
-            # Format earnings date for display
+            # Format earnings date for display (yyyy-MM-dd format for proper text sorting)
             if metric.get('next_earnings_date'):
                 from datetime import date
                 earnings_date = metric['next_earnings_date']
                 if isinstance(earnings_date, date):
-                    metric['next_earnings_date_formatted'] = earnings_date.strftime('%b %d, %Y')
+                    metric['next_earnings_date_formatted'] = earnings_date.strftime('%Y-%m-%d')
                 else:
                     metric['next_earnings_date_formatted'] = str(earnings_date)
             else:
