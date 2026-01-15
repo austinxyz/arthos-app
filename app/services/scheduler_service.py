@@ -374,7 +374,8 @@ def update_rr_history():
     from app.models.rr_watchlist import RRWatchlist, RRHistory
     from app.models.rr_history_log import RRHistoryLog
     from app.services.rr_watchlist_service import get_all_rr_watchlist_entries
-    import yfinance as yf
+    from app.providers.factory import ProviderFactory
+    from app.providers.exceptions import DataNotAvailableError
     import pandas as pd
     from decimal import Decimal
     
@@ -452,43 +453,44 @@ def update_rr_history():
                     logger.info(f"Marked RR entry {entry.id} as expired (expiration: {entry.expiration})")
                     continue
                 
-                # Fetch fresh quotes from yfinance
-                stock = yf.Ticker(entry.ticker)
+                # Fetch fresh quotes from data provider
+                provider = ProviderFactory.get_default_provider()
                 expiration_str = entry.expiration.strftime('%Y-%m-%d')
-                opt_chain = stock.option_chain(expiration_str)
+                try:
+                    opt_chain = provider.fetch_options_chain(entry.ticker, expiration_str)
+                except DataNotAvailableError:
+                    logger.warning(f"Options chain not available for {entry.ticker} {expiration_str}")
+                    error_count += 1
+                    continue
                 
                 # Get put option data
-                puts = opt_chain.puts
-                put_row = puts[puts['strike'] == float(entry.put_strike)]
-                
-                if put_row.empty:
+                put_matches = [p for p in opt_chain.puts if round(p.strike, 2) == round(float(entry.put_strike), 2)]
+                if not put_matches:
                     logger.warning(f"Put option with strike ${entry.put_strike} not found for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
                 
-                put_row = put_row.iloc[0]
-                put_bid = put_row.get('bid')
-                put_ask = put_row.get('ask')
+                put = put_matches[0]
+                put_bid = put.bid
+                put_ask = put.ask
                 
-                if pd.isna(put_bid) or pd.isna(put_ask) or put_bid <= 0 or put_ask <= 0:
+                if put_bid is None or put_ask is None or put_bid <= 0 or put_ask <= 0:
                     logger.warning(f"Put option with strike ${entry.put_strike} has missing or invalid bid/ask for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
                 
                 # Get call option data
-                calls = opt_chain.calls
-                call_row = calls[calls['strike'] == float(entry.call_strike)]
-                
-                if call_row.empty:
+                call_matches = [c for c in opt_chain.calls if round(c.strike, 2) == round(float(entry.call_strike), 2)]
+                if not call_matches:
                     logger.warning(f"Call option with strike ${entry.call_strike} not found for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
                 
-                call_row = call_row.iloc[0]
-                call_bid = call_row.get('bid')
-                call_ask = call_row.get('ask')
+                call = call_matches[0]
+                call_bid = call.bid
+                call_ask = call.ask
                 
-                if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
+                if call_bid is None or call_ask is None or call_bid <= 0 or call_ask <= 0:
                     logger.warning(f"Call option with strike ${entry.call_strike} has missing or invalid bid/ask for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
@@ -596,7 +598,8 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
     from app.models.rr_watchlist import RRWatchlist, RRHistory
     from app.models.rr_history_log import RRHistoryLog
     from app.services.rr_watchlist_service import get_all_rr_watchlist_entries
-    import yfinance as yf
+    from app.providers.factory import ProviderFactory
+    from app.providers.exceptions import DataNotAvailableError
     import pandas as pd
     from decimal import Decimal
     
@@ -696,43 +699,44 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
                     logger.info(f"Marked RR entry {entry.id} as expired (expiration: {entry.expiration})")
                     continue
                 
-                # Fetch fresh quotes from yfinance
-                stock = yf.Ticker(entry.ticker)
+                # Fetch fresh quotes from data provider
+                provider = ProviderFactory.get_default_provider()
                 expiration_str = entry.expiration.strftime('%Y-%m-%d')
-                opt_chain = stock.option_chain(expiration_str)
+                try:
+                    opt_chain = provider.fetch_options_chain(entry.ticker, expiration_str)
+                except DataNotAvailableError:
+                    logger.warning(f"Options chain not available for {entry.ticker} {expiration_str}")
+                    error_count += 1
+                    continue
                 
                 # Get put option data
-                puts = opt_chain.puts
-                put_row = puts[puts['strike'] == float(entry.put_strike)]
-                
-                if put_row.empty:
+                put_matches = [p for p in opt_chain.puts if round(p.strike, 2) == round(float(entry.put_strike), 2)]
+                if not put_matches:
                     logger.warning(f"Put option with strike ${entry.put_strike} not found for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
                 
-                put_row = put_row.iloc[0]
-                put_bid = put_row.get('bid')
-                put_ask = put_row.get('ask')
+                put = put_matches[0]
+                put_bid = put.bid
+                put_ask = put.ask
                 
-                if pd.isna(put_bid) or pd.isna(put_ask) or put_bid <= 0 or put_ask <= 0:
+                if put_bid is None or put_ask is None or put_bid <= 0 or put_ask <= 0:
                     logger.warning(f"Put option with strike ${entry.put_strike} has missing or invalid bid/ask for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
                 
                 # Get call option data
-                calls = opt_chain.calls
-                call_row = calls[calls['strike'] == float(entry.call_strike)]
-                
-                if call_row.empty:
+                call_matches = [c for c in opt_chain.calls if round(c.strike, 2) == round(float(entry.call_strike), 2)]
+                if not call_matches:
                     logger.warning(f"Call option with strike ${entry.call_strike} not found for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue
                 
-                call_row = call_row.iloc[0]
-                call_bid = call_row.get('bid')
-                call_ask = call_row.get('ask')
+                call = call_matches[0]
+                call_bid = call.bid
+                call_ask = call.ask
                 
-                if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
+                if call_bid is None or call_ask is None or call_bid <= 0 or call_ask <= 0:
                     logger.warning(f"Call option with strike ${entry.call_strike} has missing or invalid bid/ask for {entry.ticker} {expiration_str}")
                     error_count += 1
                     continue

@@ -1,5 +1,4 @@
 """Service for managing Risk Reversal watchlist."""
-import yfinance as yf
 import pandas as pd
 from datetime import datetime, date
 from decimal import Decimal
@@ -8,6 +7,8 @@ from typing import Dict, Any, Optional
 from sqlmodel import Session, select
 from app.database import engine
 from app.models.rr_watchlist import RRWatchlist, RRHistory
+from app.providers.factory import ProviderFactory
+from app.providers.exceptions import TickerNotFoundError, DataNotAvailableError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ def save_rr_to_watchlist(
 ) -> Dict[str, Any]:
     """
     Save a Risk Reversal strategy to the watchlist.
-    Fetches fresh quotes from yfinance and calculates averages of bid/ask.
+    Fetches fresh quotes from data provider and calculates averages of bid/ask.
     
     Args:
         ticker: Stock ticker symbol
@@ -42,36 +43,35 @@ def save_rr_to_watchlist(
         put_quantity = int(ratio_parts[0])
         call_quantity = int(ratio_parts[1])
         
-        # Fetch fresh option quotes from yfinance
-        stock = yf.Ticker(ticker)
-        opt_chain = stock.option_chain(expiration)
+        # Fetch fresh option quotes from data provider
+        provider = ProviderFactory.get_default_provider()
+        try:
+            opt_chain = provider.fetch_options_chain(ticker, expiration)
+        except DataNotAvailableError:
+            return {"success": False, "error": f"Options chain not available for {ticker} expiration {expiration}"}
         
         # Get put option data
-        puts = opt_chain.puts
-        put_row = puts[puts['strike'] == put_strike]
-        
-        if put_row.empty:
+        put_matches = [p for p in opt_chain.puts if round(p.strike, 2) == round(put_strike, 2)]
+        if not put_matches:
             return {"success": False, "error": f"Put option with strike ${put_strike:.2f} not found for expiration {expiration}"}
         
-        put_row = put_row.iloc[0]
-        put_bid = put_row.get('bid')
-        put_ask = put_row.get('ask')
+        put = put_matches[0]
+        put_bid = put.bid
+        put_ask = put.ask
         
-        if pd.isna(put_bid) or pd.isna(put_ask) or put_bid <= 0 or put_ask <= 0:
+        if put_bid is None or put_ask is None or put_bid <= 0 or put_ask <= 0:
             return {"success": False, "error": f"Put option with strike ${put_strike:.2f} has missing or invalid bid/ask prices"}
         
         # Get call option data
-        calls = opt_chain.calls
-        call_row = calls[calls['strike'] == call_strike]
-        
-        if call_row.empty:
+        call_matches = [c for c in opt_chain.calls if round(c.strike, 2) == round(call_strike, 2)]
+        if not call_matches:
             return {"success": False, "error": f"Call option with strike ${call_strike:.2f} not found for expiration {expiration}"}
         
-        call_row = call_row.iloc[0]
-        call_bid = call_row.get('bid')
-        call_ask = call_row.get('ask')
+        call = call_matches[0]
+        call_bid = call.bid
+        call_ask = call.ask
         
-        if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
+        if call_bid is None or call_ask is None or call_bid <= 0 or call_ask <= 0:
             return {"success": False, "error": f"Call option with strike ${call_strike:.2f} has missing or invalid bid/ask prices"}
         
         # Calculate average of bid/ask for both options

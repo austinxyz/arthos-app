@@ -8,7 +8,7 @@ from app.services.stock_price_service import get_stock_prices_as_dataframe
 def get_stock_chart_data(ticker: str) -> Dict[str, Any]:
     """
     Get stock data formatted for candlestick chart with SMA lines and STD dev bands.
-    Reads data from stock_price table (not from yfinance cache).
+    Reads data from stock_price table (not from data provider cache).
     Displays the last 365 days on the chart.
     
     Args:

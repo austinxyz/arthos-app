@@ -150,7 +150,7 @@ def delete_watchlist(watchlist_id: UUID) -> bool:
 def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[List[WatchListStock], List[str]]:
     """
     Add stocks to a watchlist. Ignores duplicates and filters out invalid tickers.
-    Validates both ticker format and that the ticker exists in yfinance.
+    Validates both ticker format and that the ticker exists in the data provider.
     
     Args:
         watchlist_id: WatchList UUID
@@ -168,7 +168,7 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
     # Validate ticker formats - filter out invalid ones instead of raising error
     valid_format_tickers, invalid_format_tickers = validate_ticker_list(tickers)
     
-    # Now validate that tickers actually exist in yfinance and fetch/save price data
+    # Now validate that tickers actually exist in the data provider and fetch/save price data
     from app.services.stock_service import fetch_stock_data
     from app.services.stock_price_service import fetch_and_save_stock_prices
     
@@ -179,7 +179,7 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
         ticker = ticker.upper()
         is_valid = False
         try:
-            # Try to fetch data to verify ticker exists in yfinance
+            # Try to fetch data to verify ticker exists in the data provider
             # This will raise ValueError if ticker doesn't exist or has no data
             data = fetch_stock_data(ticker)
             # Double-check: data should not be None or empty, and should have required columns
@@ -199,7 +199,7 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
                     valid_tickers.append(ticker)
                     
                     # Fetch and save stock price data to database
-                    # This is the ONLY time we fetch yfinance on demand (first time stock is added)
+                    # This is the ONLY time we fetch data provider on demand (first time stock is added)
                     try:
                         price_data, new_records = fetch_and_save_stock_prices(ticker)
                         logger.info(f"Saved {new_records} new price records for {ticker}")
@@ -208,10 +208,10 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str]) -> tuple[Lis
                         logger.warning(f"Could not save price data for {ticker}: {e}")
         except ValueError as e:
             # ValueError is raised when ticker doesn't exist or has no data
-            logger.debug(f"Ticker {ticker} failed yfinance validation (ValueError): {e}")
+            logger.debug(f"Ticker {ticker} failed data provider validation (ValueError): {e}")
         except Exception as e:
             # Catch any other exceptions (network errors, etc.) and treat as invalid
-            logger.debug(f"Ticker {ticker} failed yfinance validation (Exception): {e}")
+            logger.debug(f"Ticker {ticker} failed data provider validation (Exception): {e}")
         
         # If validation failed, add to invalid list
         if not is_valid:
@@ -323,7 +323,7 @@ def get_watchlist_stocks(watchlist_id: UUID) -> List[WatchListStock]:
 def get_watchlist_stocks_with_metrics(watchlist_id: UUID) -> List[Dict[str, Any]]:
     """
     Get all stocks in a watchlist with their current metrics.
-    Reads from stock_attributes table and current day's stock_price table (not from yfinance cache).
+    Reads from stock_attributes table and current day's stock_price table (not from data provider cache).
     Uses get_stock_metrics_from_db to calculate devstep, signal, and 5-day movement.
     
     Args:

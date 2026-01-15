@@ -1,9 +1,11 @@
 """Stock data fetching and metric calculation service."""
-import yfinance as yf
 import pandas as pd
 from typing import Dict, Any, Tuple, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import logging
+from app.providers.factory import ProviderFactory
+from app.providers.converters import stock_price_data_to_dataframe, aggregate_intraday_to_daily
+from app.providers.exceptions import TickerNotFoundError, DataNotAvailableError
 
 logger = logging.getLogger(__name__)
 
@@ -19,38 +21,20 @@ def fetch_intraday_data(ticker: str) -> Optional[pd.DataFrame]:
         DataFrame with intraday data for today, or None if not available
     """
     try:
-        stock = yf.Ticker(ticker)
+        provider = ProviderFactory.get_default_provider()
         today = datetime.now().date()
         
-        # Try to get intraday data for today (1-minute intervals)
-        # Use period='1d' to get today's data, interval='1m' for 1-minute bars
-        intraday = stock.history(period='1d', interval='1m')
+        # Fetch intraday data for today
+        intraday_data = provider.fetch_intraday_prices(ticker, today)
         
-        if intraday.empty:
+        if intraday_data is None or len(intraday_data) == 0:
             return None
         
-        # Check if the data is for today by comparing dates
-        # Handle timezone-aware and timezone-naive indices
-        if hasattr(intraday.index, 'date'):
-            # Timezone-aware index
-            intraday_dates = set(intraday.index.date)
-        else:
-            # Timezone-naive index
-            intraday_dates = set([pd.Timestamp(d).date() for d in intraday.index])
-        
-        if today in intraday_dates:
-            # Filter to only today's data
-            if hasattr(intraday.index, 'date'):
-                intraday_today = intraday[intraday.index.date == today]
-            else:
-                # Convert to date for comparison
-                intraday_today = intraday[[pd.Timestamp(d).date() == today for d in intraday.index]]
-            return intraday_today if not intraday_today.empty else None
-        else:
-            # Data might be from previous day if market is closed
-            return None
+        # Convert to DataFrame, preserving time components for intraday data
+        return stock_price_data_to_dataframe(intraday_data, preserve_time=True)
     except Exception as e:
         # If intraday data fails, return None (not critical)
+        logger.debug(f"Error fetching intraday data for {ticker}: {e}")
         return None
 
 
@@ -69,31 +53,30 @@ def fetch_stock_data(ticker: str) -> pd.DataFrame:
         ValueError: If ticker is invalid or data cannot be fetched
     """
     try:
-        stock = yf.Ticker(ticker)
+        provider = ProviderFactory.get_default_provider()
         # Fetch past 2 years of data to enable proper SMA calculations
-        end_date = datetime.now()
+        end_date = date.today()
         start_date = end_date - timedelta(days=730)  # 2 years
         
-        hist = stock.history(start=start_date, end=end_date)
+        hist_data = provider.fetch_historical_prices(ticker, start_date, end_date)
         
-        if hist.empty:
+        if not hist_data:
             raise ValueError(f"No data found for ticker: {ticker}")
+        
+        # Convert to DataFrame
+        hist = stock_price_data_to_dataframe(hist_data)
         
         # Try to fetch intraday data for today
         intraday_today = fetch_intraday_data(ticker)
         
         if intraday_today is not None and not intraday_today.empty:
             # Get today's date
-            today = datetime.now().date()
+            today = date.today()
             
             # Remove today's daily data from historical data if it exists
             # (since we'll use intraday data instead for more accuracy)
-            if hasattr(hist.index, 'date'):
-                hist_dates = hist.index.date
-                today_mask = [d == today for d in hist_dates]
-            else:
-                hist_dates = [pd.Timestamp(d).date() for d in hist.index]
-                today_mask = [d == today for d in hist_dates]
+            hist_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in hist.index]
+            today_mask = [d == today for d in hist_dates]
             
             if any(today_mask):
                 # Remove today's daily data
@@ -424,10 +407,13 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
         - options_by_strike: Dictionary mapping strike prices to dict with 'put' and 'call' data
     """
     try:
-        stock = yf.Ticker(ticker)
+        provider = ProviderFactory.get_default_provider()
         
         # Get all available expiration dates
-        expirations = stock.options
+        try:
+            expirations = provider.fetch_options_expirations(ticker)
+        except DataNotAvailableError:
+            return (None, {})
         
         if not expirations:
             return (None, {})
@@ -451,7 +437,10 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
             return (None, {})
         
         # Get options chain for the last expiration within 90 days
-        opt_chain = stock.option_chain(last_expiration)
+        try:
+            opt_chain = provider.fetch_options_chain(ticker, last_expiration)
+        except DataNotAvailableError:
+            return (None, {})
         
         # Filter strikes within 10% of current price
         price_range_low = current_price * 0.9  # 10% below
@@ -460,45 +449,35 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
         options_by_strike = {}
         
         # Process calls
-        if opt_chain.calls is not None and not opt_chain.calls.empty:
-            calls_filtered = opt_chain.calls[
-                (opt_chain.calls['strike'] >= price_range_low) & 
-                (opt_chain.calls['strike'] <= price_range_high)
-            ]
-            for _, row in calls_filtered.iterrows():
-                strike = round(float(row.get('strike', 0)), 2)
+        for call in opt_chain.calls:
+            if price_range_low <= call.strike <= price_range_high:
+                strike = round(call.strike, 2)
                 if strike not in options_by_strike:
                     options_by_strike[strike] = {'put': None, 'call': None}
-                implied_vol = row.get('impliedVolatility')
                 options_by_strike[strike]['call'] = {
-                    'contractSymbol': row.get('contractSymbol', ''),
-                    'lastPrice': round(float(row.get('lastPrice', 0)), 2) if pd.notna(row.get('lastPrice')) else None,
-                    'bid': round(float(row.get('bid', 0)), 2) if pd.notna(row.get('bid')) else None,
-                    'ask': round(float(row.get('ask', 0)), 2) if pd.notna(row.get('ask')) else None,
-                    'volume': int(row.get('volume', 0)) if pd.notna(row.get('volume')) else 0,
-                    'openInterest': int(row.get('openInterest', 0)) if pd.notna(row.get('openInterest')) else 0,
-                    'impliedVolatility': round(float(implied_vol) * 100, 2) if pd.notna(implied_vol) and implied_vol is not None else None,
+                    'contractSymbol': call.contract_symbol,
+                    'lastPrice': round(call.last_price, 2) if call.last_price is not None else None,
+                    'bid': round(call.bid, 2) if call.bid is not None else None,
+                    'ask': round(call.ask, 2) if call.ask is not None else None,
+                    'volume': call.volume if call.volume is not None else 0,
+                    'openInterest': call.open_interest if call.open_interest is not None else 0,
+                    'impliedVolatility': round(call.implied_volatility * 100, 2) if call.implied_volatility is not None else None,
                 }
         
         # Process puts
-        if opt_chain.puts is not None and not opt_chain.puts.empty:
-            puts_filtered = opt_chain.puts[
-                (opt_chain.puts['strike'] >= price_range_low) & 
-                (opt_chain.puts['strike'] <= price_range_high)
-            ]
-            for _, row in puts_filtered.iterrows():
-                strike = round(float(row.get('strike', 0)), 2)
+        for put in opt_chain.puts:
+            if price_range_low <= put.strike <= price_range_high:
+                strike = round(put.strike, 2)
                 if strike not in options_by_strike:
                     options_by_strike[strike] = {'put': None, 'call': None}
-                implied_vol = row.get('impliedVolatility')
                 options_by_strike[strike]['put'] = {
-                    'contractSymbol': row.get('contractSymbol', ''),
-                    'lastPrice': round(float(row.get('lastPrice', 0)), 2) if pd.notna(row.get('lastPrice')) else None,
-                    'bid': round(float(row.get('bid', 0)), 2) if pd.notna(row.get('bid')) else None,
-                    'ask': round(float(row.get('ask', 0)), 2) if pd.notna(row.get('ask')) else None,
-                    'volume': int(row.get('volume', 0)) if pd.notna(row.get('volume')) else 0,
-                    'openInterest': int(row.get('openInterest', 0)) if pd.notna(row.get('openInterest')) else 0,
-                    'impliedVolatility': round(float(implied_vol) * 100, 2) if pd.notna(implied_vol) and implied_vol is not None else None,
+                    'contractSymbol': put.contract_symbol,
+                    'lastPrice': round(put.last_price, 2) if put.last_price is not None else None,
+                    'bid': round(put.bid, 2) if put.bid is not None else None,
+                    'ask': round(put.ask, 2) if put.ask is not None else None,
+                    'volume': put.volume if put.volume is not None else 0,
+                    'openInterest': put.open_interest if put.open_interest is not None else 0,
+                    'impliedVolatility': round(put.implied_volatility * 100, 2) if put.implied_volatility is not None else None,
                 }
         
         return (last_expiration, options_by_strike)
@@ -626,8 +605,11 @@ def get_leaps_expirations(ticker: str) -> List[str]:
         List of expiration date strings (YYYY-MM-DD format) for LEAPS
     """
     try:
-        stock = yf.Ticker(ticker)
-        expirations = stock.options
+        provider = ProviderFactory.get_default_provider()
+        try:
+            expirations = provider.fetch_options_expirations(ticker)
+        except DataNotAvailableError:
+            return []
         
         if not expirations:
             return []
@@ -691,7 +673,7 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
     strategies_by_expiration = {}
     
     try:
-        stock = yf.Ticker(ticker)
+        provider = ProviderFactory.get_default_provider()
         leaps_expirations = get_leaps_expirations(ticker)
         
         logger.info(f"Risk Reversal for {ticker}: Found {len(leaps_expirations)} LEAPS expirations: {leaps_expirations}")
@@ -710,59 +692,59 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
         logger.info(f"Risk Reversal for {ticker}: Current price=${current_price:.2f}, Cost range=±${cost_range:.2f}, Strike range=${strike_range_low:.2f}-${strike_range_high:.2f}")
         
         # Get current date for days to expiration calculation
-        today = datetime.now().date()
+        today = date.today()
         
         for expiration in leaps_expirations:
             try:
-                opt_chain = stock.option_chain(expiration)
+                try:
+                    opt_chain = provider.fetch_options_chain(ticker, expiration)
+                except DataNotAvailableError:
+                    logger.debug(f"Risk Reversal for {ticker} {expiration}: Options chain not available")
+                    continue
+                
                 strategies = []
                 
                 # Get puts and calls within strike range
-                if opt_chain.puts is None or opt_chain.puts.empty:
+                if not opt_chain.puts:
                     logger.debug(f"Risk Reversal for {ticker} {expiration}: No puts available")
                     continue
-                if opt_chain.calls is None or opt_chain.calls.empty:
+                if not opt_chain.calls:
                     logger.debug(f"Risk Reversal for {ticker} {expiration}: No calls available")
                     continue
                 
-                puts_filtered = opt_chain.puts[
-                    (opt_chain.puts['strike'] >= strike_range_low) & 
-                    (opt_chain.puts['strike'] <= strike_range_high)
-                ]
-                calls_filtered = opt_chain.calls[
-                    (opt_chain.calls['strike'] >= strike_range_low) & 
-                    (opt_chain.calls['strike'] <= strike_range_high)
-                ]
+                # Filter puts and calls by strike range
+                puts_filtered = [p for p in opt_chain.puts if strike_range_low <= p.strike <= strike_range_high]
+                calls_filtered = [c for c in opt_chain.calls if strike_range_low <= c.strike <= strike_range_high]
                 
                 logger.debug(f"Risk Reversal for {ticker} {expiration}: Filtered {len(puts_filtered)} puts, {len(calls_filtered)} calls within strike range")
                 
-                if puts_filtered.empty or calls_filtered.empty:
+                if not puts_filtered or not calls_filtered:
                     logger.debug(f"Risk Reversal for {ticker} {expiration}: No puts or calls after strike filtering")
                     continue
                 
                 # Count how many have valid bid/ask
-                puts_with_bid = puts_filtered[puts_filtered['bid'].notna() & (puts_filtered['bid'] > 0)]
-                calls_with_ask = calls_filtered[calls_filtered['ask'].notna() & (calls_filtered['ask'] > 0)]
+                puts_with_bid = [p for p in puts_filtered if p.bid is not None and p.bid > 0]
+                calls_with_ask = [c for c in calls_filtered if c.ask is not None and c.ask > 0]
                 logger.debug(f"Risk Reversal for {ticker} {expiration}: {len(puts_with_bid)} puts with valid bid, {len(calls_with_ask)} calls with valid ask")
                 
                 # Try to find 1:1 strategies (same strike or nearby strikes)
                 # First, try same strikes for 1:1 ratio
-                for _, put_row in puts_filtered.iterrows():
-                    put_strike = round(float(put_row['strike']), 2)
-                    put_bid = put_row.get('bid')
-                    put_ask = put_row.get('ask')
+                for put in puts_filtered:
+                    put_strike = round(put.strike, 2)
+                    put_bid = put.bid
+                    put_ask = put.ask
                     
-                    if pd.isna(put_bid) or pd.isna(put_ask) or put_bid <= 0 or put_ask <= 0:
+                    if put_bid is None or put_ask is None or put_bid <= 0 or put_ask <= 0:
                         continue
                     
                     # Look for call at same strike
-                    call_at_strike = calls_filtered[calls_filtered['strike'] == put_strike]
-                    if not call_at_strike.empty:
-                        call_row = call_at_strike.iloc[0]
-                        call_bid = call_row.get('bid')
-                        call_ask = call_row.get('ask')
+                    call_at_strike = [c for c in calls_filtered if round(c.strike, 2) == put_strike]
+                    if call_at_strike:
+                        call = call_at_strike[0]
+                        call_bid = call.bid
+                        call_ask = call.ask
                         
-                        if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
+                        if call_bid is None or call_ask is None or call_bid <= 0 or call_ask <= 0:
                             continue
                         
                         # Calculate average of bid/ask for both options
@@ -774,7 +756,7 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                         # Negative cost = we get paid (credit)
                         net_cost = call_option_quote - put_option_quote
                         
-                        # Filter by cost range (±5% of current price)
+                        # Filter by cost range (±3% of current price)
                         if abs(net_cost) <= cost_range:
                             put_risk = put_strike * 100
                             cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
@@ -806,17 +788,15 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                     
                     # Also check nearby strikes (within 5% of put strike)
                     strike_tolerance = put_strike * 0.05
-                    nearby_calls = calls_filtered[
-                        (calls_filtered['strike'] >= put_strike - strike_tolerance) &
-                        (calls_filtered['strike'] <= put_strike + strike_tolerance)
-                    ]
+                    nearby_calls = [c for c in calls_filtered 
+                                   if put_strike - strike_tolerance <= c.strike <= put_strike + strike_tolerance]
                     
-                    for _, call_row in nearby_calls.iterrows():
-                        call_strike = round(float(call_row['strike']), 2)
-                        call_bid = call_row.get('bid')
-                        call_ask = call_row.get('ask')
+                    for call in nearby_calls:
+                        call_strike = round(call.strike, 2)
+                        call_bid = call.bid
+                        call_ask = call.ask
                         
-                        if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
+                        if call_bid is None or call_ask is None or call_bid <= 0 or call_ask <= 0:
                             continue
                         
                         # Skip if we already added this exact strike combination
@@ -864,14 +844,14 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 # For 1:2, we need higher put premiums to offset 2x call cost
                 # Filter: Only consider puts with strikes HIGHER than current price
                 # Higher strikes = higher premiums (more ITM puts have higher intrinsic value)
-                puts_1_2_filtered = puts_filtered[puts_filtered['strike'] > current_price]
+                puts_1_2_filtered = [p for p in puts_filtered if p.strike > current_price]
                 
-                for _, put_row in puts_1_2_filtered.iterrows():
-                    put_strike = round(float(put_row['strike']), 2)
-                    put_bid = put_row.get('bid')
-                    put_ask = put_row.get('ask')
+                for put in puts_1_2_filtered:
+                    put_strike = round(put.strike, 2)
+                    put_bid = put.bid
+                    put_ask = put.ask
                     
-                    if pd.isna(put_bid) or pd.isna(put_ask) or put_bid <= 0 or put_ask <= 0:
+                    if put_bid is None or put_ask is None or put_bid <= 0 or put_ask <= 0:
                         continue
                     
                     # For 1:2, prioritize calls at higher strikes (lower premiums) to reduce 2x cost
@@ -880,19 +860,19 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                     call_strikes_to_try = []
                     
                     # Try call at same strike first
-                    call_at_strike = calls_filtered[calls_filtered['strike'] == put_strike]
-                    if not call_at_strike.empty:
+                    call_at_strike = [c for c in calls_filtered if round(c.strike, 2) == put_strike]
+                    if call_at_strike:
                         call_strikes_to_try.append(put_strike)
                     
                     # Then try calls at higher strikes (lower premiums) to make 2x cost manageable
                     # Constraint: call strike must be >= put strike
-                    higher_strike_calls = calls_filtered[
-                        (calls_filtered['strike'] > put_strike) &
-                        (calls_filtered['strike'] <= put_strike * 1.5)  # Up to 50% higher
-                    ].sort_values('strike', ascending=True)  # Start with lowest premium (highest strike)
+                    higher_strike_calls = [c for c in calls_filtered 
+                                          if put_strike < c.strike <= put_strike * 1.5]
+                    # Sort by strike ascending (highest strike = lowest premium)
+                    higher_strike_calls.sort(key=lambda x: x.strike, reverse=False)
                     
-                    for _, call_row in higher_strike_calls.iterrows():
-                        call_strike = round(float(call_row['strike']), 2)
+                    for call in higher_strike_calls:
+                        call_strike = round(call.strike, 2)
                         if call_strike not in call_strikes_to_try:
                             call_strikes_to_try.append(call_strike)
                     
@@ -901,14 +881,14 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                         if call_strike < put_strike:
                             continue
                         
-                        call_row = calls_filtered[calls_filtered['strike'] == call_strike]
-                        if call_row.empty:
+                        call_matches = [c for c in calls_filtered if round(c.strike, 2) == call_strike]
+                        if not call_matches:
                             continue
-                        call_row = call_row.iloc[0]
-                        call_bid = call_row.get('bid')
-                        call_ask = call_row.get('ask')
+                        call = call_matches[0]
+                        call_bid = call.bid
+                        call_ask = call.ask
                         
-                        if pd.isna(call_bid) or pd.isna(call_ask) or call_bid <= 0 or call_ask <= 0:
+                        if call_bid is None or call_ask is None or call_bid <= 0 or call_ask <= 0:
                             continue
                         
                         # Calculate average of bid/ask for both options
@@ -919,7 +899,7 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                         # For risk reversal 1:2: we receive put premium, pay 2 × call premium
                         net_cost_1_2 = (2 * call_option_quote) - put_option_quote
                         
-                        # Filter by cost range (±5% of current price)
+                        # Filter by cost range (±3% of current price)
                         if abs(net_cost_1_2) <= cost_range:
                             put_risk = put_strike * 100
                             cost_pct = (net_cost_1_2 / current_price) * 100 if current_price > 0 else 0
