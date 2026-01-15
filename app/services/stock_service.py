@@ -646,229 +646,9 @@ def get_leaps_expirations(ticker: str) -> List[str]:
 
 def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Calculate simplified risk reversal strategies for LEAPS expirations.
-    Strategy:
-      - 1:1: Sell 1 put, buy 1 call (strikes closest to current price)
-      - 1:2: Sell 1 put, buy 2 calls (higher strikes to reduce call premium)
+    Calculate Risk Reversal strategies for LEAPS expirations.
     
-    Rules:
-      - Minimize out-of-pocket cost (prefer lower net cost, negative is best)
-      - 1:1 uses strikes closest to current price
-      - 1:2 prioritizes smaller strike spreads (put/call closer together)
-      - Return at most 5 pairs per ratio per expiration
-    """
-    strategies_by_expiration = {}
-    
-    try:
-        provider = ProviderFactory.get_default_provider()
-        leaps_expirations = get_leaps_expirations(ticker)
-        
-        logger.info(f"Risk Reversal for {ticker}: Found {len(leaps_expirations)} LEAPS expirations: {leaps_expirations}")
-        
-        if not leaps_expirations:
-            logger.warning(f"Risk Reversal for {ticker}: No LEAPS expirations found")
-            return strategies_by_expiration
-        
-        logger.info(f"Risk Reversal for {ticker}: Current price=${current_price:.2f}")
-        
-        # Get current date for days to expiration calculation
-        today = date.today()
-        
-        for expiration in leaps_expirations:
-            try:
-                try:
-                    opt_chain = provider.fetch_options_chain(ticker, expiration)
-                except DataNotAvailableError:
-                    logger.debug(f"Risk Reversal for {ticker} {expiration}: Options chain not available")
-                    continue
-                
-                strategies = []
-                
-                # Require options with usable quotes (mid when available, else last price)
-                if not opt_chain.puts or not opt_chain.calls:
-                    logger.debug(f"Risk Reversal for {ticker} {expiration}: Missing puts or calls")
-                    continue
-
-                def quote_price(bid, ask, last_price) -> Optional[float]:
-                    # Prefer mid-price when bid/ask are available; fall back to last price
-                    # because yfinance often returns 0/0 for LEAPS bid/ask.
-                    if bid is not None and ask is not None and bid > 0 and ask > 0:
-                        return (float(bid) + float(ask)) / 2.0
-                    if last_price is not None and last_price > 0:
-                        return float(last_price)
-                    return None
-
-                puts = []
-                for p in opt_chain.puts:
-                    mid = quote_price(p.bid, p.ask, p.last_price)
-                    if mid is None:
-                        continue
-                    puts.append({'strike': round(p.strike, 2), 'mid': mid})
-
-                calls = []
-                for c in opt_chain.calls:
-                    mid = quote_price(c.bid, c.ask, c.last_price)
-                    if mid is None:
-                        continue
-                    calls.append({'strike': round(c.strike, 2), 'mid': mid})
-
-                if not puts or not calls:
-                    logger.debug(f"Risk Reversal for {ticker} {expiration}: No valid quotes after filtering")
-                    continue
-
-                exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
-                days_to_exp = (exp_date - today).days
-
-                cost_limit = current_price * 0.03
-                max_strike_distance = current_price * 0.3
-
-                # --- 1:1 strategies (closest strikes first, then net cost) ---
-                puts_near = [p for p in puts if abs(p['strike'] - current_price) <= max_strike_distance]
-                calls_near = [c for c in calls if abs(c['strike'] - current_price) <= max_strike_distance]
-                puts_near = sorted(puts_near, key=lambda p: abs(p['strike'] - current_price))[:10]
-                calls_near = sorted(calls_near, key=lambda c: abs(c['strike'] - current_price))[:10]
-
-                strategies_1_1 = []
-                for put in puts_near:
-                    for call in calls_near:
-                        net_cost = call['mid'] - put['mid']
-                        if abs(net_cost) > cost_limit:
-                            continue
-                        cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
-                        put_risk = put['strike'] * 100
-                        strategies_1_1.append({
-                            'strategy': f"{ticker.upper()} {expiration} Sell 1 ${put['strike']:.2f} put and Buy 1 ${call['strike']:.2f} call",
-                            'cost': round(net_cost, 2),
-                            'cost_pct': round(cost_pct, 2),
-                            'put_risk': round(put_risk, 2),
-                            'put_risk_formatted': f"{put_risk:,.2f}",
-                            'put_strike': put['strike'],
-                            'call_strike': call['strike'],
-                            'put_bid': round(put['mid'], 2),
-                            'call_ask': round(call['mid'], 2),
-                            'put_breakeven': round(put['strike'] - put['mid'], 2),
-                            'call_breakeven': round(call['strike'] + call['mid'], 2),
-                            'strike_spread': round(abs(call['strike'] - put['strike']), 2),
-                            'days_to_expiration': days_to_exp,
-                            'expiration': expiration,
-                            'ratio': '1:1'
-                        })
-
-                strategies_1_1.sort(
-                    key=lambda s: (
-                        abs(s['put_strike'] - current_price),
-                        abs(s['call_strike'] - current_price),
-                        abs(s['cost'])
-                    )
-                )
-                strategies_1_1 = strategies_1_1[:5]
-
-                # --- 1:2 strategies (minimize strike spread first, then cost) ---
-                puts_near_1_2 = [p for p in puts if abs(p['strike'] - current_price) <= max_strike_distance]
-                calls_near_1_2 = [c for c in calls if abs(c['strike'] - current_price) <= max_strike_distance]
-
-                # Prefer strikes at or above current price; fallback to full near range if none
-                puts_near_1_2 = [p for p in puts_near_1_2 if p['strike'] >= current_price] or puts_near_1_2
-                calls_near_1_2 = [c for c in calls_near_1_2 if c['strike'] >= current_price] or calls_near_1_2
-
-                strategies_1_2 = []
-                for put in puts_near_1_2:
-                    for call in calls_near_1_2:
-                        # Keep call strike at or above put strike for 1:2 shape
-                        if call['strike'] < put['strike']:
-                            continue
-                        net_cost = (2 * call['mid']) - put['mid']
-                        if abs(net_cost) > cost_limit:
-                            continue
-                        cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
-                        put_risk = put['strike'] * 100
-                        strategies_1_2.append({
-                            'strategy': f"{ticker.upper()} {expiration} Sell 1 ${put['strike']:.2f} put and Buy 2 ${call['strike']:.2f} calls",
-                            'cost': round(net_cost, 2),
-                            'cost_pct': round(cost_pct, 2),
-                            'put_risk': round(put_risk, 2),
-                            'put_risk_formatted': f"{put_risk:,.2f}",
-                            'put_strike': put['strike'],
-                            'call_strike': call['strike'],
-                            'put_bid': round(put['mid'], 2),
-                            'call_ask': round(call['mid'], 2),
-                            'put_breakeven': round(put['strike'] - put['mid'], 2),
-                            'call_breakeven': round(call['strike'] + call['mid'], 2),
-                            'strike_spread': round(abs(call['strike'] - put['strike']), 2),
-                            'days_to_expiration': days_to_exp,
-                            'expiration': expiration,
-                            'ratio': '1:2'
-                        })
-
-                strategies_1_2.sort(
-                    key=lambda s: (
-                        s['strike_spread'],
-                        abs(s['cost']),
-                        abs(s['put_strike'] - current_price),
-                        abs(s['call_strike'] - current_price)
-                    )
-                )
-                strategies_1_2 = strategies_1_2[:5]
-
-                strategies.extend(strategies_1_1 + strategies_1_2)
-                
-                # Find strategies closest to $0 (one negative, one positive) and mark them for highlighting
-                if strategies:
-                    closest_negative = None
-                    closest_positive = None
-                    closest_negative_abs = None
-                    closest_positive_abs = None
-                    
-                    for strategy in strategies:
-                        cost = strategy['cost']
-                        if cost < 0:
-                            # Negative cost - find the one closest to $0 (smallest absolute value)
-                            abs_cost = abs(cost)
-                            if closest_negative_abs is None or abs_cost < closest_negative_abs:
-                                closest_negative = strategy
-                                closest_negative_abs = abs_cost
-                        elif cost > 0:
-                            # Positive cost - find the one closest to $0 (smallest positive)
-                            if closest_positive_abs is None or cost < closest_positive_abs:
-                                closest_positive = strategy
-                                closest_positive_abs = cost
-                    
-                    # Mark the closest strategies for highlighting
-                    for strategy in strategies:
-                        strategy['highlight'] = (
-                            strategy == closest_negative or 
-                            strategy == closest_positive or
-                            strategy['cost'] == 0
-                        )
-                    
-                    strategies_by_expiration[expiration] = strategies
-                    
-            except Exception as e:
-                logger.error(f"Error processing expiration {expiration} for {ticker}: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                continue
-        
-        logger.info(f"Risk Reversal for {ticker}: Total expirations with strategies: {len(strategies_by_expiration)}")
-        if not strategies_by_expiration:
-            logger.warning(
-                f"Risk Reversal for {ticker}: No strategies found. Possible reasons: missing bid/ask quotes or no strikes near/above current price."
-            )
-        
-        return strategies_by_expiration
-        
-    except Exception as e:
-        logger.error(f"Error calculating risk reversal strategies for {ticker}: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return strategies_by_expiration
-
-
-def calculate_rrr_strategies(ticker: str, current_price: float) -> Dict[str, List[Dict[str, Any]]]:
-    """
-    Calculate Risk Reversal Rewrite (RRR) strategies for LEAPS expirations.
-    
-    New algorithm based on risk_reversal.md specs:
+    Algorithm based on risk_reversal.md specs:
     - Only LEAPS expiring Jan next year or later
     - Put strike: close to current price (90% to 130% of current price)
     - Call strike: close to or slightly higher than put strike
@@ -887,13 +667,13 @@ def calculate_rrr_strategies(ticker: str, current_price: float) -> Dict[str, Lis
         provider = ProviderFactory.get_default_provider()
         leaps_expirations = get_leaps_expirations(ticker)
         
-        logger.info(f"RRR for {ticker}: Found {len(leaps_expirations)} LEAPS expirations: {leaps_expirations}")
+        logger.info(f"Risk Reversal for {ticker}: Found {len(leaps_expirations)} LEAPS expirations: {leaps_expirations}")
         
         if not leaps_expirations:
-            logger.warning(f"RRR for {ticker}: No LEAPS expirations found")
+            logger.warning(f"Risk Reversal for {ticker}: No LEAPS expirations found")
             return strategies_by_expiration
         
-        logger.info(f"RRR for {ticker}: Current price=${current_price:.2f}")
+        logger.info(f"Risk Reversal for {ticker}: Current price=${current_price:.2f}")
         
         today = date.today()
         
@@ -902,13 +682,13 @@ def calculate_rrr_strategies(ticker: str, current_price: float) -> Dict[str, Lis
                 try:
                     opt_chain = provider.fetch_options_chain(ticker, expiration)
                 except DataNotAvailableError:
-                    logger.debug(f"RRR for {ticker} {expiration}: Options chain not available")
+                    logger.debug(f"Risk Reversal for {ticker} {expiration}: Options chain not available")
                     continue
                 
                 strategies = []
                 
                 if not opt_chain.puts or not opt_chain.calls:
-                    logger.debug(f"RRR for {ticker} {expiration}: Missing puts or calls")
+                    logger.debug(f"Risk Reversal for {ticker} {expiration}: Missing puts or calls")
                     continue
 
                 def get_mid_price(bid, ask) -> Optional[float]:
@@ -944,7 +724,7 @@ def calculate_rrr_strategies(ticker: str, current_price: float) -> Dict[str, Lis
                     calls.append({'strike': round(c.strike, 2), 'mid': mid, 'bid': c.bid, 'ask': c.ask})
 
                 if not puts or not calls:
-                    logger.debug(f"RRR for {ticker} {expiration}: No valid quotes after filtering")
+                    logger.debug(f"Risk Reversal for {ticker} {expiration}: No valid quotes after filtering")
                     continue
 
                 exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
@@ -1128,21 +908,21 @@ def calculate_rrr_strategies(ticker: str, current_price: float) -> Dict[str, Lis
                     strategies_by_expiration[expiration] = strategies
                     
             except Exception as e:
-                logger.error(f"Error processing RRR expiration {expiration} for {ticker}: {str(e)}")
+                logger.error(f"Error processing Risk Reversal expiration {expiration} for {ticker}: {str(e)}")
                 import traceback
                 traceback.print_exc()
                 continue
         
-        logger.info(f"RRR for {ticker}: Total expirations with strategies: {len(strategies_by_expiration)}")
+        logger.info(f"Risk Reversal for {ticker}: Total expirations with strategies: {len(strategies_by_expiration)}")
         if not strategies_by_expiration:
             logger.warning(
-                f"RRR for {ticker}: No strategies found. Possible reasons: missing bid/ask quotes or no strikes in range."
+                f"Risk Reversal for {ticker}: No strategies found. Possible reasons: missing bid/ask quotes or no strikes in range."
             )
         
         return strategies_by_expiration
         
     except Exception as e:
-        logger.error(f"Error calculating RRR strategies for {ticker}: {str(e)}")
+        logger.error(f"Error calculating Risk Reversal strategies for {ticker}: {str(e)}")
         import traceback
         traceback.print_exc()
         return strategies_by_expiration
