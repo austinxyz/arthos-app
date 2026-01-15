@@ -1,21 +1,80 @@
-# Risk Reversal Strategy Rewrite (RRR)
+# Risk Reversal Strategy (RRR)
 
-At the core a risk reversal strategy is betting the stock will reverse in direction
-and go up in price. We invest into this strategy by
+A risk reversal strategy bets that a stock will reverse direction and appreciate in price. The strategy involves selling a put to finance the purchase of calls, creating a leveraged bullish position with minimal or zero out-of-pocket cost.
 
-- We should only look at leaps that expire in following year Jan or later.
-- Selling a Put at a strike price close to or slightly higher than the current stock price that provides the capital for the trade.
-- Buying a call at a strike price close to or slightly higher than the put strike price to capture the price appreciation in stock.
-- The put and call ratios can be 1:1, 1:2 or 1:3. We will always fix the put at 1 and vary the number of calls.
-- The goal of this strategy is to
-    - Make the put price as close to current stock price as possible
-    - Make the call price as close to put price as possible
-    - Make the net cost of the trade as close to zero as possible and not more than 3% of the current stock price
-- For ratios higher than 1:1 i.e., 1:2 and 1:3, we may have to look at higher put strike prices to collect more premium to finance our calls.
-- Sometimes if the volatility is very high, we can sell an out of the money call to add more capital to finance the trade 
-    - e.g., lets say AAPL stock price is $100
-    - We can find a risk reversal of 1:1 by selling Jan 2027 $100 put and buying a $100 call for $1.50
-    - In order to find a 1:2 strategy, we may have to sell $120 put to purchase 2 x $120 calls for $2.25.
-    - Another option could be sell $100 put, buy 2 x $120 call and sell 2 x $180 call for a total price of $2.50.
+## Core Strategy
 
-For option quotes, always use the average of bid and ask prices. If the prices do not exist for some reason, filter out those strike prices.
+1. **Sell a Put** - Collect premium to finance the trade
+2. **Buy Call(s)** - Capture upside price appreciation
+3. **Optionally Sell OTM Call** - (Collar variant) Cap gains in exchange for reduced cost
+
+## Option Selection Rules
+
+### Expiration
+- Only LEAPS options expiring in **January of next year or later**
+
+### Strike Price Ranges
+- **Put strikes**: 90% to 130% of current stock price (10% below to 30% above)
+- **Call strikes**: At or above the put strike price
+
+### Pricing
+- Always use the **average of bid and ask prices** (mid-price)
+- Filter out any options with missing or zero bid/ask quotes
+
+## Strategy Types
+
+### 1:1 Ratio
+- Sell 1 put, buy 1 call
+- Most straightforward structure
+- Works best when put and call can be at similar strikes
+
+### 1:2 Ratio
+- Sell 1 put, buy 2 calls
+- Provides more upside leverage
+- May require higher put strike to collect enough premium to finance 2 calls
+
+### Collar
+- Sell 1 put + buy call(s) + **sell OTM call**
+- The sold call must be at least **10% higher** than the bought call strike
+- Caps maximum profit at the sold call strike
+- Reduces net cost, useful in high volatility environments
+- Available in both 1:1 and 1:2 configurations
+
+## Cost Constraints
+
+- **Net cost must be within ±3% of current stock price**
+- Negative cost (credit) is preferred
+- Zero cost is ideal
+
+## Sorting Priority
+
+Strategies are ranked by:
+1. **Put strike proximity** to current stock price (closest first)
+2. **Call strike proximity** to put strike (closest first)
+3. **Net cost** closest to $0
+
+## Example
+
+For AAPL at $100:
+
+| Type | Structure | Example |
+|------|-----------|---------|
+| 1:1 | Sell $100 put, Buy $100 call | Net cost: $1.50 |
+| 1:2 | Sell $120 put, Buy 2× $120 calls | Net cost: $2.25 |
+| Collar | Sell $100 put, Buy 2× $120 calls, Sell 2× $180 calls | Net cost: $0.50 |
+
+## Display
+
+Results are shown in the **RRR tab** on the stock detail page with filters for:
+- 1:1
+- 1:2
+- Collar
+- All
+
+Each strategy displays:
+- Put/Call strikes and premiums
+- Breakeven prices
+- Strike spread
+- Net cost ($ and %)
+- Days to expiration
+- Put risk (max loss if assigned)
