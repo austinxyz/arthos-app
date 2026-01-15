@@ -646,29 +646,16 @@ def get_leaps_expirations(ticker: str) -> List[str]:
 
 def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Calculate risk reversal strategies for LEAPS expirations.
-    Strategy: Sell 1 put, Buy 1 call
+    Calculate simplified risk reversal strategies for LEAPS expirations.
+    Strategy:
+      - 1:1: Sell 1 put, buy 1 call (strikes closest to current price)
+      - 1:2: Sell 1 put, buy 2 calls (higher strikes to reduce call premium)
     
-    Args:
-        ticker: Stock ticker symbol
-        current_price: Current stock price
-        
-    Returns:
-        Dictionary mapping expiration dates to list of strategy dictionaries.
-        Each strategy dict contains:
-        - strategy: Description string
-        - cost: Net cost (negative = credit, positive = debit)
-        - cost_pct: Net cost as percentage of current price
-        - put_risk: Capital risk if put is assigned (100 × put strike)
-        - put_strike: Put strike price
-        - call_strike: Call strike price
-        - put_bid: Put bid price (premium received)
-        - call_ask: Call ask price (premium paid)
-        - put_breakeven: Put breakeven price (strike - premium)
-        - call_breakeven: Call breakeven price (strike + premium)
-        - strike_spread: Difference between call and put strikes
-        - days_to_expiration: Days until expiration
-        - expiration: Expiration date
+    Rules:
+      - Minimize out-of-pocket cost (prefer lower net cost, negative is best)
+      - 1:1 uses strikes closest to current price
+      - 1:2 uses higher put strikes and higher call strikes
+      - Return at most 5 pairs per ratio per expiration
     """
     strategies_by_expiration = {}
     
@@ -682,14 +669,7 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
             logger.warning(f"Risk Reversal for {ticker}: No LEAPS expirations found")
             return strategies_by_expiration
         
-        # Calculate cost range (±3% of current price)
-        cost_range = current_price * 0.03
-        
-        # Strike price range (within 30% of current price)
-        strike_range_low = current_price * 0.7
-        strike_range_high = current_price * 1.3
-        
-        logger.info(f"Risk Reversal for {ticker}: Current price=${current_price:.2f}, Cost range=±${cost_range:.2f}, Strike range=${strike_range_low:.2f}-${strike_range_high:.2f}")
+        logger.info(f"Risk Reversal for {ticker}: Current price=${current_price:.2f}")
         
         # Get current date for days to expiration calculation
         today = date.today()
@@ -704,233 +684,116 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 
                 strategies = []
                 
-                # Get puts and calls within strike range
-                if not opt_chain.puts:
-                    logger.debug(f"Risk Reversal for {ticker} {expiration}: No puts available")
+                # Require options with valid bid/ask so we can compute mid prices
+                if not opt_chain.puts or not opt_chain.calls:
+                    logger.debug(f"Risk Reversal for {ticker} {expiration}: Missing puts or calls")
                     continue
-                if not opt_chain.calls:
-                    logger.debug(f"Risk Reversal for {ticker} {expiration}: No calls available")
-                    continue
-                
-                # Filter puts and calls by strike range
-                puts_filtered = [p for p in opt_chain.puts if strike_range_low <= p.strike <= strike_range_high]
-                calls_filtered = [c for c in opt_chain.calls if strike_range_low <= c.strike <= strike_range_high]
-                
-                logger.debug(f"Risk Reversal for {ticker} {expiration}: Filtered {len(puts_filtered)} puts, {len(calls_filtered)} calls within strike range")
-                
-                if not puts_filtered or not calls_filtered:
-                    logger.debug(f"Risk Reversal for {ticker} {expiration}: No puts or calls after strike filtering")
-                    continue
-                
-                # Count how many have valid bid/ask
-                puts_with_bid = [p for p in puts_filtered if p.bid is not None and p.bid > 0]
-                calls_with_ask = [c for c in calls_filtered if c.ask is not None and c.ask > 0]
-                logger.debug(f"Risk Reversal for {ticker} {expiration}: {len(puts_with_bid)} puts with valid bid, {len(calls_with_ask)} calls with valid ask")
-                
-                # Try to find 1:1 strategies (same strike or nearby strikes)
-                # First, try same strikes for 1:1 ratio
-                for put in puts_filtered:
-                    put_strike = round(put.strike, 2)
-                    put_bid = put.bid
-                    put_ask = put.ask
-                    
-                    if put_bid is None or put_ask is None or put_bid <= 0 or put_ask <= 0:
+
+                def mid_price(bid, ask) -> Optional[float]:
+                    if bid is None or ask is None:
+                        return None
+                    if bid <= 0 or ask <= 0:
+                        return None
+                    return (float(bid) + float(ask)) / 2.0
+
+                puts = []
+                for p in opt_chain.puts:
+                    mid = mid_price(p.bid, p.ask)
+                    if mid is None:
                         continue
-                    
-                    # Look for call at same strike
-                    call_at_strike = [c for c in calls_filtered if round(c.strike, 2) == put_strike]
-                    if call_at_strike:
-                        call = call_at_strike[0]
-                        call_bid = call.bid
-                        call_ask = call.ask
-                        
-                        if call_bid is None or call_ask is None or call_bid <= 0 or call_ask <= 0:
-                            continue
-                        
-                        # Calculate average of bid/ask for both options
-                        put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
-                        call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
-                        
-                        # Calculate net cost using average of bid/ask for consistency
-                        # For risk reversal: we receive put premium, pay call premium
-                        # Negative cost = we get paid (credit)
-                        net_cost = call_option_quote - put_option_quote
-                        
-                        # Filter by cost range (±3% of current price)
-                        if abs(net_cost) <= cost_range:
-                            put_risk = put_strike * 100
-                            cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
-                            put_breakeven = put_strike - put_option_quote
-                            call_breakeven = put_strike + call_option_quote
-                            strike_spread = abs(put_strike - put_strike)  # 0 for same strikes
-                            
-                            # Calculate days to expiration
-                            exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
-                            days_to_exp = (exp_date - today).days
-                            
-                            strategies.append({
-                                'strategy': f"{ticker.upper()} {expiration} Sell 1 ${put_strike:.2f} put and Buy 1 ${put_strike:.2f} call",
-                                'cost': round(net_cost, 2),
-                                'cost_pct': round(cost_pct, 2),
-                                'put_risk': round(put_risk, 2),
-                                'put_risk_formatted': f"{put_risk:,.2f}",
-                                'put_strike': put_strike,
-                                'call_strike': put_strike,
-                                'put_bid': round(put_option_quote, 2),
-                                'call_ask': round(call_option_quote, 2),
-                                'put_breakeven': round(put_breakeven, 2),
-                                'call_breakeven': round(call_breakeven, 2),
-                                'strike_spread': round(strike_spread, 2),
-                                'days_to_expiration': days_to_exp,
-                                'expiration': expiration,
-                                'ratio': '1:1'
-                            })
-                    
-                    # Also check nearby strikes (within 5% of put strike)
-                    strike_tolerance = put_strike * 0.05
-                    nearby_calls = [c for c in calls_filtered 
-                                   if put_strike - strike_tolerance <= c.strike <= put_strike + strike_tolerance]
-                    
-                    for call in nearby_calls:
-                        call_strike = round(call.strike, 2)
-                        call_bid = call.bid
-                        call_ask = call.ask
-                        
-                        if call_bid is None or call_ask is None or call_bid <= 0 or call_ask <= 0:
-                            continue
-                        
-                        # Skip if we already added this exact strike combination
-                        if call_strike == put_strike:
-                            continue
-                        
-                        # Calculate average of bid/ask for both options
-                        put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
-                        call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
-                        
-                        # Calculate net cost using average of bid/ask for consistency
-                        # For risk reversal: we receive put premium, pay call premium
-                        net_cost = call_option_quote - put_option_quote
-                        
-                        if abs(net_cost) <= cost_range:
-                            put_risk = put_strike * 100
-                            cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
-                            put_breakeven = put_strike - put_option_quote
-                            call_breakeven = call_strike + call_option_quote
-                            strike_spread = abs(call_strike - put_strike)
-                            
-                            # Calculate days to expiration
-                            exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
-                            days_to_exp = (exp_date - today).days
-                            
-                            strategies.append({
-                                'strategy': f"{ticker.upper()} {expiration} Sell 1 ${put_strike:.2f} put and Buy 1 ${call_strike:.2f} call",
-                                'cost': round(net_cost, 2),
-                                'cost_pct': round(cost_pct, 2),
-                                'put_risk': round(put_risk, 2),
-                                'put_risk_formatted': f"{put_risk:,.2f}",
-                                'put_strike': put_strike,
-                                'call_strike': call_strike,
-                                'put_bid': round(put_option_quote, 2),
-                                'call_ask': round(call_option_quote, 2),
-                                'put_breakeven': round(put_breakeven, 2),
-                                'call_breakeven': round(call_breakeven, 2),
-                                'strike_spread': round(strike_spread, 2),
-                                'days_to_expiration': days_to_exp,
-                                'expiration': expiration,
-                                'ratio': '1:1'
-                            })
-                
-                # Now try 1:2 strategies (sell 1 put, buy 2 calls)
-                # For 1:2, we need higher put premiums to offset 2x call cost
-                # Filter: Only consider puts with strikes HIGHER than current price
-                # Higher strikes = higher premiums (more ITM puts have higher intrinsic value)
-                puts_1_2_filtered = [p for p in puts_filtered if p.strike > current_price]
-                
-                for put in puts_1_2_filtered:
-                    put_strike = round(put.strike, 2)
-                    put_bid = put.bid
-                    put_ask = put.ask
-                    
-                    if put_bid is None or put_ask is None or put_bid <= 0 or put_ask <= 0:
+                    puts.append({'strike': round(p.strike, 2), 'mid': mid})
+
+                calls = []
+                for c in opt_chain.calls:
+                    mid = mid_price(c.bid, c.ask)
+                    if mid is None:
                         continue
-                    
-                    # For 1:2, prioritize calls at higher strikes (lower premiums) to reduce 2x cost
-                    # Higher strike calls = lower premiums = more manageable 2x cost
-                    # Constraint: call strike must be >= put strike (same or higher)
-                    call_strikes_to_try = []
-                    
-                    # Try call at same strike first
-                    call_at_strike = [c for c in calls_filtered if round(c.strike, 2) == put_strike]
-                    if call_at_strike:
-                        call_strikes_to_try.append(put_strike)
-                    
-                    # Then try calls at higher strikes (lower premiums) to make 2x cost manageable
-                    # Constraint: call strike must be >= put strike
-                    higher_strike_calls = [c for c in calls_filtered 
-                                          if put_strike < c.strike <= put_strike * 1.5]
-                    # Sort by strike ascending (highest strike = lowest premium)
-                    higher_strike_calls.sort(key=lambda x: x.strike, reverse=False)
-                    
-                    for call in higher_strike_calls:
-                        call_strike = round(call.strike, 2)
-                        if call_strike not in call_strikes_to_try:
-                            call_strikes_to_try.append(call_strike)
-                    
-                    for call_strike in call_strikes_to_try:
-                        # Enforce constraint: call strike must be >= put strike for 1:2 strategies
-                        if call_strike < put_strike:
-                            continue
-                        
-                        call_matches = [c for c in calls_filtered if round(c.strike, 2) == call_strike]
-                        if not call_matches:
-                            continue
-                        call = call_matches[0]
-                        call_bid = call.bid
-                        call_ask = call.ask
-                        
-                        if call_bid is None or call_ask is None or call_bid <= 0 or call_ask <= 0:
-                            continue
-                        
-                        # Calculate average of bid/ask for both options
-                        put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
-                        call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
-                        
-                        # Calculate net cost for 1:2 using average of bid/ask for consistency
-                        # For risk reversal 1:2: we receive put premium, pay 2 × call premium
-                        net_cost_1_2 = (2 * call_option_quote) - put_option_quote
-                        
-                        # Filter by cost range (±3% of current price)
-                        if abs(net_cost_1_2) <= cost_range:
-                            put_risk = put_strike * 100
-                            cost_pct = (net_cost_1_2 / current_price) * 100 if current_price > 0 else 0
-                            put_breakeven = put_strike - put_option_quote
-                            call_breakeven = call_strike + call_option_quote
-                            strike_spread = abs(call_strike - put_strike)
-                            
-                            # Calculate days to expiration
-                            exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
-                            days_to_exp = (exp_date - today).days
-                            
-                            strategies.append({
-                                'strategy': f"{ticker.upper()} {expiration} Sell 1 ${put_strike:.2f} put and Buy 2 ${call_strike:.2f} calls",
-                                'cost': round(net_cost_1_2, 2),
-                                'cost_pct': round(cost_pct, 2),
-                                'put_risk': round(put_risk, 2),
-                                'put_risk_formatted': f"{put_risk:,.2f}",
-                                'put_strike': put_strike,
-                                'call_strike': call_strike,
-                                'put_bid': round(put_option_quote, 2),
-                                'call_ask': round(call_option_quote, 2),
-                                'put_breakeven': round(put_breakeven, 2),
-                                'call_breakeven': round(call_breakeven, 2),
-                                'strike_spread': round(strike_spread, 2),
-                                'days_to_expiration': days_to_exp,
-                                'expiration': expiration,
-                                'ratio': '1:2'
-                            })
-                
-                # Sort strategies by cost (prefer credits/negative costs), then by ratio (1:1 first)
-                strategies.sort(key=lambda x: (x['cost'], x.get('ratio', '1:1') != '1:1'))
+                    calls.append({'strike': round(c.strike, 2), 'mid': mid})
+
+                if not puts or not calls:
+                    logger.debug(f"Risk Reversal for {ticker} {expiration}: No valid quotes after filtering")
+                    continue
+
+                exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
+                days_to_exp = (exp_date - today).days
+
+                # --- 1:1 strategies (closest strikes) ---
+                puts_near = sorted(puts, key=lambda p: abs(p['strike'] - current_price))[:10]
+                calls_near = sorted(calls, key=lambda c: abs(c['strike'] - current_price))[:10]
+
+                strategies_1_1 = []
+                if calls_near:
+                    for put in puts_near:
+                        call = min(calls_near, key=lambda c: abs(c['strike'] - put['strike']))
+                        net_cost = call['mid'] - put['mid']
+                        cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
+                        put_risk = put['strike'] * 100
+                        strategies_1_1.append({
+                            'strategy': f"{ticker.upper()} {expiration} Sell 1 ${put['strike']:.2f} put and Buy 1 ${call['strike']:.2f} call",
+                            'cost': round(net_cost, 2),
+                            'cost_pct': round(cost_pct, 2),
+                            'put_risk': round(put_risk, 2),
+                            'put_risk_formatted': f"{put_risk:,.2f}",
+                            'put_strike': put['strike'],
+                            'call_strike': call['strike'],
+                            'put_bid': round(put['mid'], 2),
+                            'call_ask': round(call['mid'], 2),
+                            'put_breakeven': round(put['strike'] - put['mid'], 2),
+                            'call_breakeven': round(call['strike'] + call['mid'], 2),
+                            'strike_spread': round(abs(call['strike'] - put['strike']), 2),
+                            'days_to_expiration': days_to_exp,
+                            'expiration': expiration,
+                            'ratio': '1:1'
+                        })
+
+                # Prioritize lowest out-of-pocket cost, then closest strikes
+                strategies_1_1.sort(
+                    key=lambda s: (s['cost'], abs(s['put_strike'] - current_price), abs(s['call_strike'] - current_price))
+                )
+                strategies_1_1 = strategies_1_1[:5]
+
+                # --- 1:2 strategies (higher strikes) ---
+                puts_high = [p for p in puts if p['strike'] > current_price]
+                calls_high = [c for c in calls if c['strike'] > current_price]
+
+                puts_high.sort(key=lambda p: p['strike'], reverse=True)
+                calls_high.sort(key=lambda c: c['strike'], reverse=True)
+
+                strategies_1_2 = []
+                for put in puts_high[:10]:
+                    # Prefer calls at or above the put strike; fallback to highest calls above current
+                    call_candidates = [c for c in calls_high if c['strike'] >= put['strike']]
+                    if not call_candidates:
+                        call_candidates = calls_high
+                    if not call_candidates:
+                        continue
+                    call = call_candidates[0]  # highest strike (cheapest calls)
+                    net_cost = (2 * call['mid']) - put['mid']
+                    cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
+                    put_risk = put['strike'] * 100
+                    strategies_1_2.append({
+                        'strategy': f"{ticker.upper()} {expiration} Sell 1 ${put['strike']:.2f} put and Buy 2 ${call['strike']:.2f} calls",
+                        'cost': round(net_cost, 2),
+                        'cost_pct': round(cost_pct, 2),
+                        'put_risk': round(put_risk, 2),
+                        'put_risk_formatted': f"{put_risk:,.2f}",
+                        'put_strike': put['strike'],
+                        'call_strike': call['strike'],
+                        'put_bid': round(put['mid'], 2),
+                        'call_ask': round(call['mid'], 2),
+                        'put_breakeven': round(put['strike'] - put['mid'], 2),
+                        'call_breakeven': round(call['strike'] + call['mid'], 2),
+                        'strike_spread': round(abs(call['strike'] - put['strike']), 2),
+                        'days_to_expiration': days_to_exp,
+                        'expiration': expiration,
+                        'ratio': '1:2'
+                    })
+
+                # Prioritize lowest out-of-pocket cost, then higher strikes
+                strategies_1_2.sort(key=lambda s: (s['cost'], -s['put_strike'], -s['call_strike']))
+                strategies_1_2 = strategies_1_2[:5]
+
+                strategies.extend(strategies_1_1 + strategies_1_2)
                 
                 # Find strategies closest to $0 (one negative, one positive) and mark them for highlighting
                 if strategies:
@@ -971,7 +834,9 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
         
         logger.info(f"Risk Reversal for {ticker}: Total expirations with strategies: {len(strategies_by_expiration)}")
         if not strategies_by_expiration:
-            logger.warning(f"Risk Reversal for {ticker}: No strategies found for any expiration. Possible reasons: no valid bid/ask prices, no strategies within cost range (±3%), or no strikes within 30% of current price")
+            logger.warning(
+                f"Risk Reversal for {ticker}: No strategies found. Possible reasons: missing bid/ask quotes or no strikes near/above current price."
+            )
         
         return strategies_by_expiration
         
