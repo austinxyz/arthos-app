@@ -654,7 +654,7 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
     Rules:
       - Minimize out-of-pocket cost (prefer lower net cost, negative is best)
       - 1:1 uses strikes closest to current price
-      - 1:2 uses higher put strikes and higher call strikes
+      - 1:2 prioritizes smaller strike spreads (put/call closer together)
       - Return at most 5 pairs per ratio per expiration
     """
     strategies_by_expiration = {}
@@ -684,28 +684,30 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 
                 strategies = []
                 
-                # Require options with valid bid/ask so we can compute mid prices
+                # Require options with usable quotes (mid when available, else last price)
                 if not opt_chain.puts or not opt_chain.calls:
                     logger.debug(f"Risk Reversal for {ticker} {expiration}: Missing puts or calls")
                     continue
 
-                def mid_price(bid, ask) -> Optional[float]:
-                    if bid is None or ask is None:
-                        return None
-                    if bid <= 0 or ask <= 0:
-                        return None
-                    return (float(bid) + float(ask)) / 2.0
+                def quote_price(bid, ask, last_price) -> Optional[float]:
+                    # Prefer mid-price when bid/ask are available; fall back to last price
+                    # because yfinance often returns 0/0 for LEAPS bid/ask.
+                    if bid is not None and ask is not None and bid > 0 and ask > 0:
+                        return (float(bid) + float(ask)) / 2.0
+                    if last_price is not None and last_price > 0:
+                        return float(last_price)
+                    return None
 
                 puts = []
                 for p in opt_chain.puts:
-                    mid = mid_price(p.bid, p.ask)
+                    mid = quote_price(p.bid, p.ask, p.last_price)
                     if mid is None:
                         continue
                     puts.append({'strike': round(p.strike, 2), 'mid': mid})
 
                 calls = []
                 for c in opt_chain.calls:
-                    mid = mid_price(c.bid, c.ask)
+                    mid = quote_price(c.bid, c.ask, c.last_price)
                     if mid is None:
                         continue
                     calls.append({'strike': round(c.strike, 2), 'mid': mid})
@@ -761,19 +763,17 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 )
                 strategies_1_1 = strategies_1_1[:5]
 
-                # --- 1:2 strategies (closest strikes first, then net cost) ---
+                # --- 1:2 strategies (minimize strike spread first, then cost) ---
                 puts_near_1_2 = [p for p in puts if abs(p['strike'] - current_price) <= max_strike_distance]
                 calls_near_1_2 = [c for c in calls if abs(c['strike'] - current_price) <= max_strike_distance]
-                puts_near_1_2 = sorted(puts_near_1_2, key=lambda p: abs(p['strike'] - current_price))
-                calls_near_1_2 = sorted(calls_near_1_2, key=lambda c: abs(c['strike'] - current_price))
 
-                # Prefer strikes at or above current price; fallback to overall nearest if none
+                # Prefer strikes at or above current price; fallback to full near range if none
                 puts_near_1_2 = [p for p in puts_near_1_2 if p['strike'] >= current_price] or puts_near_1_2
                 calls_near_1_2 = [c for c in calls_near_1_2 if c['strike'] >= current_price] or calls_near_1_2
 
                 strategies_1_2 = []
-                for put in puts_near_1_2[:10]:
-                    for call in calls_near_1_2[:12]:
+                for put in puts_near_1_2:
+                    for call in calls_near_1_2:
                         # Keep call strike at or above put strike for 1:2 shape
                         if call['strike'] < put['strike']:
                             continue
@@ -802,9 +802,10 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
 
                 strategies_1_2.sort(
                     key=lambda s: (
+                        s['strike_spread'],
+                        abs(s['cost']),
                         abs(s['put_strike'] - current_price),
-                        abs(s['call_strike'] - current_price),
-                        abs(s['cost'])
+                        abs(s['call_strike'] - current_price)
                     )
                 )
                 strategies_1_2 = strategies_1_2[:5]
