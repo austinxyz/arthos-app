@@ -718,10 +718,13 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 days_to_exp = (exp_date - today).days
 
                 cost_limit = current_price * 0.03
+                max_strike_distance = current_price * 0.3
 
                 # --- 1:1 strategies (closest strikes first, then net cost) ---
-                puts_near = sorted(puts, key=lambda p: abs(p['strike'] - current_price))[:10]
-                calls_near = sorted(calls, key=lambda c: abs(c['strike'] - current_price))[:10]
+                puts_near = [p for p in puts if abs(p['strike'] - current_price) <= max_strike_distance]
+                calls_near = [c for c in calls if abs(c['strike'] - current_price) <= max_strike_distance]
+                puts_near = sorted(puts_near, key=lambda p: abs(p['strike'] - current_price))[:10]
+                calls_near = sorted(calls_near, key=lambda c: abs(c['strike'] - current_price))[:10]
 
                 strategies_1_1 = []
                 for put in puts_near:
@@ -759,8 +762,10 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 strategies_1_1 = strategies_1_1[:5]
 
                 # --- 1:2 strategies (closest strikes first, then net cost) ---
-                puts_near_1_2 = sorted(puts, key=lambda p: abs(p['strike'] - current_price))
-                calls_near_1_2 = sorted(calls, key=lambda c: abs(c['strike'] - current_price))
+                puts_near_1_2 = [p for p in puts if abs(p['strike'] - current_price) <= max_strike_distance]
+                calls_near_1_2 = [c for c in calls if abs(c['strike'] - current_price) <= max_strike_distance]
+                puts_near_1_2 = sorted(puts_near_1_2, key=lambda p: abs(p['strike'] - current_price))
+                calls_near_1_2 = sorted(calls_near_1_2, key=lambda c: abs(c['strike'] - current_price))
 
                 # Prefer strikes at or above current price; fallback to overall nearest if none
                 puts_near_1_2 = [p for p in puts_near_1_2 if p['strike'] >= current_price] or puts_near_1_2
