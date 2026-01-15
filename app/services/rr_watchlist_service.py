@@ -20,7 +20,9 @@ def save_rr_to_watchlist(
     put_strike: float,
     call_strike: float,
     ratio: str,
-    current_price: float
+    current_price: float,
+    sold_call_strike: Optional[float] = None,
+    collar_type: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Save a Risk Reversal strategy to the watchlist.
@@ -31,17 +33,31 @@ def save_rr_to_watchlist(
         expiration: Expiration date (YYYY-MM-DD format)
         put_strike: Put strike price
         call_strike: Call strike price
-        ratio: Ratio string (e.g., "1:1", "1:2")
+        ratio: Ratio string (e.g., "1:1", "1:2", "Collar")
         current_price: Current stock price
+        sold_call_strike: Short call strike price for Collar strategy (optional)
+        collar_type: Collar sub-type (e.g., "1:1", "1:2") for Collar strategy (optional)
         
     Returns:
         Dictionary with success status and message or error
     """
     try:
         # Parse ratio to get quantities
-        ratio_parts = ratio.split(':')
-        put_quantity = int(ratio_parts[0])
-        call_quantity = int(ratio_parts[1])
+        is_collar = ratio == "Collar"
+        if is_collar:
+            # For Collar, use collar_type to determine quantities
+            if collar_type:
+                collar_parts = collar_type.split(':')
+                put_quantity = int(collar_parts[0])
+                call_quantity = int(collar_parts[1])
+            else:
+                # Default to 1:1 if collar_type not specified
+                put_quantity = 1
+                call_quantity = 1
+        else:
+            ratio_parts = ratio.split(':')
+            put_quantity = int(ratio_parts[0])
+            call_quantity = int(ratio_parts[1])
         
         # Fetch fresh option quotes from data provider
         provider = ProviderFactory.get_default_provider()
@@ -78,11 +94,31 @@ def save_rr_to_watchlist(
         put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
         call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
         
+        # Handle Collar: get short call quote if applicable
+        short_call_option_quote = None
+        short_call_quantity = None
+        if is_collar and sold_call_strike:
+            short_call_matches = [c for c in opt_chain.calls if round(c.strike, 2) == round(sold_call_strike, 2)]
+            if not short_call_matches:
+                return {"success": False, "error": f"Short call option with strike ${sold_call_strike:.2f} not found for expiration {expiration}"}
+            
+            short_call = short_call_matches[0]
+            short_call_bid = short_call.bid
+            short_call_ask = short_call.ask
+            
+            if short_call_bid is None or short_call_ask is None or short_call_bid <= 0 or short_call_ask <= 0:
+                return {"success": False, "error": f"Short call option with strike ${sold_call_strike:.2f} has missing or invalid bid/ask prices"}
+            
+            short_call_option_quote = (float(short_call_bid) + float(short_call_ask)) / 2.0
+            short_call_quantity = call_quantity  # Same quantity as bought calls
+        
         # Calculate net cost (entry price)
         # For risk reversal: we receive put premium, pay call premium
-        # Use average of bid/ask for both options for consistency
-        # Net cost = (call_option_quote * call_quantity) - (put_option_quote * put_quantity)
+        # For Collar: also receive short call premium
+        # Net cost = (call_option_quote * call_quantity) - (put_option_quote * put_quantity) - (short_call * short_call_quantity)
         entry_price = (call_option_quote * call_quantity) - (put_option_quote * put_quantity)
+        if short_call_option_quote and short_call_quantity:
+            entry_price -= (short_call_option_quote * short_call_quantity)
         
         # Parse expiration date
         exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
@@ -101,14 +137,22 @@ def save_rr_to_watchlist(
                 put_option_quote=Decimal(str(put_option_quote)),
                 expiration=exp_date,
                 ratio=ratio,
-                expired_yn="N"
+                expired_yn="N",
+                # Collar-specific fields
+                short_call_strike=Decimal(str(sold_call_strike)) if sold_call_strike else None,
+                short_call_quantity=short_call_quantity,
+                short_call_option_quote=Decimal(str(short_call_option_quote)) if short_call_option_quote else None,
+                collar_type=collar_type
             )
             
             session.add(rr_entry)
             session.commit()
             session.refresh(rr_entry)
             
-            logger.info(f"Saved RR to watchlist: {ticker} {expiration} {ratio} Put ${put_strike} Call ${call_strike}")
+            if is_collar:
+                logger.info(f"Saved Collar to watchlist: {ticker} {expiration} {collar_type} Put ${put_strike} Call ${call_strike} Short Call ${sold_call_strike}")
+            else:
+                logger.info(f"Saved RR to watchlist: {ticker} {expiration} {ratio} Put ${put_strike} Call ${call_strike}")
             
             return {
                 "success": True,

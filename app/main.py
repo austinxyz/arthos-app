@@ -421,6 +421,12 @@ async def save_rr_to_watchlist_api(request: Request):
         ratio = data.get('ratio', '1:1')
         current_price = float(data.get('current_price'))
         
+        # Collar-specific fields (optional)
+        sold_call_strike = data.get('sold_call_strike')
+        if sold_call_strike is not None:
+            sold_call_strike = float(sold_call_strike)
+        collar_type = data.get('collar_type')
+        
         if not all([ticker, expiration, put_strike, call_strike, current_price]):
             return {"success": False, "error": "Missing required fields"}
         
@@ -430,7 +436,9 @@ async def save_rr_to_watchlist_api(request: Request):
             put_strike=put_strike,
             call_strike=call_strike,
             ratio=ratio,
-            current_price=current_price
+            current_price=current_price,
+            sold_call_strike=sold_call_strike,
+            collar_type=collar_type
         )
         
         return result

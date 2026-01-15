@@ -499,10 +499,37 @@ def update_rr_history():
                 put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
                 call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
                 
+                # Handle Collar: get short call quote if applicable
+                short_call_option_quote = None
+                short_call_price = None
+                is_collar = entry.ratio == "Collar" and entry.short_call_strike is not None
+                
+                if is_collar:
+                    short_call_matches = [c for c in opt_chain.calls if round(c.strike, 2) == round(float(entry.short_call_strike), 2)]
+                    if not short_call_matches:
+                        logger.warning(f"Short call option with strike ${entry.short_call_strike} not found for {entry.ticker} {expiration_str}")
+                        error_count += 1
+                        continue
+                    
+                    short_call = short_call_matches[0]
+                    short_call_bid = short_call.bid
+                    short_call_ask = short_call.ask
+                    
+                    if short_call_bid is None or short_call_ask is None or short_call_bid <= 0 or short_call_ask <= 0:
+                        logger.warning(f"Short call option with strike ${entry.short_call_strike} has missing or invalid bid/ask for {entry.ticker} {expiration_str}")
+                        error_count += 1
+                        continue
+                    
+                    short_call_option_quote = (float(short_call_bid) + float(short_call_ask)) / 2.0
+                    short_call_price = Decimal(str(short_call_option_quote))
+                
                 # Calculate current value using average of bid/ask for consistency
                 # For risk reversal: we receive put premium, pay call premium
-                # Current value = (call_option_quote * call_quantity) - (put_option_quote * put_quantity)
+                # For Collar: also receive short call premium
+                # Current value = (call_option_quote * call_quantity) - (put_option_quote * put_quantity) - (short_call * short_call_quantity)
                 curr_value = (call_option_quote * entry.call_quantity) - (put_option_quote * entry.put_quantity)
+                if is_collar and short_call_option_quote and entry.short_call_quantity:
+                    curr_value -= (short_call_option_quote * entry.short_call_quantity)
                 
                 # Store the prices used in calculation (average of bid/ask)
                 call_price = Decimal(str(call_option_quote))
@@ -522,6 +549,7 @@ def update_rr_history():
                         existing.curr_value = Decimal(str(curr_value))
                         existing.call_price = call_price
                         existing.put_price = put_price
+                        existing.short_call_price = short_call_price
                         session.add(existing)
                     else:
                         # Create new history entry
@@ -531,7 +559,8 @@ def update_rr_history():
                             history_date=today,
                             curr_value=Decimal(str(curr_value)),
                             call_price=call_price,
-                            put_price=put_price
+                            put_price=put_price,
+                            short_call_price=short_call_price
                         )
                         session.add(history_entry)
                     
@@ -745,10 +774,37 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
                 put_option_quote = (float(put_bid) + float(put_ask)) / 2.0
                 call_option_quote = (float(call_bid) + float(call_ask)) / 2.0
                 
+                # Handle Collar: get short call quote if applicable
+                short_call_option_quote = None
+                short_call_price = None
+                is_collar = entry.ratio == "Collar" and entry.short_call_strike is not None
+                
+                if is_collar:
+                    short_call_matches = [c for c in opt_chain.calls if round(c.strike, 2) == round(float(entry.short_call_strike), 2)]
+                    if not short_call_matches:
+                        logger.warning(f"Short call option with strike ${entry.short_call_strike} not found for {entry.ticker} {expiration_str}")
+                        error_count += 1
+                        continue
+                    
+                    short_call = short_call_matches[0]
+                    short_call_bid = short_call.bid
+                    short_call_ask = short_call.ask
+                    
+                    if short_call_bid is None or short_call_ask is None or short_call_bid <= 0 or short_call_ask <= 0:
+                        logger.warning(f"Short call option with strike ${entry.short_call_strike} has missing or invalid bid/ask for {entry.ticker} {expiration_str}")
+                        error_count += 1
+                        continue
+                    
+                    short_call_option_quote = (float(short_call_bid) + float(short_call_ask)) / 2.0
+                    short_call_price = Decimal(str(short_call_option_quote))
+                
                 # Calculate current value using average of bid/ask for consistency
                 # For risk reversal: we receive put premium, pay call premium
-                # Current value = (call_option_quote * call_quantity) - (put_option_quote * put_quantity)
+                # For Collar: also receive short call premium
+                # Current value = (call_option_quote * call_quantity) - (put_option_quote * put_quantity) - (short_call * short_call_quantity)
                 curr_value = (call_option_quote * entry.call_quantity) - (put_option_quote * entry.put_quantity)
+                if is_collar and short_call_option_quote and entry.short_call_quantity:
+                    curr_value -= (short_call_option_quote * entry.short_call_quantity)
                 
                 # Store the prices used in calculation (average of bid/ask)
                 call_price = Decimal(str(call_option_quote))
@@ -768,6 +824,7 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
                         existing.curr_value = Decimal(str(curr_value))
                         existing.call_price = call_price
                         existing.put_price = put_price
+                        existing.short_call_price = short_call_price
                         session.add(existing)
                     else:
                         # Create new history entry
@@ -777,7 +834,8 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
                             history_date=today,
                             curr_value=Decimal(str(curr_value)),
                             call_price=call_price,
-                            put_price=put_price
+                            put_price=put_price,
+                            short_call_price=short_call_price
                         )
                         session.add(history_entry)
                     

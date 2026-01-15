@@ -34,6 +34,9 @@ def create_db_and_tables():
     _migrate_rr_history_price_columns()
     # Rename net_cost to curr_value in rr_history if needed
     _migrate_rr_history_rename_net_cost()
+    # Add Collar columns to rr_watchlist and rr_history if they don't exist
+    _migrate_rr_watchlist_collar_columns()
+    _migrate_rr_history_collar_columns()
     # Create indexes on stock_price and stock_attributes for faster queries
     _create_stock_price_index()
     _create_stock_attributes_index()
@@ -348,6 +351,93 @@ def _migrate_rr_history_rename_net_cost():
                     print("Renamed net_cost column to curr_value in rr_history table")
     except Exception as e:
         print(f"Warning: Could not migrate rr_history net_cost column: {e}")
+
+
+def _migrate_rr_watchlist_collar_columns():
+    """Add Collar-specific columns to rr_watchlist table if they don't exist."""
+    try:
+        with Session(engine) as session:
+            # Check database type
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            collar_columns = [
+                ('short_call_strike', 'DECIMAL'),
+                ('short_call_quantity', 'INTEGER'),
+                ('short_call_option_quote', 'DECIMAL'),
+                ('collar_type', 'VARCHAR(10)')
+            ]
+            
+            if is_sqlite:
+                # SQLite-specific migration
+                result = session.exec(text(
+                    "PRAGMA table_info(rr_watchlist)"
+                )).all()
+                
+                existing_columns = {row[1] for row in result}
+                
+                for col_name, col_type in collar_columns:
+                    if col_name not in existing_columns:
+                        session.exec(text(
+                            f"ALTER TABLE rr_watchlist ADD COLUMN {col_name} {col_type}"
+                        ))
+                        session.commit()
+                        print(f"Added {col_name} column to rr_watchlist table")
+            else:
+                # PostgreSQL-specific migration
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'rr_watchlist'"
+                )).all()
+                
+                existing_columns = {row[0] for row in result}
+                
+                for col_name, col_type in collar_columns:
+                    if col_name not in existing_columns:
+                        session.exec(text(
+                            f"ALTER TABLE rr_watchlist ADD COLUMN {col_name} {col_type}"
+                        ))
+                        session.commit()
+                        print(f"Added {col_name} column to rr_watchlist table")
+    except Exception as e:
+        print(f"Warning: Could not migrate rr_watchlist Collar columns: {e}")
+
+
+def _migrate_rr_history_collar_columns():
+    """Add short_call_price column to rr_history table if it doesn't exist."""
+    try:
+        with Session(engine) as session:
+            # Check database type
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            if is_sqlite:
+                # SQLite-specific migration
+                result = session.exec(text(
+                    "PRAGMA table_info(rr_history)"
+                )).all()
+                
+                existing_columns = {row[1] for row in result}
+                
+                if 'short_call_price' not in existing_columns:
+                    session.exec(text(
+                        "ALTER TABLE rr_history ADD COLUMN short_call_price DECIMAL"
+                    ))
+                    session.commit()
+                    print("Added short_call_price column to rr_history table")
+            else:
+                # PostgreSQL-specific migration
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'rr_history' AND column_name = 'short_call_price'"
+                )).first()
+                
+                if not result:
+                    session.exec(text(
+                        "ALTER TABLE rr_history ADD COLUMN short_call_price DECIMAL"
+                    ))
+                    session.commit()
+                    print("Added short_call_price column to rr_history table")
+    except Exception as e:
+        print(f"Warning: Could not migrate rr_history Collar columns: {e}")
 
 
 def _create_stock_price_index():

@@ -55,12 +55,31 @@ class RRWatchlist(SQLModel, table=True):
     ratio: str = Field(
         max_length=10,
         default="1:1",
-        description="Ratio of puts to calls (e.g., '1:1', '1:2')"
+        description="Ratio of puts to calls (e.g., '1:1', '1:2', 'Collar')"
     )
     expired_yn: str = Field(
         max_length=1,
         default="N",
         description="Whether the options have expired (Y/N)"
+    )
+    
+    # Collar-specific fields (optional - only used when ratio='Collar')
+    short_call_strike: Optional[Decimal] = Field(
+        default=None,
+        description="Short call strike price for Collar strategy"
+    )
+    short_call_quantity: Optional[int] = Field(
+        default=None,
+        description="Number of short call contracts for Collar strategy"
+    )
+    short_call_option_quote: Optional[Decimal] = Field(
+        default=None,
+        description="Short call option quote (avg of bid/ask) when saved"
+    )
+    collar_type: Optional[str] = Field(
+        default=None,
+        max_length=10,
+        description="Collar sub-type (e.g., '1:1', '1:2')"
     )
     
     # Relationship to history
@@ -95,6 +114,10 @@ class RRHistory(SQLModel, table=True):
     )
     put_price: Decimal = Field(
         description="Put option price used in net cost calculation"
+    )
+    short_call_price: Optional[Decimal] = Field(
+        default=None,
+        description="Short call option price for Collar strategy"
     )
     
     # Relationship to watchlist entry
