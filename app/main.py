@@ -371,6 +371,16 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
                     traceback.print_exc()
                     risk_reversals = {}
                     min_distance_rr = None
+                
+                # Calculate RRR (Risk Reversal Rewrite) strategies - new algorithm for A/B testing
+                try:
+                    from app.services.stock_service import calculate_rrr_strategies
+                    rrr_strategies = calculate_rrr_strategies(ticker, metrics['current_price'])
+                except Exception as e:
+                    print(f"Error calculating RRR strategies for {ticker}: {str(e)}")
+                    import traceback
+                    traceback.print_exc()
+                    rrr_strategies = {}
         except Exception as e:
             # If options data fails, continue without it
             print(f"Error fetching options data for {ticker}: {str(e)}")
@@ -381,8 +391,8 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             sorted_strikes = []
             covered_calls = []
             risk_reversals = {}
+            rrr_strategies = {}
             min_distance = None
-            min_distance_rr = None
             min_distance_rr = None
         
         return templates.TemplateResponse("stock_detail.html", {
@@ -395,6 +405,7 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             "sorted_strikes": sorted_strikes,
             "covered_calls": covered_calls,
             "risk_reversals": risk_reversals,
+            "rrr_strategies": rrr_strategies,
             "current_price": metrics['current_price'],
             "min_distance": min_distance,
             "min_distance_rr": min_distance_rr
