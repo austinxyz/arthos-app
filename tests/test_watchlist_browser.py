@@ -1,5 +1,6 @@
 """Browser tests for watchlist functionality using Playwright."""
 import pytest
+import re
 from playwright.sync_api import Page, expect
 from app.services.watchlist_service import create_watchlist, add_stocks_to_watchlist
 from app.database import engine, create_db_and_tables
@@ -624,13 +625,11 @@ class TestWatchListBrowser:
             f"DB has: {attributes.next_earnings_date}, " \
             f"Metric has: {jpm_metric.get('next_earnings_date_formatted')}"
         
-        # Should be a date format like "Jan 13, 2026"
+        # Should be a date format like "2026-04-14"
         assert len(earnings_text) > 0, \
             f"Earnings date should not be empty. Got: '{earnings_text}'"
-        
-        # Verify it looks like a date (contains month name and year)
-        assert any(month in earnings_text for month in ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']), \
-            f"Earnings date should contain month name. Got: '{earnings_text}'"
+        assert re.match(r"^\d{4}-\d{2}-\d{2}$", earnings_text), \
+            f"Earnings date should be in YYYY-MM-DD format. Got: '{earnings_text}'"
     
     @pytest.mark.browser
     def test_earnings_date_display_in_stock_detail(self, page: Page, live_server_url):

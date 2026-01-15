@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from datetime import date, timedelta
 from decimal import Decimal
-from sqlmodel import Session
+from sqlmodel import Session, delete
 from app.database import engine
 from app.models.stock_price import StockPrice, StockAttributes
 
@@ -42,6 +42,9 @@ def populate_test_stock_prices(ticker: str, num_days: int = 365, base_price: flo
     ticker_upper = ticker.upper()
     
     with Session(engine) as session:
+        # Remove any existing data for this ticker to avoid duplicate key errors
+        session.exec(delete(StockPrice).where(StockPrice.ticker == ticker_upper))
+
         # Create price data
         base_date = date.today() - timedelta(days=num_days)
         earliest_date = None
