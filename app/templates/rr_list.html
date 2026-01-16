@@ -34,13 +34,18 @@
             color: #6c757d;
             font-size: 0.85rem;
         }
-        /* Flush table - all columns size to content */
+        /* Table styling */
         #rrTable {
-            width: auto !important;
+            width: 100% !important;
         }
         #rrTable th,
         #rrTable td {
             white-space: nowrap;
+            vertical-align: middle;
+        }
+        /* Legs column can wrap */
+        #rrTable td:nth-child(3) {
+            white-space: normal;
         }
     </style>
 </head>
