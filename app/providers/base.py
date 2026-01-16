@@ -26,6 +26,7 @@ class StockInfo:
     dividend_yield: Optional[float]
     next_earnings_date: Optional[date]
     is_earnings_date_estimate: Optional[bool]
+    next_dividend_date: Optional[date] = None  # Ex-dividend date
 
 
 @dataclass

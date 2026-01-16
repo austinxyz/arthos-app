@@ -184,6 +184,16 @@
                         <div class="metric-value">{{ metrics.dividend_yield_formatted }}</div>
                     </div>
                     <div class="metric-item">
+                        <div class="metric-label">Next Dividend</div>
+                        <div class="metric-value">
+                            {% if metrics.next_dividend_date_formatted %}
+                                {{ metrics.next_dividend_date_formatted }}
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="metric-item">
                         <div class="metric-label">Next Earnings</div>
                         <div class="metric-value">
                             {% if metrics.next_earnings_date_formatted %}

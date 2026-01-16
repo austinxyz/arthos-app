@@ -402,6 +402,7 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID) -> List[Dict[str, Any]
                 "dividend_yield": float(attributes.dividend_yield) if attributes.dividend_yield else None,
                 "next_earnings_date": attributes.next_earnings_date,
                 "is_earnings_date_estimate": attributes.is_earnings_date_estimate,
+                "next_dividend_date": attributes.next_dividend_date,
                 "earliest_date": attributes.earliest_date.isoformat(),
                 "latest_date": attributes.latest_date.isoformat(),
                 # Use calculated metrics for trading range widget
@@ -438,6 +439,17 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID) -> List[Dict[str, Any]
                     metric['next_earnings_date_formatted'] = str(earnings_date)
             else:
                 metric['next_earnings_date_formatted'] = None
+            
+            # Format dividend date for display (yyyy-MM-dd format for proper text sorting)
+            if metric.get('next_dividend_date'):
+                from datetime import date
+                dividend_date = metric['next_dividend_date']
+                if isinstance(dividend_date, date):
+                    metric['next_dividend_date_formatted'] = dividend_date.strftime('%Y-%m-%d')
+                else:
+                    metric['next_dividend_date_formatted'] = str(dividend_date)
+            else:
+                metric['next_dividend_date_formatted'] = None
             
             metrics_list.append(metric)
         except ValueError as e:

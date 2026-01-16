@@ -84,3 +84,7 @@ class StockAttributes(SQLModel, table=True):
         default=None,
         description="Whether the earnings date is an estimate"
     )
+    next_dividend_date: Optional[date] = Field(
+        default=None,
+        description="Next ex-dividend date"
+    )

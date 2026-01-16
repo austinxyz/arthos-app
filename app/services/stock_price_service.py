@@ -35,7 +35,8 @@ def update_stock_attributes(ticker: str, earliest_date: date, latest_date: date,
                            dividend_yield: Optional[Decimal] = None,
                            current_price: Optional[float] = None,
                            next_earnings_date: Optional[date] = None,
-                           is_earnings_date_estimate: Optional[bool] = None):
+                           is_earnings_date_estimate: Optional[bool] = None,
+                           next_dividend_date: Optional[date] = None):
     """
     Create or update stock attributes for a ticker.
     
@@ -48,6 +49,7 @@ def update_stock_attributes(ticker: str, earliest_date: date, latest_date: date,
         current_price: Current stock price (used to calculate dividend_yield if not provided)
         next_earnings_date: Next earnings announcement date (optional)
         is_earnings_date_estimate: Whether the earnings date is an estimate (optional)
+        next_dividend_date: Next ex-dividend date (optional)
     """
     with Session(engine) as session:
         ticker_upper = ticker.upper()
@@ -68,6 +70,9 @@ def update_stock_attributes(ticker: str, earliest_date: date, latest_date: date,
             if next_earnings_date is not None:
                 attributes.next_earnings_date = next_earnings_date
                 attributes.is_earnings_date_estimate = is_earnings_date_estimate
+            # Update dividend date if provided
+            if next_dividend_date is not None:
+                attributes.next_dividend_date = next_dividend_date
         else:
             # Create new attributes
             # Calculate dividend_yield if dividend_amt and current_price are provided but dividend_yield is not
@@ -81,7 +86,8 @@ def update_stock_attributes(ticker: str, earliest_date: date, latest_date: date,
                 dividend_amt=dividend_amt,
                 dividend_yield=dividend_yield,
                 next_earnings_date=next_earnings_date,
-                is_earnings_date_estimate=is_earnings_date_estimate
+                is_earnings_date_estimate=is_earnings_date_estimate,
+                next_dividend_date=next_dividend_date
             )
             session.add(attributes)
         
@@ -479,6 +485,7 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
             current_price = None
             next_earnings_date = None
             is_earnings_date_estimate = None
+            next_dividend_date = None
             
             # Get current price from latest saved data or from provider
             if not price_data.empty:
@@ -501,6 +508,9 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
             next_earnings_date = stock_info.next_earnings_date
             is_earnings_date_estimate = stock_info.is_earnings_date_estimate
             
+            # Get next dividend date (ex-dividend date)
+            next_dividend_date = stock_info.next_dividend_date
+            
             # Create or update stock attributes with all information (only after successful data save)
             update_stock_attributes(
                 ticker_upper, 
@@ -510,7 +520,8 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
                 dividend_yield=dividend_yield,
                 current_price=current_price,
                 next_earnings_date=next_earnings_date,
-                is_earnings_date_estimate=is_earnings_date_estimate
+                is_earnings_date_estimate=is_earnings_date_estimate,
+                next_dividend_date=next_dividend_date
             )
         except Exception as e:
             # Log error but don't fail the price data save
@@ -688,10 +699,11 @@ def get_stock_metrics_from_db(ticker: str) -> Dict[str, Any]:
         price_change = current_price - price_earliest
         is_price_positive = price_change >= 0
     
-    # Get dividend yield and earnings date from stock_attributes table (not from data provider)
+    # Get dividend yield, earnings date, and dividend date from stock_attributes table (not from data provider)
     dividend_yield = None
     next_earnings_date = None
     is_earnings_date_estimate = None
+    next_dividend_date = None
     try:
         attributes = get_stock_attributes(ticker)
         if attributes:
@@ -699,6 +711,7 @@ def get_stock_metrics_from_db(ticker: str) -> Dict[str, Any]:
                 dividend_yield = float(attributes.dividend_yield)
             next_earnings_date = attributes.next_earnings_date
             is_earnings_date_estimate = attributes.is_earnings_date_estimate
+            next_dividend_date = attributes.next_dividend_date
     except Exception:
         pass
     
@@ -712,6 +725,7 @@ def get_stock_metrics_from_db(ticker: str) -> Dict[str, Any]:
         "dividend_yield": round(dividend_yield, 2) if dividend_yield is not None else None,
         "next_earnings_date": next_earnings_date,
         "is_earnings_date_estimate": is_earnings_date_estimate,
+        "next_dividend_date": next_dividend_date,
         "movement_5day_stddev": round(movement_5day, 4),
         "is_price_positive_5day": bool(is_price_positive),
         "data_points": len(prices)

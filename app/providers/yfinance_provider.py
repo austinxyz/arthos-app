@@ -203,15 +203,10 @@ class YFinanceProvider(StockDataProvider):
                 dividend_amount = float(info['dividendRate'])
             
             # Extract dividend yield
+            # yfinance returns dividendYield as a percentage (e.g., 2.43 means 2.43%)
             dividend_yield = None
             if 'dividendYield' in info and info['dividendYield'] is not None:
-                raw_value = float(info['dividendYield'])
-                # yfinance sometimes returns as decimal (0.02) or percentage (2.0)
-                # If value > 20, assume it's already a percentage, otherwise multiply by 100
-                if raw_value > 20:
-                    dividend_yield = raw_value
-                else:
-                    dividend_yield = raw_value * 100
+                dividend_yield = float(info['dividendYield'])
             elif dividend_amount is not None and current_price is not None and current_price > 0:
                 # Calculate dividend yield from dividend amount and current price
                 dividend_yield = (dividend_amount / current_price) * 100
@@ -235,13 +230,25 @@ class YFinanceProvider(StockDataProvider):
                 except (ValueError, TypeError, OSError) as e:
                     logger.debug(f"Error parsing earnings timestamp for {ticker_upper}: {e}")
             
+            # Extract ex-dividend date
+            next_dividend_date = None
+            ex_div_timestamp = info.get('exDividendDate')
+            if ex_div_timestamp is not None:
+                try:
+                    # Convert Unix timestamp to date
+                    ex_div_datetime = datetime.fromtimestamp(ex_div_timestamp)
+                    next_dividend_date = ex_div_datetime.date()
+                except (ValueError, TypeError, OSError) as e:
+                    logger.debug(f"Error parsing exDividendDate for {ticker_upper}: {e}")
+            
             return StockInfo(
                 ticker=ticker_upper,
                 current_price=current_price,
                 dividend_amount=dividend_amount,
                 dividend_yield=dividend_yield,
                 next_earnings_date=next_earnings_date,
-                is_earnings_date_estimate=is_earnings_date_estimate
+                is_earnings_date_estimate=is_earnings_date_estimate,
+                next_dividend_date=next_dividend_date
             )
             
         except TickerNotFoundError:

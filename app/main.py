@@ -393,6 +393,17 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         else:
             metrics['next_earnings_date_formatted'] = None
         
+        # Format dividend date for display
+        if metrics.get('next_dividend_date'):
+            from datetime import date
+            dividend_date = metrics['next_dividend_date']
+            if isinstance(dividend_date, date):
+                metrics['next_dividend_date_formatted'] = dividend_date.strftime('%b %d, %Y')
+            else:
+                metrics['next_dividend_date_formatted'] = str(dividend_date)
+        else:
+            metrics['next_dividend_date_formatted'] = None
+        
         # Get options data with error handling
         options_expiration = None
         options_data = {}

@@ -145,6 +145,7 @@
                         <th>SMA 50</th>
                         <th>SMA 200</th>
                         <th>Dividend Yield</th>
+                        <th>Next Dividend</th>
                         <th>Next Earnings</th>
                         <th data-column="signal">Signal</th>
                         <th data-column="trading-range" data-orderable="false">Trading Range</th>
@@ -178,6 +179,13 @@
                             <td>{{ metric.sma_50_formatted }}</td>
                             <td>{{ metric.sma_200_formatted }}</td>
                             <td>{{ metric.dividend_yield_formatted }}</td>
+                            <td>
+                                {% if metric.next_dividend_date_formatted %}
+                                    {{ metric.next_dividend_date_formatted }}
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if metric.next_earnings_date_formatted %}
                                     {{ metric.next_earnings_date_formatted }}
@@ -498,8 +506,10 @@
             const signalColumnIndex = $('#stocksTable thead th[data-column="signal"]').index();
             const tradingRangeColumnIndex = $('#stocksTable thead th[data-column="trading-range"]').index();
             const actionsColumnIndex = $('#stocksTable thead th[data-column="actions"]').index();
-            // Next Earnings is the 6th column (0-indexed: 0=Ticker, 1=Price, 2=SMA50, 3=SMA200, 4=DivYield, 5=Earnings)
-            const earningsColumnIndex = 5;
+            // Next Dividend is the 6th column (0-indexed: 0=Ticker, 1=Price, 2=SMA50, 3=SMA200, 4=DivYield, 5=NextDiv)
+            const dividendColumnIndex = 5;
+            // Next Earnings is the 7th column (0-indexed: 0=Ticker, 1=Price, 2=SMA50, 3=SMA200, 4=DivYield, 5=NextDiv, 6=Earnings)
+            const earningsColumnIndex = 6;
             
             // Build columnDefs dynamically
             const columnDefs = [
