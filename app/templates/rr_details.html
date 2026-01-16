@@ -16,8 +16,12 @@
             background-color: #f5f5f5;
             padding: 20px 0;
         }
-        .header h1 {
+        .header h1 a {
             color: #4285f4;
+            text-decoration: none;
+        }
+        .header h1 a:hover {
+            text-decoration: underline;
         }
         .chart-container {
             background-color: white;
@@ -71,7 +75,7 @@
         <div class="header mb-4">
             <a href="/rr-list" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to RR List</a>
             <div class="d-flex align-items-center gap-3">
-                <h1 class="mb-0">{{ entry.ticker }}</h1>
+                <h1 class="mb-0"><a href="/stock/{{ entry.ticker }}">{{ entry.ticker }}</a></h1>
                 {% if entry.ratio == 'Collar' %}
                     <span class="badge bg-info fs-6">Collar</span>
                 {% elif entry.ratio == '1:2' %}
@@ -84,7 +88,7 @@
         
         <div class="row mb-4">
             <!-- Legs Table -->
-            <div class="col-lg-6 mb-3">
+            <div class="col-lg-7 mb-3">
                 <div class="card h-100">
                     <div class="card-header">
                         <strong>Option Legs</strong>
@@ -98,6 +102,8 @@
                                     <th>Strike</th>
                                     <th>Qty</th>
                                     <th>Entry Price</th>
+                                    <th>Current Price</th>
+                                    <th>Change %</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -107,6 +113,22 @@
                                     <td><strong>${{ "%.2f"|format(entry.put_strike) }}</strong></td>
                                     <td>{{ entry.put_quantity }}</td>
                                     <td>${{ "%.2f"|format(entry.put_option_quote) }}</td>
+                                    <td>
+                                        {% if entry.current_put_price is not none %}
+                                            ${{ "%.2f"|format(entry.current_put_price) }}
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if entry.put_change_pct is not none %}
+                                            <span class="{% if entry.put_change_pct > 0 %}text-danger{% elif entry.put_change_pct < 0 %}text-success{% endif %}">
+                                                {{ "%.2f"|format(entry.put_change_pct) }}%
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td><span class="position-long">Long</span></td>
@@ -114,6 +136,22 @@
                                     <td><strong>${{ "%.2f"|format(entry.call_strike) }}</strong></td>
                                     <td>{{ entry.call_quantity }}</td>
                                     <td>${{ "%.2f"|format(entry.call_option_quote) }}</td>
+                                    <td>
+                                        {% if entry.current_call_price is not none %}
+                                            ${{ "%.2f"|format(entry.current_call_price) }}
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if entry.call_change_pct is not none %}
+                                            <span class="{% if entry.call_change_pct > 0 %}text-success{% elif entry.call_change_pct < 0 %}text-danger{% endif %}">
+                                                {{ "%.2f"|format(entry.call_change_pct) }}%
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% if is_collar %}
                                 <tr>
@@ -122,6 +160,22 @@
                                     <td><strong>${{ "%.2f"|format(entry.short_call_strike) }}</strong></td>
                                     <td>{{ entry.short_call_quantity }}</td>
                                     <td>${{ "%.2f"|format(entry.short_call_option_quote) }}</td>
+                                    <td>
+                                        {% if entry.current_short_call_price is not none %}
+                                            ${{ "%.2f"|format(entry.current_short_call_price) }}
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if entry.short_call_change_pct is not none %}
+                                            <span class="{% if entry.short_call_change_pct > 0 %}text-danger{% elif entry.short_call_change_pct < 0 %}text-success{% endif %}">
+                                                {{ "%.2f"|format(entry.short_call_change_pct) }}%
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% endif %}
                             </tbody>
@@ -131,7 +185,7 @@
             </div>
             
             <!-- Summary -->
-            <div class="col-lg-6 mb-3">
+            <div class="col-lg-5 mb-3">
                 <div class="card h-100">
                     <div class="card-header">
                         <strong>Summary</strong>
@@ -144,6 +198,31 @@
                         <div class="summary-item">
                             <span class="summary-label">Net Entry Price</span>
                             <span class="summary-value">${{ "%.2f"|format(entry.entry_price) }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Current Value</span>
+                            <span class="summary-value">
+                                {% if entry.current_value is not none %}
+                                    ${{ "%.2f"|format(entry.current_value) }}
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Change</span>
+                            <span class="summary-value">
+                                {% if entry.value_change is not none %}
+                                    <span class="{% if entry.value_change > 0 %}text-success{% elif entry.value_change < 0 %}text-danger{% endif %}">
+                                        ${{ "%.2f"|format(entry.value_change) }}
+                                        {% if entry.value_change_pct is not none %}
+                                            ({{ "%.2f"|format(entry.value_change_pct) }}%)
+                                        {% endif %}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </span>
                         </div>
                         <div class="summary-item">
                             <span class="summary-label">Stock Price (at entry)</span>

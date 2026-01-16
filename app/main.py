@@ -235,6 +235,45 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
     chart_data.sort(key=lambda x: x['x'])
     table_data.sort(key=lambda x: x['history_date'])
     
+    # Get latest prices from most recent history entry
+    latest_call_price = None
+    latest_put_price = None
+    latest_short_call_price = None
+    current_value = None
+    if table_data:
+        latest = table_data[-1]  # Most recent after sorting
+        latest_call_price = latest.get('call_price')
+        latest_put_price = latest.get('put_price')
+        latest_short_call_price = latest.get('short_call_price') if is_collar else None
+        current_value = latest.get('curr_value')
+    
+    # Calculate % changes for legs
+    entry_call_quote = float(entry.call_option_quote)
+    entry_put_quote = float(entry.put_option_quote)
+    entry_price = float(entry.entry_price)
+    
+    call_change_pct = None
+    if latest_call_price is not None and entry_call_quote != 0:
+        call_change_pct = ((latest_call_price - entry_call_quote) / entry_call_quote) * 100
+    
+    put_change_pct = None
+    if latest_put_price is not None and entry_put_quote != 0:
+        put_change_pct = ((latest_put_price - entry_put_quote) / entry_put_quote) * 100
+    
+    short_call_change_pct = None
+    if is_collar and latest_short_call_price is not None:
+        entry_short_call_quote = float(entry.short_call_option_quote) if entry.short_call_option_quote else 0
+        if entry_short_call_quote != 0:
+            short_call_change_pct = ((latest_short_call_price - entry_short_call_quote) / entry_short_call_quote) * 100
+    
+    # Calculate overall value change
+    value_change = None
+    value_change_pct = None
+    if current_value is not None:
+        value_change = current_value - entry_price
+        if entry_price != 0:
+            value_change_pct = (value_change / abs(entry_price)) * 100
+    
     # Build entry dict with collar fields if applicable
     entry_dict = {
         'id': entry.id,
@@ -246,12 +285,21 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
         'put_quantity': entry.put_quantity,
         'stock_price': float(entry.stock_price),
         'date_added': entry.date_added,
-        'entry_price': float(entry.entry_price),
-        'call_option_quote': float(entry.call_option_quote),
-        'put_option_quote': float(entry.put_option_quote),
+        'entry_price': entry_price,
+        'call_option_quote': entry_call_quote,
+        'put_option_quote': entry_put_quote,
         'expiration': entry.expiration,
         'ratio': entry.ratio,
-        'expired_yn': entry.expired_yn
+        'expired_yn': entry.expired_yn,
+        # Current prices
+        'current_call_price': latest_call_price,
+        'current_put_price': latest_put_price,
+        'call_change_pct': call_change_pct,
+        'put_change_pct': put_change_pct,
+        # Summary values
+        'current_value': current_value,
+        'value_change': value_change,
+        'value_change_pct': value_change_pct
     }
     
     # Add collar-specific fields
@@ -260,6 +308,8 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
         entry_dict['short_call_quantity'] = entry.short_call_quantity
         entry_dict['short_call_option_quote'] = float(entry.short_call_option_quote) if entry.short_call_option_quote else None
         entry_dict['collar_type'] = entry.collar_type
+        entry_dict['current_short_call_price'] = latest_short_call_price
+        entry_dict['short_call_change_pct'] = short_call_change_pct
     
     return templates.TemplateResponse("rr_details.html", {
         "request": request,
