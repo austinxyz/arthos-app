@@ -114,23 +114,30 @@ async def rr_list_page(request: Request):
     # Format entries for display
     formatted_entries = []
     for entry in entries:
-        # Create contract description
-        expiration_date = entry.expiration
-        expiration_str = expiration_date.strftime('%b %Y')
-        
-        if entry.ratio == 'Collar':
-            # Collar: sell put, buy call, sell call (short call)
-            short_call_strike = float(entry.short_call_strike) if entry.short_call_strike else 0
-            short_call_qty = entry.short_call_quantity or 1
-            contract = (
-                f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put, "
-                f"buy {entry.call_quantity} ${entry.call_strike:.2f} call, "
-                f"sell {short_call_qty} ${short_call_strike:.2f} call"
-            )
-        elif entry.ratio == '1:2':
-            contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} calls"
-        else:
-            contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} call"
+        # Build legs data for crisp display
+        legs = []
+        # Put leg (short)
+        legs.append({
+            'position': 'Short',
+            'type': 'Put',
+            'strike': float(entry.put_strike),
+            'qty': entry.put_quantity
+        })
+        # Call leg (long)
+        legs.append({
+            'position': 'Long',
+            'type': 'Call',
+            'strike': float(entry.call_strike),
+            'qty': entry.call_quantity
+        })
+        # Short call for Collar
+        if entry.ratio == 'Collar' and entry.short_call_strike:
+            legs.append({
+                'position': 'Short',
+                'type': 'Call',
+                'strike': float(entry.short_call_strike),
+                'qty': entry.short_call_quantity or 1
+            })
         
         # Get latest net cost from history
         latest_net_cost = get_latest_net_cost(entry.id)
@@ -147,7 +154,8 @@ async def rr_list_page(request: Request):
         
         formatted_entries.append({
             'id': entry.id,
-            'contract': contract,
+            'ticker': entry.ticker,
+            'legs': legs,
             'ratio': entry.ratio,
             'stock_price': float(entry.stock_price),
             'date_added': entry.date_added,

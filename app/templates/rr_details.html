@@ -26,44 +26,128 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-bottom: 20px;
         }
+        .position-short {
+            color: #dc3545;
+            font-weight: 600;
+        }
+        .position-long {
+            color: #198754;
+            font-weight: 600;
+        }
+        .legs-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+        }
+        .summary-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .summary-item:last-child {
+            border-bottom: none;
+        }
+        .summary-label {
+            color: #6c757d;
+        }
+        .summary-value {
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container-fluid px-4">
         <div class="header mb-4">
             <a href="/rr-list" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to RR List</a>
-            <h1>{{ entry.contract }}</h1>
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="mb-0">{{ entry.ticker }}</h1>
+                {% if entry.ratio == 'Collar' %}
+                    <span class="badge bg-info fs-6">Collar</span>
+                {% elif entry.ratio == '1:2' %}
+                    <span class="badge bg-warning text-dark fs-6">1:2</span>
+                {% else %}
+                    <span class="badge bg-primary fs-6">1:1</span>
+                {% endif %}
+            </div>
         </div>
         
         <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
+            <!-- Legs Table -->
+            <div class="col-lg-6 mb-3">
+                <div class="card h-100">
                     <div class="card-header">
-                        <strong>Entry Details</strong>
-                        {% if entry.ratio == 'Collar' %}
-                            <span class="badge bg-info ms-2">Collar</span>
-                        {% elif entry.ratio == '1:2' %}
-                            <span class="badge bg-warning text-dark ms-2">1:2</span>
-                        {% else %}
-                            <span class="badge bg-primary ms-2">1:1</span>
-                        {% endif %}
+                        <strong>Option Legs</strong>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0 legs-table">
+                            <thead>
+                                <tr>
+                                    <th>Position</th>
+                                    <th>Type</th>
+                                    <th>Strike</th>
+                                    <th>Qty</th>
+                                    <th>Entry Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="position-short">Short</span></td>
+                                    <td>Put</td>
+                                    <td><strong>${{ "%.2f"|format(entry.put_strike) }}</strong></td>
+                                    <td>{{ entry.put_quantity }}</td>
+                                    <td>${{ "%.2f"|format(entry.put_option_quote) }}</td>
+                                </tr>
+                                <tr>
+                                    <td><span class="position-long">Long</span></td>
+                                    <td>Call</td>
+                                    <td><strong>${{ "%.2f"|format(entry.call_strike) }}</strong></td>
+                                    <td>{{ entry.call_quantity }}</td>
+                                    <td>${{ "%.2f"|format(entry.call_option_quote) }}</td>
+                                </tr>
+                                {% if is_collar %}
+                                <tr>
+                                    <td><span class="position-short">Short</span></td>
+                                    <td>Call</td>
+                                    <td><strong>${{ "%.2f"|format(entry.short_call_strike) }}</strong></td>
+                                    <td>{{ entry.short_call_quantity }}</td>
+                                    <td>${{ "%.2f"|format(entry.short_call_option_quote) }}</td>
+                                </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Summary -->
+            <div class="col-lg-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <strong>Summary</strong>
                     </div>
                     <div class="card-body">
-                        <p><strong>Ticker:</strong> {{ entry.ticker }}</p>
-                        <p><strong>Long Call Strike:</strong> ${{ "%.2f"|format(entry.call_strike) }} (Qty: {{ entry.call_quantity }})</p>
-                        <p><strong>Long Call Entry Price:</strong> ${{ "%.2f"|format(entry.call_option_quote) }}</p>
-                        <p><strong>Put Strike:</strong> ${{ "%.2f"|format(entry.put_strike) }} (Qty: {{ entry.put_quantity }})</p>
-                        <p><strong>Put Entry Price:</strong> ${{ "%.2f"|format(entry.put_option_quote) }}</p>
+                        <div class="summary-item">
+                            <span class="summary-label">Expiration</span>
+                            <span class="summary-value">{{ entry.expiration.strftime('%b %d, %Y') }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Net Entry Price</span>
+                            <span class="summary-value">${{ "%.2f"|format(entry.entry_price) }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Stock Price (at entry)</span>
+                            <span class="summary-value">${{ "%.2f"|format(entry.stock_price) }}</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Date Added</span>
+                            <span class="summary-value">{{ entry.date_added.strftime('%Y-%m-%d %H:%M') }}</span>
+                        </div>
                         {% if is_collar %}
-                        <p><strong>Short Call Strike:</strong> ${{ "%.2f"|format(entry.short_call_strike) }} (Qty: {{ entry.short_call_quantity }})</p>
-                        <p><strong>Short Call Entry Price:</strong> ${{ "%.2f"|format(entry.short_call_option_quote) }}</p>
-                        <p><strong>Collar Type:</strong> {{ entry.collar_type or 'N/A' }}</p>
+                        <div class="summary-item">
+                            <span class="summary-label">Collar Type</span>
+                            <span class="summary-value">{{ entry.collar_type or 'Standard' }}</span>
+                        </div>
                         {% endif %}
-                        <p><strong>Strategy:</strong> {{ entry.ratio }}</p>
-                        <p><strong>Expiration:</strong> {{ entry.expiration.strftime('%Y-%m-%d') }}</p>
-                        <p><strong>Entry Price:</strong> ${{ "%.2f"|format(entry.entry_price) }}</p>
-                        <p><strong>Stock Price (at entry):</strong> ${{ "%.2f"|format(entry.stock_price) }}</p>
-                        <p><strong>Date Added:</strong> {{ entry.date_added.strftime('%Y-%m-%d %H:%M:%S') }}</p>
                     </div>
                 </div>
             </div>
@@ -74,33 +158,40 @@
             <div id="netCostChart" style="height: 400px;"></div>
         </div>
         
-        <div class="table-responsive">
-            <table id="historyTable" class="table table-striped table-hover table-bordered">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Date</th>
-                        <th>Long Call Price</th>
-                        <th>Put Price</th>
-                        {% if is_collar %}
-                        <th>Short Call Price</th>
-                        {% endif %}
-                        <th>Current Value</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for row in table_data %}
-                    <tr>
-                        <td>{{ row.history_date.strftime('%Y-%m-%d') }}</td>
-                        <td>{% if row.call_price is not none %}${{ "%.2f"|format(row.call_price) }}{% else %}-{% endif %}</td>
-                        <td>{% if row.put_price is not none %}${{ "%.2f"|format(row.put_price) }}{% else %}-{% endif %}</td>
-                        {% if is_collar %}
-                        <td>{% if row.short_call_price is not none %}${{ "%.2f"|format(row.short_call_price) }}{% else %}-{% endif %}</td>
-                        {% endif %}
-                        <td>${{ "%.2f"|format(row.curr_value) }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="card">
+            <div class="card-header">
+                <strong>Price History</strong>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table id="historyTable" class="table table-striped table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Date</th>
+                                <th>Long Call</th>
+                                <th>Short Put</th>
+                                {% if is_collar %}
+                                <th>Short Call</th>
+                                {% endif %}
+                                <th>Current Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in table_data %}
+                            <tr>
+                                <td>{{ row.history_date.strftime('%Y-%m-%d') }}</td>
+                                <td>{% if row.call_price is not none %}${{ "%.2f"|format(row.call_price) }}{% else %}-{% endif %}</td>
+                                <td>{% if row.put_price is not none %}${{ "%.2f"|format(row.put_price) }}{% else %}-{% endif %}</td>
+                                {% if is_collar %}
+                                <td>{% if row.short_call_price is not none %}${{ "%.2f"|format(row.short_call_price) }}{% else %}-{% endif %}</td>
+                                {% endif %}
+                                <td><strong>${{ "%.2f"|format(row.curr_value) }}</strong></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -116,7 +207,7 @@
             
             Highcharts.chart('netCostChart', {
                 title: {
-                    text: 'Current Value Over Time'
+                    text: null
                 },
                 xAxis: {
                     type: 'datetime',
@@ -148,6 +239,9 @@
                         return '<b>' + Highcharts.dateFormat('%Y-%m-%d', this.x) + '</b><br/>' +
                                'Current Value: $' + this.y.toFixed(2);
                     }
+                },
+                legend: {
+                    enabled: false
                 }
             });
             

@@ -17,10 +17,27 @@
         .header h1 {
             color: #4285f4;
         }
+        .leg-row {
+            white-space: nowrap;
+            font-size: 0.9rem;
+        }
+        .leg-short {
+            color: #dc3545;
+        }
+        .leg-long {
+            color: #198754;
+        }
+        .leg-strike {
+            font-weight: 600;
+        }
+        .leg-qty {
+            color: #6c757d;
+            font-size: 0.85rem;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="container-fluid px-4">
         <div class="header mb-4">
             <a href="/" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Home</a>
             <h1>RR Watchlist</h1>
@@ -31,17 +48,15 @@
                 <thead class="table-dark">
                     <tr>
                         <th>Strategy</th>
-                        <th>Contract</th>
+                        <th>Ticker</th>
+                        <th>Legs</th>
+                        <th>Exp</th>
                         <th>Stock Price</th>
-                        <th>Date Added</th>
-                        <th>Entry Price</th>
-                        <th>Current Price</th>
+                        <th>Entry</th>
+                        <th>Current</th>
                         <th>Change</th>
                         <th>Change %</th>
-                        <th>Call Option Quote</th>
-                        <th>Put Option Quote</th>
-                        <th>Short Call Quote</th>
-                        <th>Expiration</th>
+                        <th>Date Added</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -59,11 +74,23 @@
                         </td>
                         <td>
                             <a href="/rr-details/{{ entry.id }}" class="text-decoration-none">
-                                <strong>{{ entry.contract }}</strong>
+                                <strong>{{ entry.ticker }}</strong>
                             </a>
                         </td>
+                        <td>
+                            {% for leg in entry.legs %}
+                            <div class="leg-row">
+                                <span class="{% if leg.position == 'Short' %}leg-short{% else %}leg-long{% endif %}">
+                                    {{ leg.position }}
+                                </span>
+                                <span class="leg-qty">×{{ leg.qty }}</span>
+                                <span class="leg-strike">${{ "%.0f"|format(leg.strike) }}</span>
+                                {{ leg.type }}
+                            </div>
+                            {% endfor %}
+                        </td>
+                        <td>{{ entry.expiration.strftime('%b %y') }}</td>
                         <td>${{ "%.2f"|format(entry.stock_price) }}</td>
-                        <td>{{ entry.date_added.strftime('%Y-%m-%d %H:%M:%S') }}</td>
                         <td>${{ "%.2f"|format(entry.entry_price) }}</td>
                         <td>
                             {% if entry.current_price is not none %}
@@ -98,16 +125,7 @@
                                 <span class="text-muted">N/A</span>
                             {% endif %}
                         </td>
-                        <td>${{ "%.2f"|format(entry.call_option_quote) }}</td>
-                        <td>${{ "%.2f"|format(entry.put_option_quote) }}</td>
-                        <td>
-                            {% if entry.short_call_option_quote is not none %}
-                                ${{ "%.2f"|format(entry.short_call_option_quote) }}
-                            {% else %}
-                                <span class="text-muted">-</span>
-                            {% endif %}
-                        </td>
-                        <td>{{ entry.expiration.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ entry.date_added.strftime('%Y-%m-%d') }}</td>
                         <td>
                             <button class="btn btn-sm btn-danger delete-rr-btn" data-rr-id="{{ entry.id }}">
                                 Delete
@@ -129,7 +147,7 @@
         $(document).ready(function() {
             initDataTable('rrTable', {
                 pageLength: 25,
-                order: [[2, "desc"]], // Sort by date added descending
+                order: [[9, "desc"]], // Sort by date added descending (column index 9)
                 columnDefs: [
                     { orderable: true, targets: "_all" }
                 ]
