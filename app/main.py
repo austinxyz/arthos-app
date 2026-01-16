@@ -118,7 +118,16 @@ async def rr_list_page(request: Request):
         expiration_date = entry.expiration
         expiration_str = expiration_date.strftime('%b %Y')
         
-        if entry.ratio == '1:2':
+        if entry.ratio == 'Collar':
+            # Collar: sell put, buy call, sell call (short call)
+            short_call_strike = float(entry.short_call_strike) if entry.short_call_strike else 0
+            short_call_qty = entry.short_call_quantity or 1
+            contract = (
+                f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put, "
+                f"buy {entry.call_quantity} ${entry.call_strike:.2f} call, "
+                f"sell {short_call_qty} ${short_call_strike:.2f} call"
+            )
+        elif entry.ratio == '1:2':
             contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} calls"
         else:
             contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} call"
@@ -139,6 +148,7 @@ async def rr_list_page(request: Request):
         formatted_entries.append({
             'id': entry.id,
             'contract': contract,
+            'ratio': entry.ratio,
             'stock_price': float(entry.stock_price),
             'date_added': entry.date_added,
             'entry_price': entry_price,
@@ -147,6 +157,7 @@ async def rr_list_page(request: Request):
             'change_pct': change_pct,
             'call_option_quote': float(entry.call_option_quote),
             'put_option_quote': float(entry.put_option_quote),
+            'short_call_option_quote': float(entry.short_call_option_quote) if entry.short_call_option_quote else None,
             'expiration': entry.expiration
         })
     
@@ -180,7 +191,15 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
     
     # Format entry for display
     expiration_str = entry.expiration.strftime('%b %Y')
-    if entry.ratio == '1:2':
+    if entry.ratio == 'Collar':
+        short_call_strike = float(entry.short_call_strike) if entry.short_call_strike else 0
+        short_call_qty = entry.short_call_quantity or 1
+        contract = (
+            f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put, "
+            f"buy {entry.call_quantity} ${entry.call_strike:.2f} call, "
+            f"sell {short_call_qty} ${short_call_strike:.2f} call"
+        )
+    elif entry.ratio == '1:2':
         contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} calls"
     else:
         contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} call"
@@ -188,43 +207,58 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
     # Format history for chart
     chart_data = []
     table_data = []
+    is_collar = entry.ratio == 'Collar'
     for hist in history:
         chart_data.append({
             'x': hist.history_date.isoformat(),
             'y': float(hist.curr_value)
         })
-        table_data.append({
+        row_data = {
             'history_date': hist.history_date,
             'curr_value': float(hist.curr_value),
             'call_price': float(hist.call_price) if hist.call_price else None,
             'put_price': float(hist.put_price) if hist.put_price else None
-        })
+        }
+        if is_collar:
+            row_data['short_call_price'] = float(hist.short_call_price) if hist.short_call_price else None
+        table_data.append(row_data)
     
     # Sort by date
     chart_data.sort(key=lambda x: x['x'])
     table_data.sort(key=lambda x: x['history_date'])
     
+    # Build entry dict with collar fields if applicable
+    entry_dict = {
+        'id': entry.id,
+        'contract': contract,
+        'ticker': entry.ticker,
+        'call_strike': float(entry.call_strike),
+        'call_quantity': entry.call_quantity,
+        'put_strike': float(entry.put_strike),
+        'put_quantity': entry.put_quantity,
+        'stock_price': float(entry.stock_price),
+        'date_added': entry.date_added,
+        'entry_price': float(entry.entry_price),
+        'call_option_quote': float(entry.call_option_quote),
+        'put_option_quote': float(entry.put_option_quote),
+        'expiration': entry.expiration,
+        'ratio': entry.ratio,
+        'expired_yn': entry.expired_yn
+    }
+    
+    # Add collar-specific fields
+    if is_collar:
+        entry_dict['short_call_strike'] = float(entry.short_call_strike) if entry.short_call_strike else None
+        entry_dict['short_call_quantity'] = entry.short_call_quantity
+        entry_dict['short_call_option_quote'] = float(entry.short_call_option_quote) if entry.short_call_option_quote else None
+        entry_dict['collar_type'] = entry.collar_type
+    
     return templates.TemplateResponse("rr_details.html", {
         "request": request,
-        "entry": {
-            'id': entry.id,
-            'contract': contract,
-            'ticker': entry.ticker,
-            'call_strike': float(entry.call_strike),
-            'call_quantity': entry.call_quantity,
-            'put_strike': float(entry.put_strike),
-            'put_quantity': entry.put_quantity,
-            'stock_price': float(entry.stock_price),
-            'date_added': entry.date_added,
-            'entry_price': float(entry.entry_price),
-            'call_option_quote': float(entry.call_option_quote),
-            'put_option_quote': float(entry.put_option_quote),
-            'expiration': entry.expiration,
-            'ratio': entry.ratio,
-            'expired_yn': entry.expired_yn
-        },
+        "entry": entry_dict,
         "chart_data": chart_data,
-        "table_data": table_data
+        "table_data": table_data,
+        "is_collar": is_collar
     })
 
 

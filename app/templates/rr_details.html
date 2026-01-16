@@ -38,14 +38,28 @@
         <div class="row mb-4">
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header"><strong>Entry Details</strong></div>
+                    <div class="card-header">
+                        <strong>Entry Details</strong>
+                        {% if entry.ratio == 'Collar' %}
+                            <span class="badge bg-info ms-2">Collar</span>
+                        {% elif entry.ratio == '1:2' %}
+                            <span class="badge bg-warning text-dark ms-2">1:2</span>
+                        {% else %}
+                            <span class="badge bg-primary ms-2">1:1</span>
+                        {% endif %}
+                    </div>
                     <div class="card-body">
                         <p><strong>Ticker:</strong> {{ entry.ticker }}</p>
-                        <p><strong>Call Strike:</strong> ${{ "%.2f"|format(entry.call_strike) }} (Qty: {{ entry.call_quantity }})</p>
-                        <p><strong>Call Entry Price:</strong> ${{ "%.2f"|format(entry.call_option_quote) }}</p>
+                        <p><strong>Long Call Strike:</strong> ${{ "%.2f"|format(entry.call_strike) }} (Qty: {{ entry.call_quantity }})</p>
+                        <p><strong>Long Call Entry Price:</strong> ${{ "%.2f"|format(entry.call_option_quote) }}</p>
                         <p><strong>Put Strike:</strong> ${{ "%.2f"|format(entry.put_strike) }} (Qty: {{ entry.put_quantity }})</p>
                         <p><strong>Put Entry Price:</strong> ${{ "%.2f"|format(entry.put_option_quote) }}</p>
-                        <p><strong>Ratio:</strong> {{ entry.ratio }}</p>
+                        {% if is_collar %}
+                        <p><strong>Short Call Strike:</strong> ${{ "%.2f"|format(entry.short_call_strike) }} (Qty: {{ entry.short_call_quantity }})</p>
+                        <p><strong>Short Call Entry Price:</strong> ${{ "%.2f"|format(entry.short_call_option_quote) }}</p>
+                        <p><strong>Collar Type:</strong> {{ entry.collar_type or 'N/A' }}</p>
+                        {% endif %}
+                        <p><strong>Strategy:</strong> {{ entry.ratio }}</p>
                         <p><strong>Expiration:</strong> {{ entry.expiration.strftime('%Y-%m-%d') }}</p>
                         <p><strong>Entry Price:</strong> ${{ "%.2f"|format(entry.entry_price) }}</p>
                         <p><strong>Stock Price (at entry):</strong> ${{ "%.2f"|format(entry.stock_price) }}</p>
@@ -65,8 +79,11 @@
                 <thead class="table-dark">
                     <tr>
                         <th>Date</th>
-                        <th>Call Price</th>
+                        <th>Long Call Price</th>
                         <th>Put Price</th>
+                        {% if is_collar %}
+                        <th>Short Call Price</th>
+                        {% endif %}
                         <th>Current Value</th>
                     </tr>
                 </thead>
@@ -76,6 +93,9 @@
                         <td>{{ row.history_date.strftime('%Y-%m-%d') }}</td>
                         <td>{% if row.call_price is not none %}${{ "%.2f"|format(row.call_price) }}{% else %}-{% endif %}</td>
                         <td>{% if row.put_price is not none %}${{ "%.2f"|format(row.put_price) }}{% else %}-{% endif %}</td>
+                        {% if is_collar %}
+                        <td>{% if row.short_call_price is not none %}${{ "%.2f"|format(row.short_call_price) }}{% else %}-{% endif %}</td>
+                        {% endif %}
                         <td>${{ "%.2f"|format(row.curr_value) }}</td>
                     </tr>
                     {% endfor %}

@@ -30,6 +30,7 @@
             <table id="rrTable" class="table table-striped table-hover table-bordered">
                 <thead class="table-dark">
                     <tr>
+                        <th>Strategy</th>
                         <th>Contract</th>
                         <th>Stock Price</th>
                         <th>Date Added</th>
@@ -39,6 +40,7 @@
                         <th>Change %</th>
                         <th>Call Option Quote</th>
                         <th>Put Option Quote</th>
+                        <th>Short Call Quote</th>
                         <th>Expiration</th>
                         <th>Actions</th>
                     </tr>
@@ -46,6 +48,15 @@
                 <tbody>
                     {% for entry in entries %}
                     <tr>
+                        <td>
+                            {% if entry.ratio == 'Collar' %}
+                                <span class="badge bg-info">Collar</span>
+                            {% elif entry.ratio == '1:2' %}
+                                <span class="badge bg-warning text-dark">1:2</span>
+                            {% else %}
+                                <span class="badge bg-primary">1:1</span>
+                            {% endif %}
+                        </td>
                         <td>
                             <a href="/rr-details/{{ entry.id }}" class="text-decoration-none">
                                 <strong>{{ entry.contract }}</strong>
@@ -89,6 +100,13 @@
                         </td>
                         <td>${{ "%.2f"|format(entry.call_option_quote) }}</td>
                         <td>${{ "%.2f"|format(entry.put_option_quote) }}</td>
+                        <td>
+                            {% if entry.short_call_option_quote is not none %}
+                                ${{ "%.2f"|format(entry.short_call_option_quote) }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
                         <td>{{ entry.expiration.strftime('%Y-%m-%d') }}</td>
                         <td>
                             <button class="btn btn-sm btn-danger delete-rr-btn" data-rr-id="{{ entry.id }}">
