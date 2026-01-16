@@ -42,16 +42,22 @@
             background-color: #f8f9fa;
             font-weight: 600;
         }
-        /* Flush tables - all columns size to content */
-        .legs-table,
-        #historyTable {
+        /* Compact tables - columns size to content */
+        .legs-table {
             width: auto !important;
         }
         .legs-table th,
-        .legs-table td,
+        .legs-table td {
+            white-space: nowrap;
+            padding: 0.5rem 0.75rem;
+        }
+        #historyTable {
+            width: 100% !important;
+        }
         #historyTable th,
         #historyTable td {
             white-space: nowrap;
+            vertical-align: middle;
         }
         .summary-item {
             display: flex;
@@ -88,7 +94,7 @@
         
         <div class="row mb-4">
             <!-- Legs Table -->
-            <div class="col-lg-7 mb-3">
+            <div class="col-auto mb-3">
                 <div class="card h-100">
                     <div class="card-header">
                         <strong>Option Legs</strong>
@@ -185,7 +191,7 @@
             </div>
             
             <!-- Summary -->
-            <div class="col-lg-5 mb-3">
+            <div class="col-auto mb-3">
                 <div class="card h-100">
                     <div class="card-header">
                         <strong>Summary</strong>
