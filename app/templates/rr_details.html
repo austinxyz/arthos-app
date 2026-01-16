@@ -38,6 +38,25 @@
             background-color: #f8f9fa;
             font-weight: 600;
         }
+        /* Flush tables - columns size to content */
+        .legs-table th,
+        .legs-table td {
+            white-space: nowrap;
+            width: 1%;
+        }
+        #historyTable {
+            width: 100% !important;
+        }
+        #historyTable th,
+        #historyTable td {
+            white-space: nowrap;
+            width: 1%;
+        }
+        /* Let Date column expand */
+        #historyTable th:first-child,
+        #historyTable td:first-child {
+            width: auto;
+        }
         .summary-item {
             display: flex;
             justify-content: space-between;
