@@ -77,47 +77,4 @@ def test_results_page_signal_sorting(browser_page: Page, client):
                 f"Sorting incorrect: {signals[i]} (priority {current_priority}) should come before {signals[i + 1]} (priority {next_priority})"
 
 
-@pytest.mark.skip(reason="Requires server to be running on localhost:8000")
-def test_results_page_signal_sorting_manual(browser_page: Page):
-    """Test sorting by manually navigating to a running server."""
-    # This test assumes the server is running on localhost:8000
-    # You would run this separately with: python run.py
-    browser_page.goto("http://localhost:8000/results?tickers=AAPL,MSFT,GOOGL,TSLA,AMZN")
-    
-    # Wait for table to load
-    browser_page.wait_for_selector('#metricsTable', state='visible')
-    browser_page.wait_for_timeout(2000)  # Wait for DataTable to initialize
-    
-    # Get signal column values
-    signal_cells = browser_page.locator('#metricsTable tbody tr td:nth-child(6)')
-    
-    signals = []
-    count = signal_cells.count()
-    for i in range(min(count, 10)):  # Check first 10 rows
-        cell = signal_cells.nth(i)
-        badge = cell.locator('.badge')
-        if badge.count() > 0:
-            signal_text = badge.inner_text()
-        else:
-            signal_text = cell.inner_text()
-        signals.append(signal_text.strip())
-        print(f"Row {i+1}: {signal_text.strip()}")
-    
-    # Verify sorting - note: badges show abbreviated text (Extreme OS, Extreme OB)
-    priority_map = {
-        'Extreme OS': 5,  # Badge text for Extreme Oversold
-        'Extreme Oversold': 5,
-        'Oversold': 4,
-        'Neutral': 3,
-        'Overbought': 2,
-        'Extreme OB': 1,  # Badge text for Extreme Overbought
-        'Extreme Overbought': 1
-    }
-    
-    if len(signals) > 1:
-        for i in range(len(signals) - 1):
-            current_priority = priority_map.get(signals[i], 0)
-            next_priority = priority_map.get(signals[i + 1], 0)
-            assert current_priority >= next_priority, \
-                f"Sorting incorrect at row {i+1}: {signals[i]} (priority {current_priority}) should come before {signals[i + 1]} (priority {next_priority})"
 
