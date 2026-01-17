@@ -1131,6 +1131,7 @@ async def debug_index(request: Request):
 async def scheduler_log_page(request: Request, limit: int = Query(50, description="Number of log entries to display")):
     """
     Debug page for displaying scheduler log data.
+    Dynamically displays all fields from SchedulerLog model.
     
     Args:
         limit: Number of log entries to display (default: 50)
@@ -1141,18 +1142,40 @@ async def scheduler_log_page(request: Request, limit: int = Query(50, descriptio
     from sqlmodel import Session, select
     from app.database import engine
     from app.models.scheduler_log import SchedulerLog
+    from app.helpers.model_helpers import get_table_columns, format_field_value
     
     try:
         with Session(engine) as session:
             statement = select(SchedulerLog).order_by(SchedulerLog.id.desc()).limit(limit)
             log_entries = session.exec(statement).all()
         
-        # Format log entries for display
+        # Get dynamic columns from model + computed columns
+        custom_labels = {
+            "id": "ID",
+            "start_time": "Start Time",
+            "end_time": "End Time",
+            "notes": "Notes"
+        }
+        extra_columns = [
+            {"field": "duration_formatted", "label": "Duration"},
+            {"field": "status", "label": "Status"}
+        ]
+        columns = get_table_columns(SchedulerLog, custom_labels, extra_columns)
+        
+        # Format log entries for display - dynamically iterate over model fields
         log_data = []
         completed_count = 0
         in_progress_count = 0
         
         for entry in log_entries:
+            # Build row dynamically from model fields
+            row = {}
+            for field_name in SchedulerLog.__fields__:
+                value = getattr(entry, field_name, None)
+                row[field_name] = format_field_value(value, field_name)
+                row[f"{field_name}_raw"] = value  # Keep raw value for special handling
+            
+            # Add computed columns
             duration = None
             if entry.end_time:
                 duration = (entry.end_time - entry.start_time).total_seconds()
@@ -1160,17 +1183,25 @@ async def scheduler_log_page(request: Request, limit: int = Query(50, descriptio
             else:
                 in_progress_count += 1
             
-            log_data.append({
-                "id": entry.id,
-                "start_time": entry.start_time.isoformat() if entry.start_time else None,
-                "end_time": entry.end_time.isoformat() if entry.end_time else None,
-                "duration_seconds": round(duration, 2) if duration else None,
-                "duration_formatted": _format_duration(duration) if duration else "In Progress",
-                "notes": entry.notes
-            })
+            row["duration_formatted"] = _format_duration(duration) if duration else "In Progress"
+            row["duration_seconds"] = round(duration, 2) if duration else None
+            
+            # Determine status from notes
+            if entry.end_time:
+                if entry.notes and (entry.notes.startswith('Error:') or 'error' in entry.notes.lower()):
+                    row["status"] = "error"
+                elif entry.notes and 'Skipped' in entry.notes:
+                    row["status"] = "skipped"
+                else:
+                    row["status"] = "completed"
+            else:
+                row["status"] = "in_progress"
+            
+            log_data.append(row)
         
         return templates.TemplateResponse("scheduler_log.html", {
             "request": request,
+            "columns": columns,
             "log_entries": log_data,
             "limit": limit,
             "total_count": len(log_data),
@@ -1180,6 +1211,7 @@ async def scheduler_log_page(request: Request, limit: int = Query(50, descriptio
     except Exception as e:
         return templates.TemplateResponse("scheduler_log.html", {
             "request": request,
+            "columns": [],
             "log_entries": [],
             "limit": limit,
             "total_count": 0,
@@ -1208,6 +1240,7 @@ def _format_duration(seconds: float) -> str:
 async def rr_history_log_page(request: Request, limit: int = Query(50, description="Number of log entries to display")):
     """
     Debug page for displaying RR history update log data.
+    Dynamically displays all fields from RRHistoryLog model.
     
     Args:
         limit: Number of log entries to display (default: 50)
@@ -1218,18 +1251,40 @@ async def rr_history_log_page(request: Request, limit: int = Query(50, descripti
     from sqlmodel import Session, select
     from app.database import engine
     from app.models.rr_history_log import RRHistoryLog
+    from app.helpers.model_helpers import get_table_columns, format_field_value
     
     try:
         with Session(engine) as session:
             statement = select(RRHistoryLog).order_by(RRHistoryLog.id.desc()).limit(limit)
             log_entries = session.exec(statement).all()
         
-        # Format log entries for display
+        # Get dynamic columns from model + computed columns
+        custom_labels = {
+            "id": "ID",
+            "start_time": "Start Time",
+            "end_time": "End Time",
+            "notes": "Notes"
+        }
+        extra_columns = [
+            {"field": "duration_formatted", "label": "Duration"},
+            {"field": "status", "label": "Status"}
+        ]
+        columns = get_table_columns(RRHistoryLog, custom_labels, extra_columns)
+        
+        # Format log entries for display - dynamically iterate over model fields
         log_data = []
         completed_count = 0
         in_progress_count = 0
         
         for entry in log_entries:
+            # Build row dynamically from model fields
+            row = {}
+            for field_name in RRHistoryLog.__fields__:
+                value = getattr(entry, field_name, None)
+                row[field_name] = format_field_value(value, field_name)
+                row[f"{field_name}_raw"] = value  # Keep raw value for special handling
+            
+            # Add computed columns
             duration = None
             if entry.end_time:
                 duration = (entry.end_time - entry.start_time).total_seconds()
@@ -1237,17 +1292,25 @@ async def rr_history_log_page(request: Request, limit: int = Query(50, descripti
             else:
                 in_progress_count += 1
             
-            log_data.append({
-                "id": entry.id,
-                "start_time": entry.start_time.isoformat() if entry.start_time else None,
-                "end_time": entry.end_time.isoformat() if entry.end_time else None,
-                "duration_seconds": round(duration, 2) if duration else None,
-                "duration_formatted": _format_duration(duration) if duration else "In Progress",
-                "notes": entry.notes
-            })
+            row["duration_formatted"] = _format_duration(duration) if duration else "In Progress"
+            row["duration_seconds"] = round(duration, 2) if duration else None
+            
+            # Determine status from notes
+            if entry.end_time:
+                if entry.notes and (entry.notes.startswith('Error:') or 'error' in entry.notes.lower()):
+                    row["status"] = "error"
+                elif entry.notes and 'Skipped' in entry.notes:
+                    row["status"] = "skipped"
+                else:
+                    row["status"] = "completed"
+            else:
+                row["status"] = "in_progress"
+            
+            log_data.append(row)
         
         return templates.TemplateResponse("rr_history_log.html", {
             "request": request,
+            "columns": columns,
             "log_entries": log_data,
             "limit": limit,
             "total_count": len(log_data),
@@ -1257,6 +1320,7 @@ async def rr_history_log_page(request: Request, limit: int = Query(50, descripti
     except Exception as e:
         return templates.TemplateResponse("rr_history_log.html", {
             "request": request,
+            "columns": [],
             "log_entries": [],
             "limit": limit,
             "total_count": 0,
