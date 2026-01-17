@@ -32,6 +32,8 @@ def create_db_and_tables():
     _migrate_stock_attributes_earnings_columns()
     # Add next_dividend_date column to stock_attributes if it doesn't exist
     _migrate_stock_attributes_dividend_date_column()
+    # Fix dividend yield values that were incorrectly multiplied by 100
+    _fix_dividend_yield_values()
     # Add call_price and put_price columns to rr_history if they don't exist
     _migrate_rr_history_price_columns()
     # Rename net_cost to curr_value in rr_history if needed
@@ -281,6 +283,42 @@ def _migrate_stock_attributes_dividend_date_column():
     except Exception as e:
         # If migration fails, log but don't crash
         print(f"Warning: Could not migrate stock_attributes dividend date column: {e}")
+
+
+def _fix_dividend_yield_values():
+    """
+    One-time fix for dividend yield values that were incorrectly multiplied by 100.
+    yfinance returns dividendYield as a percentage (e.g., 2.43 means 2.43%),
+    but old code incorrectly multiplied by 100 again, resulting in 243% instead of 2.43%.
+    
+    This migration divides all dividend yields > 20 by 100 to correct them.
+    """
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            # Update dividend yields that are > 20 (clearly wrong - no stock has 20%+ yield)
+            # These values were incorrectly multiplied by 100
+            if is_sqlite:
+                result = session.exec(text(
+                    "UPDATE stock_attributes SET dividend_yield = dividend_yield / 100 "
+                    "WHERE dividend_yield > 20"
+                ))
+            else:
+                result = session.exec(text(
+                    "UPDATE stock_attributes SET dividend_yield = dividend_yield / 100 "
+                    "WHERE dividend_yield > 20"
+                ))
+            
+            session.commit()
+            
+            # Check how many were updated
+            affected = result.rowcount if hasattr(result, 'rowcount') else 0
+            if affected > 0:
+                print(f"Fixed {affected} incorrect dividend yield values (divided by 100)")
+    except Exception as e:
+        # If migration fails, log but don't crash
+        print(f"Warning: Could not fix dividend yield values: {e}")
 
 
 def _migrate_rr_history_price_columns():

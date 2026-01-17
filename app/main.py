@@ -410,6 +410,8 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         sorted_strikes = []
         covered_calls = []
         min_distance = None
+        risk_reversals = {}
+        min_distance_rr = None
         
         try:
             from app.services.stock_service import get_options_data, calculate_covered_call_returns
