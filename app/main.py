@@ -1187,10 +1187,11 @@ async def scheduler_log_page(request: Request, limit: int = Query(50, descriptio
             row["duration_seconds"] = round(duration, 2) if duration else None
             
             # Determine status from notes
+            # Only mark as error if notes explicitly starts with "Error:" prefix
             if entry.end_time:
-                if entry.notes and (entry.notes.startswith('Error:') or 'error' in entry.notes.lower()):
+                if entry.notes and entry.notes.startswith('Error:'):
                     row["status"] = "error"
-                elif entry.notes and 'Skipped' in entry.notes:
+                elif entry.notes and ('Skipped' in entry.notes or 'skipped' in entry.notes):
                     row["status"] = "skipped"
                 else:
                     row["status"] = "completed"
@@ -1296,10 +1297,11 @@ async def rr_history_log_page(request: Request, limit: int = Query(50, descripti
             row["duration_seconds"] = round(duration, 2) if duration else None
             
             # Determine status from notes
+            # Only mark as error if notes explicitly starts with "Error:" prefix
             if entry.end_time:
-                if entry.notes and (entry.notes.startswith('Error:') or 'error' in entry.notes.lower()):
+                if entry.notes and entry.notes.startswith('Error:'):
                     row["status"] = "error"
-                elif entry.notes and 'Skipped' in entry.notes:
+                elif entry.notes and ('Skipped' in entry.notes or 'skipped' in entry.notes):
                     row["status"] = "skipped"
                 else:
                     row["status"] = "completed"

@@ -32,6 +32,18 @@
         .error {
             color: #dc3545;
         }
+        /* Allow notes column to wrap and show full text */
+        .notes-text {
+            white-space: normal;
+            word-break: break-word;
+            max-width: 400px;
+            display: inline-block;
+        }
+        /* Tabulator notes column override */
+        .tabulator .tabulator-cell[tabulator-field="notes"] {
+            white-space: normal !important;
+            word-break: break-word !important;
+        }
     </style>
 </head>
 <body>
@@ -105,9 +117,9 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     {% elif col.field == 'notes' %}
-                                        {# Special rendering for notes #}
+                                        {# Special rendering for notes - show full text #}
                                         {% if entry[col.field] %}
-                                            <small>{{ entry[col.field] }}</small>
+                                            <span class="notes-text">{{ entry[col.field] }}</span>
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}
