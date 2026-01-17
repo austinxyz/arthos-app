@@ -72,10 +72,11 @@
             </div>
         </div>
         
-        {% if attributes %}
+        {% if attributes_fields %}
         <div class="card attributes-card">
             <div class="card-body">
                 <h5 class="card-title">Stock Attributes (All Fields)</h5>
+                <p class="text-muted small">Fields are automatically displayed from the StockAttributes model</p>
                 <div id="attributesTableTabulator"></div>
                 <table id="attributesTable" class="table table-bordered">
                     <thead class="table-light">
@@ -85,52 +86,28 @@
                         </tr>
                     </thead>
                     <tbody>
+                        {% for attr in attributes_fields %}
                         <tr>
-                            <td><strong>Ticker</strong></td>
-                            <td><strong>{{ attributes.ticker }}</strong></td>
-                        </tr>
-                        <tr>
-                            <td>Earliest Date</td>
-                            <td>{{ attributes.earliest_date }}</td>
-                        </tr>
-                        <tr>
-                            <td>Latest Date</td>
-                            <td>{{ attributes.latest_date }}</td>
-                        </tr>
-                        <tr>
-                            <td>Dividend Amount</td>
-                            <td>{% if attributes.dividend_amt %}${{ "%.4f"|format(attributes.dividend_amt) }}{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-                        </tr>
-                        <tr>
-                            <td>Dividend Yield</td>
-                            <td>{% if attributes.dividend_yield %}{{ "%.4f"|format(attributes.dividend_yield) }}%{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
-                        </tr>
-                        <tr>
-                            <td>Next Earnings Date</td>
+                            <td>{% if attr.is_ticker %}<strong>{{ attr.label }}</strong>{% else %}{{ attr.label }}{% endif %}</td>
                             <td>
-                                {% if attributes.next_earnings_date_formatted %}
-                                    {{ attributes.next_earnings_date_formatted }}
-                                {% elif attributes.next_earnings_date %}
-                                    {{ attributes.next_earnings_date }}
-                                {% else %}
+                                {% if attr.value is none %}
                                     <span class="text-muted">N/A</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>Is Earnings Date Estimate</td>
-                            <td>
-                                {% if attributes.is_earnings_date_estimate is not none %}
-                                    {% if attributes.is_earnings_date_estimate %}
-                                        <span class="badge bg-warning text-dark">Yes (Estimated)</span>
+                                {% elif attr.is_ticker %}
+                                    <strong>{{ attr.value }}</strong>
+                                {% elif attr.field == 'is_earnings_date_estimate' %}
+                                    {% if attr.raw_value is none %}
+                                        <span class="text-muted">N/A</span>
+                                    {% elif attr.raw_value %}
+                                        <span class="badge bg-warning text-dark">Estimated</span>
                                     {% else %}
-                                        <span class="badge bg-success">No (Confirmed)</span>
+                                        <span class="badge bg-success">Confirmed</span>
                                     {% endif %}
                                 {% else %}
-                                    <span class="text-muted">N/A</span>
+                                    {{ attr.value }}
                                 {% endif %}
                             </td>
                         </tr>
+                        {% endfor %}
                     </tbody>
                 </table>
             </div>

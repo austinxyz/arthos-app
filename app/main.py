@@ -967,32 +967,66 @@ async def debug_stock_price_page(request: Request, ticker: str = Query("", descr
             "dma_200": float(price.dma_200) if price.dma_200 else None
         })
     
-    # Format all stock attributes for display
+    # Format all stock attributes for display - dynamically iterate over model fields
+    # This ensures new fields added to StockAttributes are automatically displayed
     attributes_data = None
+    attributes_fields = []  # List of (field_name, display_name, formatted_value)
     if attributes:
-        # Format earnings date
-        next_earnings_date_formatted = None
-        if attributes.next_earnings_date:
-            next_earnings_date_formatted = attributes.next_earnings_date.strftime('%b %d, %Y')
-            if attributes.is_earnings_date_estimate:
-                next_earnings_date_formatted += ' (Est.)'
+        from datetime import date as date_type
+        from decimal import Decimal
         
-        attributes_data = {
-            "ticker": attributes.ticker,
-            "earliest_date": attributes.earliest_date.isoformat(),
-            "latest_date": attributes.latest_date.isoformat(),
-            "dividend_amt": float(attributes.dividend_amt) if attributes.dividend_amt else None,
-            "dividend_yield": float(attributes.dividend_yield) if attributes.dividend_yield else None,
-            "next_earnings_date": attributes.next_earnings_date.isoformat() if attributes.next_earnings_date else None,
-            "next_earnings_date_formatted": next_earnings_date_formatted,
-            "is_earnings_date_estimate": attributes.is_earnings_date_estimate
+        # Get all field names from the model (excluding internal SQLModel fields)
+        model_fields = attributes.__class__.__fields__
+        
+        # Define display name mappings for prettier labels
+        display_names = {
+            "ticker": "Ticker",
+            "earliest_date": "Earliest Date",
+            "latest_date": "Latest Date",
+            "dividend_amt": "Dividend Amount",
+            "dividend_yield": "Dividend Yield",
+            "next_earnings_date": "Next Earnings Date",
+            "is_earnings_date_estimate": "Earnings Date Confirmed",
+            "next_dividend_date": "Next Dividend Date",
         }
+        
+        for field_name in model_fields:
+            value = getattr(attributes, field_name, None)
+            display_name = display_names.get(field_name, field_name.replace("_", " ").title())
+            
+            # Format value based on type
+            if value is None:
+                formatted_value = None
+            elif isinstance(value, date_type):
+                formatted_value = value.strftime('%b %d, %Y')
+            elif isinstance(value, Decimal):
+                if 'yield' in field_name.lower():
+                    formatted_value = f"{float(value):.4f}%"
+                elif 'amt' in field_name.lower() or 'amount' in field_name.lower():
+                    formatted_value = f"${float(value):.4f}"
+                else:
+                    formatted_value = f"{float(value):.4f}"
+            elif isinstance(value, bool):
+                formatted_value = "Yes" if value else "No"
+            elif field_name == "is_earnings_date_estimate":
+                # Special handling: invert for "Confirmed" display
+                formatted_value = "No (Estimated)" if value else "Yes (Confirmed)"
+            else:
+                formatted_value = str(value)
+            
+            attributes_fields.append({
+                "field": field_name,
+                "label": display_name,
+                "value": formatted_value,
+                "raw_value": value,
+                "is_ticker": field_name == "ticker"
+            })
     
     return templates.TemplateResponse("debug_stock_price.html", {
         "request": request,
         "ticker": ticker if ticker else "",
         "prices": prices_data,
-        "attributes": attributes_data,
+        "attributes_fields": attributes_fields,
         "error_message": error_message
     })
 
