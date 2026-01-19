@@ -303,8 +303,12 @@
                     {% endfor %}
                 </tbody>
             </table>
+            {% else %}
+            <div class="alert alert-info">
+                No stocks in this watchlist. Add stocks using the form above.
+            </div>
+            {% endif %}
         </div>
-    </div>
 
     {% include 'partials/datatables_scripts.html' %}
     <script src="/static/js/datatables_init.js"></script>
