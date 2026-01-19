@@ -808,10 +808,11 @@ async def create_watchlist(watchlist: WatchListCreate):
     from app.services.watchlist_service import create_watchlist
     
     try:
-        new_watchlist = create_watchlist(watchlist.watchlist_name)
+        new_watchlist = create_watchlist(watchlist.watchlist_name, watchlist.description)
         return {
             "watchlist_id": str(new_watchlist.watchlist_id),
             "watchlist_name": new_watchlist.watchlist_name,
+            "description": new_watchlist.description,
             "date_added": new_watchlist.date_added.isoformat(),
             "date_modified": new_watchlist.date_modified.isoformat()
         }
