@@ -1,5 +1,6 @@
 """FastAPI application for Arthos investment analysis."""
 from contextlib import asynccontextmanager
+from typing import Optional
 from fastapi import FastAPI, Request, HTTPException, Query, Path as FPath
 from fastapi.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
