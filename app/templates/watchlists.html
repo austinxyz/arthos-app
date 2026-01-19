@@ -34,8 +34,10 @@
                 <thead class="table-dark">
                     <tr>
                         <th>WatchList Name</th>
+                        <th>Description</th>
                         <th>Date Added</th>
                         <th>Last Modified</th>
+                        <th data-orderable="false">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -46,8 +48,23 @@
                                 <strong>{{ watchlist.watchlist_name }}</strong>
                             </a>
                         </td>
+                        <td>
+                            {% if watchlist.description %}
+                                <span class="text-muted">{{ watchlist.description }}</span>
+                            {% else %}
+                                <span class="text-muted fst-italic">-</span>
+                            {% endif %}
+                        </td>
                         <td>{{ watchlist.date_added }}</td>
                         <td>{{ watchlist.date_modified }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="deleteWatchlist('{{ watchlist.watchlist_id }}', '{{ watchlist.watchlist_name }}')" title="Delete watchlist">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
+                                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                                    <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                                </svg>
+                            </button>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -64,12 +81,35 @@
         $(document).ready(function() {
             initDataTable('watchlistsTable', {
                 pageLength: 25,
-                order: [[2, "desc"]], // Sort by last modified descending
+                order: [[3, "desc"]], // Sort by last modified descending (column index changed due to new columns)
                 columnDefs: [
-                    { orderable: true, targets: "_all" }
+                    { orderable: false, targets: [4] } // Actions column is not sortable
                 ]
             });
         });
+        
+        async function deleteWatchlist(watchlistId, watchlistName) {
+            if (!confirm(`Are you sure you want to delete "${watchlistName}"? This action cannot be undone and will remove all stocks in this watchlist.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/v1/watchlist/${watchlistId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    const data = await response.json();
+                    throw new Error(data.detail || 'Failed to delete watchlist');
+                }
+                
+                // Show success message and reload page
+                alert(`Watchlist "${watchlistName}" has been deleted successfully.`);
+                window.location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>
