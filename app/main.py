@@ -981,7 +981,8 @@ async def debug_stock_price_page(request: Request, ticker: str = Query("", descr
             "high_price": float(price.high_price),
             "low_price": float(price.low_price),
             "dma_50": float(price.dma_50) if price.dma_50 else None,
-            "dma_200": float(price.dma_200) if price.dma_200 else None
+            "dma_200": float(price.dma_200) if price.dma_200 else None,
+            "iv": float(price.iv) if price.iv else None
         })
     
     # Format all stock attributes for display - dynamically iterate over model fields

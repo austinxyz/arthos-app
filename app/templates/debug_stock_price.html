@@ -137,6 +137,7 @@
                                 <th>Close</th>
                                 <th>50 DMA</th>
                                 <th>200 DMA</th>
+                                <th>IV</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -150,6 +151,7 @@
                                 <td>${{ "%.4f"|format(price.close_price) }}</td>
                                 <td>{% if price.dma_50 %}${{ "%.4f"|format(price.dma_50) }}{% else %}N/A{% endif %}</td>
                                 <td>{% if price.dma_200 %}${{ "%.4f"|format(price.dma_200) }}{% else %}N/A{% endif %}</td>
+                                <td>{% if price.iv %}{{ "%.2f"|format(price.iv) }}%{% else %}<span class="text-muted">N/A</span>{% endif %}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
