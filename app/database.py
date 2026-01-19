@@ -41,6 +41,8 @@ def create_db_and_tables():
     # Add Collar columns to rr_watchlist and rr_history if they don't exist
     _migrate_rr_watchlist_collar_columns()
     _migrate_rr_history_collar_columns()
+    # Add IV columns to stock_attributes if they don't exist
+    _migrate_stock_attributes_iv_columns()
     # Create indexes on stock_price and stock_attributes for faster queries
     _create_stock_price_index()
     _create_stock_attributes_index()
@@ -515,6 +517,56 @@ def _migrate_rr_history_collar_columns():
                     print("Added short_call_price column to rr_history table")
     except Exception as e:
         print(f"Warning: Could not migrate rr_history Collar columns: {e}")
+
+
+def _migrate_stock_attributes_iv_columns():
+    """Add IV-related columns to stock_attributes table if they don't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            # Columns to add: current_iv, iv_rank, iv_percentile, iv_high_52w, iv_low_52w
+            iv_columns = [
+                ('current_iv', 'DECIMAL(12, 4)'),
+                ('iv_rank', 'DECIMAL(12, 4)'),
+                ('iv_percentile', 'DECIMAL(12, 4)'),
+                ('iv_high_52w', 'DECIMAL(12, 4)'),
+                ('iv_low_52w', 'DECIMAL(12, 4)')
+            ]
+            
+            if is_sqlite:
+                # SQLite-specific migration
+                for col_name, col_type in iv_columns:
+                    result = session.exec(text(
+                        f"PRAGMA table_info(stock_attributes)"
+                    )).all()
+                    
+                    column_exists = any(row[1] == col_name for row in result)
+                    
+                    if not column_exists:
+                        session.exec(text(
+                            f"ALTER TABLE stock_attributes ADD COLUMN {col_name} {col_type}"
+                        ))
+                        session.commit()
+                        print(f"Added {col_name} column to stock_attributes table")
+            else:
+                # PostgreSQL-specific migration
+                for col_name, col_type in iv_columns:
+                    result = session.exec(text(
+                        "SELECT column_name FROM information_schema.columns "
+                        f"WHERE table_name = 'stock_attributes' AND column_name = '{col_name}'"
+                    )).first()
+                    
+                    if not result:
+                        # Use DECIMAL for PostgreSQL
+                        pg_type = 'DECIMAL' if 'DECIMAL' in col_type else col_type
+                        session.exec(text(
+                            f"ALTER TABLE stock_attributes ADD COLUMN {col_name} {pg_type}"
+                        ))
+                        session.commit()
+                        print(f"Added {col_name} column to stock_attributes table")
+    except Exception as e:
+        print(f"Warning: Could not migrate stock_attributes IV columns: {e}")
 
 
 def _create_stock_price_index():

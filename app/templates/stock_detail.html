@@ -304,16 +304,24 @@
                                                 <th>Put Last</th>
                                                 <th>Put Bid</th>
                                                 <th>Put Ask</th>
-                                                <th>Put Volume</th>
-                                                <th>Put Open Int</th>
+                                                <th>Put Vol</th>
+                                                <th>Put OI</th>
                                                 <th>Put IV</th>
-                                                <th>Strike</th>
+                                                <th>Put Δ</th>
+                                                <th>Put Γ</th>
+                                                <th>Put Θ</th>
+                                                <th>Put V</th>
+                                                <th class="table-secondary">Strike</th>
                                                 <th>Call Last</th>
                                                 <th>Call Bid</th>
                                                 <th>Call Ask</th>
-                                                <th>Call Volume</th>
-                                                <th>Call Open Int</th>
+                                                <th>Call Vol</th>
+                                                <th>Call OI</th>
                                                 <th>Call IV</th>
+                                                <th>Call Δ</th>
+                                                <th>Call Γ</th>
+                                                <th>Call Θ</th>
+                                                <th>Call V</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -383,9 +391,38 @@
                                             <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
+                                    {# Put Greeks #}
+                                    <td>
+                                        {% if strike_data.put and strike_data.put.delta is not none %}
+                                            {{ "%.3f"|format(strike_data.put.delta) }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if strike_data.put and strike_data.put.gamma is not none %}
+                                            {{ "%.4f"|format(strike_data.put.gamma) }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if strike_data.put and strike_data.put.theta is not none %}
+                                            {{ "%.3f"|format(strike_data.put.theta) }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if strike_data.put and strike_data.put.vega is not none %}
+                                            {{ "%.3f"|format(strike_data.put.vega) }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
                                     
                                     {# Strike price (center) - always 1 column #}
-                                    <td class="text-center fw-bold">${{ "%.2f"|format(strike) }}</td>
+                                    <td class="text-center fw-bold table-secondary">${{ "%.2f"|format(strike) }}</td>
                                     
                                     {# Call columns - always 6 columns #}
                                     <td>
@@ -426,6 +463,35 @@
                                     <td>
                                         {% if strike_data.call and strike_data.call.impliedVolatility is not none %}
                                             {{ "%.2f"|format(strike_data.call.impliedVolatility) }}%
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    {# Call Greeks #}
+                                    <td>
+                                        {% if strike_data.call and strike_data.call.delta is not none %}
+                                            {{ "%.3f"|format(strike_data.call.delta) }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if strike_data.call and strike_data.call.gamma is not none %}
+                                            {{ "%.4f"|format(strike_data.call.gamma) }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if strike_data.call and strike_data.call.theta is not none %}
+                                            {{ "%.3f"|format(strike_data.call.theta) }}
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if strike_data.call and strike_data.call.vega is not none %}
+                                            {{ "%.3f"|format(strike_data.call.vega) }}
                                         {% else %}
                                             <span class="text-muted">-</span>
                                         {% endif %}

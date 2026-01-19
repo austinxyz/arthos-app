@@ -88,3 +88,29 @@ class StockAttributes(SQLModel, table=True):
         default=None,
         description="Next ex-dividend date"
     )
+    # Implied Volatility data
+    current_iv: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="Current implied volatility (ATM options average)"
+    )
+    iv_rank: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="IV Rank: (Current IV - 52wk Low) / (52wk High - 52wk Low) * 100"
+    )
+    iv_percentile: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="IV Percentile: % of days in past year with lower IV"
+    )
+    iv_high_52w: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="52-week high implied volatility"
+    )
+    iv_low_52w: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="52-week low implied volatility"
+    )

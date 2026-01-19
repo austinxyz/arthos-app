@@ -295,6 +295,9 @@ class YFinanceProvider(StockDataProvider):
             calls = []
             if opt_chain.calls is not None and not opt_chain.calls.empty:
                 for _, row in opt_chain.calls.iterrows():
+                    # yfinance returns IV as decimal (0.25 = 25%), convert to percentage
+                    iv_raw = row.get('impliedVolatility')
+                    iv = float(iv_raw) * 100 if pd.notna(iv_raw) else None
                     calls.append(OptionQuote(
                         contract_symbol=str(row.get('contractSymbol', '')),
                         strike=float(row.get('strike', 0)),
@@ -303,13 +306,22 @@ class YFinanceProvider(StockDataProvider):
                         last_price=float(row.get('lastPrice')) if pd.notna(row.get('lastPrice')) else None,
                         volume=int(row.get('volume')) if pd.notna(row.get('volume')) else None,
                         open_interest=int(row.get('openInterest')) if pd.notna(row.get('openInterest')) else None,
-                        implied_volatility=float(row.get('impliedVolatility')) if pd.notna(row.get('impliedVolatility')) else None
+                        implied_volatility=iv,
+                        # yfinance doesn't provide Greeks - they will be None
+                        delta=None,
+                        gamma=None,
+                        theta=None,
+                        vega=None,
+                        rho=None
                     ))
             
             # Convert puts DataFrame to list of OptionQuote
             puts = []
             if opt_chain.puts is not None and not opt_chain.puts.empty:
                 for _, row in opt_chain.puts.iterrows():
+                    # yfinance returns IV as decimal (0.25 = 25%), convert to percentage
+                    iv_raw = row.get('impliedVolatility')
+                    iv = float(iv_raw) * 100 if pd.notna(iv_raw) else None
                     puts.append(OptionQuote(
                         contract_symbol=str(row.get('contractSymbol', '')),
                         strike=float(row.get('strike', 0)),
@@ -318,7 +330,13 @@ class YFinanceProvider(StockDataProvider):
                         last_price=float(row.get('lastPrice')) if pd.notna(row.get('lastPrice')) else None,
                         volume=int(row.get('volume')) if pd.notna(row.get('volume')) else None,
                         open_interest=int(row.get('openInterest')) if pd.notna(row.get('openInterest')) else None,
-                        implied_volatility=float(row.get('impliedVolatility')) if pd.notna(row.get('impliedVolatility')) else None
+                        implied_volatility=iv,
+                        # yfinance doesn't provide Greeks - they will be None
+                        delta=None,
+                        gamma=None,
+                        theta=None,
+                        vega=None,
+                        rho=None
                     ))
             
             if not calls and not puts:

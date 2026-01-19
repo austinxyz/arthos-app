@@ -31,7 +31,7 @@ class StockInfo:
 
 @dataclass
 class OptionQuote:
-    """Standardized option quote data."""
+    """Standardized option quote data with Greeks."""
     contract_symbol: str
     strike: float
     bid: Optional[float]
@@ -40,6 +40,12 @@ class OptionQuote:
     volume: Optional[int]
     open_interest: Optional[int]
     implied_volatility: Optional[float]
+    # Greeks
+    delta: Optional[float] = None
+    gamma: Optional[float] = None
+    theta: Optional[float] = None
+    vega: Optional[float] = None
+    rho: Optional[float] = None
 
 
 @dataclass

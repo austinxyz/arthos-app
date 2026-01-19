@@ -397,6 +397,8 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
     Fetch options data for a stock with expiration within 90 days and strikes within 10% of current price.
     Returns data organized by strike price for straddle display.
     
+    Uses the options provider (MarketData.app if configured) to get Greeks with the data.
+    
     Args:
         ticker: Stock ticker symbol
         current_price: Current stock price
@@ -407,7 +409,8 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
         - options_by_strike: Dictionary mapping strike prices to dict with 'put' and 'call' data
     """
     try:
-        provider = ProviderFactory.get_default_provider()
+        # Use options provider for Greeks support (MarketData if configured, else yfinance)
+        provider = ProviderFactory.get_options_provider()
         
         # Get all available expiration dates
         try:
@@ -461,7 +464,13 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
                     'ask': round(call.ask, 2) if call.ask is not None else None,
                     'volume': call.volume if call.volume is not None else 0,
                     'openInterest': call.open_interest if call.open_interest is not None else 0,
-                    'impliedVolatility': round(call.implied_volatility * 100, 2) if call.implied_volatility is not None else None,
+                    'impliedVolatility': round(call.implied_volatility, 2) if call.implied_volatility is not None else None,
+                    # Greeks from MarketData or other provider
+                    'delta': round(call.delta, 4) if call.delta is not None else None,
+                    'gamma': round(call.gamma, 5) if call.gamma is not None else None,
+                    'theta': round(call.theta, 4) if call.theta is not None else None,
+                    'vega': round(call.vega, 4) if call.vega is not None else None,
+                    'rho': round(call.rho, 4) if call.rho is not None else None,
                 }
         
         # Process puts
@@ -477,7 +486,13 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
                     'ask': round(put.ask, 2) if put.ask is not None else None,
                     'volume': put.volume if put.volume is not None else 0,
                     'openInterest': put.open_interest if put.open_interest is not None else 0,
-                    'impliedVolatility': round(put.implied_volatility * 100, 2) if put.implied_volatility is not None else None,
+                    'impliedVolatility': round(put.implied_volatility, 2) if put.implied_volatility is not None else None,
+                    # Greeks from MarketData or other provider
+                    'delta': round(put.delta, 4) if put.delta is not None else None,
+                    'gamma': round(put.gamma, 5) if put.gamma is not None else None,
+                    'theta': round(put.theta, 4) if put.theta is not None else None,
+                    'vega': round(put.vega, 4) if put.vega is not None else None,
+                    'rho': round(put.rho, 4) if put.rho is not None else None,
                 }
         
         return (last_expiration, options_by_strike)
