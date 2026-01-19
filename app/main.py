@@ -86,6 +86,7 @@ async def list_watchlists_page(request: Request):
         watchlists_data.append({
             "watchlist_id": str(w.watchlist_id),
             "watchlist_name": w.watchlist_name,
+            "description": w.description,
             "date_added": w.date_added.strftime("%Y-%m-%d %H:%M:%S"),
             "date_modified": w.date_modified.strftime("%Y-%m-%d %H:%M:%S")
         })
@@ -718,10 +719,12 @@ async def validate_tickers(tickers: str = Query(..., description="Comma-separate
 # WatchList API Models
 class WatchListCreate(BaseModel):
     watchlist_name: str
+    description: Optional[str] = None
 
 
 class WatchListUpdate(BaseModel):
     watchlist_name: str
+    description: Optional[str] = None
 
 
 class AddStocksRequest(BaseModel):
@@ -745,6 +748,7 @@ async def list_watchlists():
             {
                 "watchlist_id": str(w.watchlist_id),
                 "watchlist_name": w.watchlist_name,
+                "description": w.description,
                 "date_added": w.date_added.isoformat(),
                 "date_modified": w.date_modified.isoformat()
             }
@@ -775,6 +779,7 @@ async def get_watchlist(watchlist_id: UUID = FPath(...)):
     return {
         "watchlist_id": str(watchlist.watchlist_id),
         "watchlist_name": watchlist.watchlist_name,
+        "description": watchlist.description,
         "date_added": watchlist.date_added.isoformat(),
         "date_modified": watchlist.date_modified.isoformat(),
         "stocks": [
@@ -815,28 +820,29 @@ async def create_watchlist(watchlist: WatchListCreate):
 @app.put("/v1/watchlist/{watchlist_id}")
 async def update_watchlist(watchlist_id: UUID = FPath(...), watchlist: WatchListUpdate = None):
     """
-    Update watchlist name.
+    Update watchlist name and/or description.
     
     Args:
         watchlist_id: UUID of the watchlist
-        watchlist: WatchList update request with watchlist_name
+        watchlist: WatchList update request with watchlist_name and optional description
         
     Returns:
         JSON response with updated watchlist
     """
-    from app.services.watchlist_service import update_watchlist_name
+    from app.services.watchlist_service import update_watchlist
     
     if not watchlist:
         raise HTTPException(status_code=400, detail="WatchList name is required")
     
     try:
-        updated_watchlist = update_watchlist_name(watchlist_id, watchlist.watchlist_name)
+        updated_watchlist = update_watchlist(watchlist_id, watchlist.watchlist_name, watchlist.description)
         if not updated_watchlist:
             raise HTTPException(status_code=404, detail="WatchList not found")
         
         return {
             "watchlist_id": str(updated_watchlist.watchlist_id),
             "watchlist_name": updated_watchlist.watchlist_name,
+            "description": updated_watchlist.description,
             "date_added": updated_watchlist.date_added.isoformat(),
             "date_modified": updated_watchlist.date_modified.isoformat()
         }

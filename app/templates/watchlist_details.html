@@ -111,6 +111,38 @@
                     </span>
                 </div>
             </div>
+            {# Description Section #}
+            <div class="mt-3">
+                <span class="watchlist-description-display" id="watchlistDescriptionDisplay">
+                    {% if watchlist.description %}
+                        <p class="text-muted mb-0">{{ watchlist.description }}</p>
+                    {% else %}
+                        <p class="text-muted mb-0 fst-italic">No description</p>
+                    {% endif %}
+                    <button class="btn btn-sm btn-outline-secondary mt-1" onclick="editWatchListDescription()">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
+                            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                        </svg>
+                        Edit
+                    </button>
+                </span>
+                <span class="watchlist-description-edit" id="watchlistDescriptionEdit" style="display: none;">
+                    <textarea 
+                        class="form-control" 
+                        id="watchlistDescriptionInput" 
+                        maxlength="265" 
+                        rows="3"
+                        style="width: 100%; max-width: 600px;"
+                    >{{ watchlist.description or '' }}</textarea>
+                    <div class="form-text mt-1">
+                        <span id="descriptionCharCount">{{ (watchlist.description or '')|length }}</span>/265 characters
+                    </div>
+                    <div class="mt-2">
+                        <button class="btn btn-sm btn-success" onclick="saveWatchListDescription()">Save</button>
+                        <button class="btn btn-sm btn-secondary ms-2" onclick="cancelEditWatchListDescription()">Cancel</button>
+                    </div>
+                </span>
+            </div>
         </div>
         
         <div class="card mb-4">
@@ -453,7 +485,8 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        watchlist_name: newName
+                        watchlist_name: newName,
+                        description: '{{ watchlist.description or "" }}'
                     })
                 });
                 
@@ -543,6 +576,65 @@
                 columnDefs: columnDefs
             });
         });
+        
+        function editWatchListDescription() {
+            document.getElementById('watchlistDescriptionDisplay').style.display = 'none';
+            document.getElementById('watchlistDescriptionEdit').style.display = 'block';
+            document.getElementById('watchlistDescriptionInput').focus();
+            
+            // Character counter
+            const textarea = document.getElementById('watchlistDescriptionInput');
+            const charCount = document.getElementById('descriptionCharCount');
+            textarea.addEventListener('input', function() {
+                charCount.textContent = this.value.length;
+            });
+        }
+        
+        function cancelEditWatchListDescription() {
+            document.getElementById('watchlistDescriptionInput').value = '{{ watchlist.description or "" }}';
+            document.getElementById('descriptionCharCount').textContent = '{{ (watchlist.description or "")|length }}';
+            document.getElementById('watchlistDescriptionDisplay').style.display = 'block';
+            document.getElementById('watchlistDescriptionEdit').style.display = 'none';
+        }
+        
+        async function saveWatchListDescription() {
+            const newDescription = document.getElementById('watchlistDescriptionInput').value.trim();
+            const oldDescription = '{{ watchlist.description or "" }}';
+            
+            if (newDescription.length > 265) {
+                alert('Description cannot exceed 265 characters');
+                return;
+            }
+            
+            if (newDescription === oldDescription) {
+                cancelEditWatchListDescription();
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/v1/watchlist/${watchlistId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        watchlist_name: '{{ watchlist.watchlist_name }}',
+                        description: newDescription || null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to update description');
+                }
+                
+                // Refresh page to show updated description
+                window.location.reload();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
     </script>
 </body>
 </html>

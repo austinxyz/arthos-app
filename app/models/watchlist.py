@@ -26,6 +26,11 @@ class WatchList(SQLModel, table=True):
         default_factory=datetime.now,
         description="When the watchlist was last updated"
     )
+    description: Optional[str] = Field(
+        default=None,
+        max_length=265,
+        description="Optional brief description of the watchlist (max 265 characters)"
+    )
     
     # Relationship to watchlist stocks
     stocks: List["WatchListStock"] = Relationship(back_populates="watchlist", cascade_delete=True)

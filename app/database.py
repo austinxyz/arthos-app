@@ -45,6 +45,8 @@ def create_db_and_tables():
     _migrate_stock_attributes_iv_columns()
     # Add IV column to stock_price if it doesn't exist
     _migrate_stock_price_iv_column()
+    # Add description column to watchlist if it doesn't exist
+    _migrate_watchlist_description_column()
     # Create indexes on stock_price and stock_attributes for faster queries
     _create_stock_price_index()
     _create_stock_attributes_index()
@@ -606,6 +608,43 @@ def _migrate_stock_price_iv_column():
                     print("Added iv column to stock_price table")
     except Exception as e:
         print(f"Warning: Could not migrate stock_price IV column: {e}")
+
+
+def _migrate_watchlist_description_column():
+    """Add description column to watchlist table if it doesn't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            if is_sqlite:
+                # SQLite-specific migration
+                result = session.exec(text(
+                    "PRAGMA table_info(watchlist)"
+                )).all()
+                
+                column_exists = any(row[1] == 'description' for row in result)
+                
+                if not column_exists:
+                    session.exec(text(
+                        "ALTER TABLE watchlist ADD COLUMN description VARCHAR(265)"
+                    ))
+                    session.commit()
+                    print("Added description column to watchlist table")
+            else:
+                # PostgreSQL-specific migration
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'watchlist' AND column_name = 'description'"
+                )).first()
+                
+                if not result:
+                    session.exec(text(
+                        "ALTER TABLE watchlist ADD COLUMN description VARCHAR(265)"
+                    ))
+                    session.commit()
+                    print("Added description column to watchlist table")
+    except Exception as e:
+        print(f"Warning: Could not migrate watchlist description column: {e}")
 
 
 def _create_stock_price_index():

@@ -33,25 +33,30 @@ def validate_watchlist_name(name: str) -> bool:
     return all(c.isalnum() or c.isspace() for c in name)
 
 
-def create_watchlist(name: str) -> WatchList:
+def create_watchlist(name: str, description: str = None) -> WatchList:
     """
     Create a new watchlist.
     
     Args:
         name: WatchList name
+        description: Optional brief description (max 265 characters)
         
     Returns:
         Created WatchList object
         
     Raises:
-        ValueError: If name is invalid
+        ValueError: If name is invalid or description is too long
     """
     if not validate_watchlist_name(name):
         raise ValueError("WatchList name must be alphanumeric with spaces only, max 128 characters")
     
+    if description is not None and len(description) > 265:
+        raise ValueError("Description must be 265 characters or less")
+    
     with Session(engine) as session:
         watchlist = WatchList(
             watchlist_name=name.strip(),
+            description=description.strip() if description else None,
             date_added=datetime.now(),
             date_modified=datetime.now()
         )
@@ -117,6 +122,43 @@ def update_watchlist_name(watchlist_id: UUID, new_name: str) -> WatchList:
             raise ValueError(f"WatchList with ID {watchlist_id} not found")
         
         watchlist.watchlist_name = new_name.strip()
+        watchlist.date_modified = datetime.now()
+        session.add(watchlist)
+        session.commit()
+        session.refresh(watchlist)
+        return watchlist
+
+
+def update_watchlist(watchlist_id: UUID, new_name: str = None, description: str = None) -> WatchList:
+    """
+    Update watchlist name and/or description.
+    
+    Args:
+        watchlist_id: WatchList UUID
+        new_name: Optional new watchlist name
+        description: Optional new description (max 265 characters)
+        
+    Returns:
+        Updated WatchList object
+        
+    Raises:
+        ValueError: If name or description is invalid, or watchlist not found
+    """
+    with Session(engine) as session:
+        watchlist = session.get(WatchList, watchlist_id)
+        if not watchlist:
+            raise ValueError(f"WatchList with ID {watchlist_id} not found")
+        
+        if new_name is not None:
+            if not validate_watchlist_name(new_name):
+                raise ValueError("WatchList name must be alphanumeric with spaces only, max 128 characters")
+            watchlist.watchlist_name = new_name.strip()
+        
+        if description is not None:
+            if len(description) > 265:
+                raise ValueError("Description must be 265 characters or less")
+            watchlist.description = description.strip() if description.strip() else None
+        
         watchlist.date_modified = datetime.now()
         session.add(watchlist)
         session.commit()
