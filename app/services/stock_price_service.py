@@ -95,15 +95,16 @@ def update_stock_attributes(ticker: str, earliest_date: date, latest_date: date,
         session.refresh(attributes)
 
 
-def save_stock_prices(ticker: str, price_data: pd.DataFrame):
+def save_stock_prices(ticker: str, price_data: pd.DataFrame, iv_data: Optional[Dict[date, float]] = None):
     """
-    Save stock price data to database with moving averages.
+    Save stock price data to database with moving averages and IV.
     Only saves daily data (not intraday).
     Calculates 50-day and 200-day moving averages based on close prices.
     
     Args:
         ticker: Stock ticker symbol
         price_data: DataFrame with OHLC data, indexed by date
+        iv_data: Optional dictionary mapping date to IV value (percentage)
     """
     if price_data.empty:
         return
@@ -214,16 +215,24 @@ def save_stock_prices(ticker: str, price_data: pd.DataFrame):
             high_price = Decimal(str(row['High'])).quantize(Decimal('0.0001'))
             low_price = Decimal(str(row['Low'])).quantize(Decimal('0.0001'))
             
+            # Get IV for this date if available
+            iv_value = None
+            if iv_data and price_date in iv_data:
+                iv_value = Decimal(str(round(iv_data[price_date], 4))).quantize(Decimal('0.0001'))
+            
             # Check if record exists
             existing = session.get(StockPrice, (price_date, ticker_upper))
             
             if existing:
-                # Update existing record - but ONLY update prices, NOT moving averages
+                # Update existing record - but ONLY update prices and IV, NOT moving averages
                 # Moving averages for past days are immutable
                 existing.open_price = open_price
                 existing.close_price = close_price
                 existing.high_price = high_price
                 existing.low_price = low_price
+                # Update IV if provided (allows updating IV for existing dates)
+                if iv_value is not None:
+                    existing.iv = iv_value
                 # Do NOT update dma_50 and dma_200 for existing records
             else:
                 # Create new record - calculate moving averages for new dates only
@@ -245,7 +254,8 @@ def save_stock_prices(ticker: str, price_data: pd.DataFrame):
                     high_price=high_price,
                     low_price=low_price,
                     dma_50=dma_50,
-                    dma_200=dma_200
+                    dma_200=dma_200,
+                    iv=iv_value
                 )
                 session.add(stock_price)
             
@@ -455,8 +465,37 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
                 update_stock_attributes(ticker_upper, today, today)
             return pd.DataFrame(), 0
         
-        # Save prices - this also updates latest_date in stock_attributes immediately
-        save_stock_prices(ticker_upper, price_data)
+        # Calculate IV for today's date (if we have price data for today)
+        iv_data = {}
+        today = datetime.now().date()
+        
+        # Check if we're saving data for today
+        price_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in price_data.index]
+        if today in price_dates:
+            # Calculate IV from options data for today
+            try:
+                from app.services.stock_service import get_options_data
+                from app.services.options_cache_service import calculate_atm_iv
+                
+                # Get current price from latest data
+                current_price = float(price_data['Close'].iloc[-1]) if not price_data.empty else None
+                
+                if current_price:
+                    # Fetch options data (will use cache if available)
+                    options_expiration, options_data = get_options_data(ticker_upper, current_price)
+                    
+                    if options_data:
+                        # Calculate ATM IV
+                        atm_iv = calculate_atm_iv(options_data, current_price)
+                        if atm_iv is not None:
+                            iv_data[today] = atm_iv
+                            logger.info(f"Calculated IV for {ticker_upper} on {today}: {atm_iv:.2f}%")
+            except Exception as e:
+                # Log but don't fail the price save if IV calculation fails
+                logger.warning(f"Could not calculate IV for {ticker_upper} on {today}: {e}")
+        
+        # Save prices with IV data - this also updates latest_date in stock_attributes immediately
+        save_stock_prices(ticker_upper, price_data, iv_data if iv_data else None)
         
         # Count records after saving
         with Session(engine) as session:

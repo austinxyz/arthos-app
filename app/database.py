@@ -43,6 +43,8 @@ def create_db_and_tables():
     _migrate_rr_history_collar_columns()
     # Add IV columns to stock_attributes if they don't exist
     _migrate_stock_attributes_iv_columns()
+    # Add IV column to stock_price if it doesn't exist
+    _migrate_stock_price_iv_column()
     # Create indexes on stock_price and stock_attributes for faster queries
     _create_stock_price_index()
     _create_stock_attributes_index()
@@ -567,6 +569,43 @@ def _migrate_stock_attributes_iv_columns():
                         print(f"Added {col_name} column to stock_attributes table")
     except Exception as e:
         print(f"Warning: Could not migrate stock_attributes IV columns: {e}")
+
+
+def _migrate_stock_price_iv_column():
+    """Add iv column to stock_price table if it doesn't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            if is_sqlite:
+                # SQLite-specific migration
+                result = session.exec(text(
+                    "PRAGMA table_info(stock_price)"
+                )).all()
+                
+                column_exists = any(row[1] == 'iv' for row in result)
+                
+                if not column_exists:
+                    session.exec(text(
+                        "ALTER TABLE stock_price ADD COLUMN iv DECIMAL(12, 4)"
+                    ))
+                    session.commit()
+                    print("Added iv column to stock_price table")
+            else:
+                # PostgreSQL-specific migration
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'stock_price' AND column_name = 'iv'"
+                )).first()
+                
+                if not result:
+                    session.exec(text(
+                        "ALTER TABLE stock_price ADD COLUMN iv DECIMAL(12, 4)"
+                    ))
+                    session.commit()
+                    print("Added iv column to stock_price table")
+    except Exception as e:
+        print(f"Warning: Could not migrate stock_price IV column: {e}")
 
 
 def _create_stock_price_index():

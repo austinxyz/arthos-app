@@ -45,6 +45,11 @@ class StockPrice(SQLModel, table=True):
         sa_column=Column(Numeric(12, 4)),
         description="200-day moving average"
     )
+    iv: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="Implied volatility (ATM options average) for this date"
+    )
     
     __table_args__ = (
         UniqueConstraint("ticker", "price_date", name="uq_stock_price_ticker_date"),

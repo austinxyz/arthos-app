@@ -161,7 +161,8 @@ def update_stock_iv_metrics(ticker: str, current_iv: float) -> None:
     """
     Update stock attributes with IV metrics.
     
-    Stores current IV and calculates IV Rank and IV Percentile based on historical data.
+    Stores current IV and calculates IV Rank and IV Percentile based on historical IV data
+    from StockPrice table (52-week lookback).
     
     Args:
         ticker: Stock ticker symbol
@@ -169,7 +170,8 @@ def update_stock_iv_metrics(ticker: str, current_iv: float) -> None:
     """
     from sqlmodel import Session, select
     from app.database import engine
-    from app.models.stock_price import StockAttributes
+    from app.models.stock_price import StockAttributes, StockPrice
+    from datetime import date, timedelta
     
     try:
         with Session(engine) as session:
@@ -184,39 +186,57 @@ def update_stock_iv_metrics(ticker: str, current_iv: float) -> None:
             # Update current IV
             attributes.current_iv = Decimal(str(round(current_iv, 4)))
             
-            # Get historical IV data for IV Rank calculation
-            # For now, we'll use simple logic based on existing 52w high/low
-            # A more complete implementation would track daily IV history
+            # Get historical IV data from StockPrice table (52-week lookback)
+            today = date.today()
+            one_year_ago = today - timedelta(days=365)
             
-            # Update 52-week high/low if needed
-            if attributes.iv_high_52w is None or current_iv > float(attributes.iv_high_52w):
-                attributes.iv_high_52w = Decimal(str(round(current_iv, 4)))
+            statement = select(StockPrice).where(
+                StockPrice.ticker == ticker.upper(),
+                StockPrice.price_date >= one_year_ago,
+                StockPrice.iv.isnot(None)
+            ).order_by(StockPrice.price_date)
             
-            if attributes.iv_low_52w is None or current_iv < float(attributes.iv_low_52w):
-                attributes.iv_low_52w = Decimal(str(round(current_iv, 4)))
+            historical_ivs = session.exec(statement).all()
             
-            # Calculate IV Rank: (Current IV - 52w Low) / (52w High - 52w Low) * 100
-            if attributes.iv_high_52w is not None and attributes.iv_low_52w is not None:
-                iv_high = float(attributes.iv_high_52w)
-                iv_low = float(attributes.iv_low_52w)
+            # Extract IV values
+            iv_values = [float(price.iv) for price in historical_ivs if price.iv is not None]
+            
+            if iv_values:
+                # Calculate 52-week high/low from historical data
+                iv_high = max(iv_values)
+                iv_low = min(iv_values)
                 
+                # Update 52-week high/low in attributes
+                attributes.iv_high_52w = Decimal(str(round(iv_high, 4)))
+                attributes.iv_low_52w = Decimal(str(round(iv_low, 4)))
+                
+                # Calculate IV Rank: (Current IV - 52w Low) / (52w High - 52w Low) * 100
                 if iv_high > iv_low:
                     iv_rank = ((current_iv - iv_low) / (iv_high - iv_low)) * 100
                     attributes.iv_rank = Decimal(str(round(iv_rank, 2)))
                 else:
                     attributes.iv_rank = Decimal('50.0')  # Default to 50 if no range
-            
-            # For IV Percentile, we'd need historical daily IV data
-            # For now, use a simplified version based on IV Rank
-            # In a production system, you'd track daily IV and calculate actual percentile
-            if attributes.iv_rank is not None:
-                # Simplified: use IV rank as approximation of percentile
-                attributes.iv_percentile = attributes.iv_rank
+                
+                # Calculate IV Percentile: % of days in past year with lower IV
+                days_below = sum(1 for iv in iv_values if iv < current_iv)
+                iv_percentile = (days_below / len(iv_values)) * 100
+                attributes.iv_percentile = Decimal(str(round(iv_percentile, 2)))
+            else:
+                # No historical IV data yet - use current IV as both high and low
+                if attributes.iv_high_52w is None or current_iv > float(attributes.iv_high_52w):
+                    attributes.iv_high_52w = Decimal(str(round(current_iv, 4)))
+                
+                if attributes.iv_low_52w is None or current_iv < float(attributes.iv_low_52w):
+                    attributes.iv_low_52w = Decimal(str(round(current_iv, 4)))
+                
+                # Can't calculate rank/percentile without historical data
+                attributes.iv_rank = None
+                attributes.iv_percentile = None
             
             session.add(attributes)
             session.commit()
             
-            logger.info(f"Updated IV metrics for {ticker}: IV={current_iv:.1f}%, IVR={attributes.iv_rank}%")
+            logger.info(f"Updated IV metrics for {ticker}: IV={current_iv:.1f}%, IVR={attributes.iv_rank}%, IVP={attributes.iv_percentile}%")
             
     except Exception as e:
         logger.error(f"Error updating IV metrics for {ticker}: {e}")
