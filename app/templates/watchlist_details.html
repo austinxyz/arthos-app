@@ -169,6 +169,7 @@
         </div>
         
         <div class="table-responsive">
+            {% if metrics and metrics|length > 0 %}
             <table id="stocksTable" class="table table-striped table-hover table-bordered">
                 <thead class="table-dark">
                     <tr>
