@@ -355,6 +355,7 @@ async def watchlist_details_page(request: Request, watchlist_id: UUID = FPath(..
         "watchlist": {
             "watchlist_id": str(watchlist.watchlist_id),
             "watchlist_name": watchlist.watchlist_name,
+            "description": watchlist.description,
             "date_added": watchlist.date_added.strftime("%Y-%m-%d %H:%M:%S"),
             "date_modified": watchlist.date_modified.strftime("%Y-%m-%d %H:%M:%S")
         },
