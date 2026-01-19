@@ -10,6 +10,14 @@ from app.services.stock_price_service import get_stock_metrics_from_db
 from app.database import create_db_and_tables
 from pydantic import BaseModel
 
+# Load environment variables from .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # python-dotenv not installed, skip loading .env file
+    pass
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
