@@ -273,6 +273,66 @@
                             </div>
                         </div>
                     </div>
+                    
+                    {# IV Metrics Section #}
+                    {% if metrics.current_iv is not none or metrics.iv_rank is not none %}
+                    <hr class="my-3">
+                    <h6 class="mb-2 text-muted">Volatility</h6>
+                    <div class="metric-item">
+                        <div class="metric-label">Current IV</div>
+                        <div class="metric-value">
+                            {% if metrics.current_iv is not none %}
+                                {{ "%.1f"|format(metrics.current_iv) }}%
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">IV Rank</div>
+                        <div class="metric-value">
+                            {% if metrics.iv_rank is not none %}
+                                {% if metrics.iv_rank >= 70 %}
+                                    <span class="text-danger">{{ "%.0f"|format(metrics.iv_rank) }}%</span>
+                                    <small class="text-muted">(High)</small>
+                                {% elif metrics.iv_rank <= 30 %}
+                                    <span class="text-success">{{ "%.0f"|format(metrics.iv_rank) }}%</span>
+                                    <small class="text-muted">(Low)</small>
+                                {% else %}
+                                    {{ "%.0f"|format(metrics.iv_rank) }}%
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">IV Percentile</div>
+                        <div class="metric-value">
+                            {% if metrics.iv_percentile is not none %}
+                                {% if metrics.iv_percentile >= 70 %}
+                                    <span class="text-danger">{{ "%.0f"|format(metrics.iv_percentile) }}%</span>
+                                {% elif metrics.iv_percentile <= 30 %}
+                                    <span class="text-success">{{ "%.0f"|format(metrics.iv_percentile) }}%</span>
+                                {% else %}
+                                    {{ "%.0f"|format(metrics.iv_percentile) }}%
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">52-Week IV Range</div>
+                        <div class="metric-value">
+                            {% if metrics.iv_low_52w is not none and metrics.iv_high_52w is not none %}
+                                {{ "%.1f"|format(metrics.iv_low_52w) }}% - {{ "%.1f"|format(metrics.iv_high_52w) }}%
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>

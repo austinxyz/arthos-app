@@ -398,6 +398,7 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
     Returns data organized by strike price for straddle display.
     
     Uses the options provider (MarketData.app if configured) to get Greeks with the data.
+    Implements caching to reduce API calls (free tier has 100 calls/day limit).
     
     Args:
         ticker: Stock ticker symbol
@@ -408,6 +409,11 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
         - expiration_date: The last expiration date within 90 days (or None)
         - options_by_strike: Dictionary mapping strike prices to dict with 'put' and 'call' data
     """
+    from app.services.options_cache_service import (
+        get_cached_options_data, cache_options_data, 
+        calculate_atm_iv, update_stock_iv_metrics
+    )
+    
     try:
         # Use options provider for Greeks support (MarketData if configured, else yfinance)
         provider = ProviderFactory.get_options_provider()
@@ -438,6 +444,16 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
         
         if not last_expiration:
             return (None, {})
+        
+        # Check cache first
+        cached = get_cached_options_data(ticker, last_expiration)
+        if cached:
+            expiration, options_data = cached
+            # Still update IV metrics from cached data
+            atm_iv = calculate_atm_iv(options_data, current_price)
+            if atm_iv is not None:
+                update_stock_iv_metrics(ticker, atm_iv)
+            return (expiration, options_data)
         
         # Get options chain for the last expiration within 90 days
         try:
@@ -494,6 +510,14 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
                     'vega': round(put.vega, 4) if put.vega is not None else None,
                     'rho': round(put.rho, 4) if put.rho is not None else None,
                 }
+        
+        # Cache the options data
+        cache_options_data(ticker, last_expiration, options_by_strike)
+        
+        # Calculate and update ATM IV metrics
+        atm_iv = calculate_atm_iv(options_by_strike, current_price)
+        if atm_iv is not None:
+            update_stock_iv_metrics(ticker, atm_iv)
         
         return (last_expiration, options_by_strike)
         

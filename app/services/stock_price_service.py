@@ -699,11 +699,16 @@ def get_stock_metrics_from_db(ticker: str) -> Dict[str, Any]:
         price_change = current_price - price_earliest
         is_price_positive = price_change >= 0
     
-    # Get dividend yield, earnings date, and dividend date from stock_attributes table (not from data provider)
+    # Get dividend yield, earnings date, dividend date, and IV metrics from stock_attributes table
     dividend_yield = None
     next_earnings_date = None
     is_earnings_date_estimate = None
     next_dividend_date = None
+    current_iv = None
+    iv_rank = None
+    iv_percentile = None
+    iv_high_52w = None
+    iv_low_52w = None
     try:
         attributes = get_stock_attributes(ticker)
         if attributes:
@@ -712,6 +717,17 @@ def get_stock_metrics_from_db(ticker: str) -> Dict[str, Any]:
             next_earnings_date = attributes.next_earnings_date
             is_earnings_date_estimate = attributes.is_earnings_date_estimate
             next_dividend_date = attributes.next_dividend_date
+            # IV metrics
+            if attributes.current_iv is not None:
+                current_iv = float(attributes.current_iv)
+            if attributes.iv_rank is not None:
+                iv_rank = float(attributes.iv_rank)
+            if attributes.iv_percentile is not None:
+                iv_percentile = float(attributes.iv_percentile)
+            if attributes.iv_high_52w is not None:
+                iv_high_52w = float(attributes.iv_high_52w)
+            if attributes.iv_low_52w is not None:
+                iv_low_52w = float(attributes.iv_low_52w)
     except Exception:
         pass
     
@@ -728,5 +744,11 @@ def get_stock_metrics_from_db(ticker: str) -> Dict[str, Any]:
         "next_dividend_date": next_dividend_date,
         "movement_5day_stddev": round(movement_5day, 4),
         "is_price_positive_5day": bool(is_price_positive),
-        "data_points": len(prices)
+        "data_points": len(prices),
+        # IV metrics
+        "current_iv": round(current_iv, 2) if current_iv is not None else None,
+        "iv_rank": round(iv_rank, 1) if iv_rank is not None else None,
+        "iv_percentile": round(iv_percentile, 1) if iv_percentile is not None else None,
+        "iv_high_52w": round(iv_high_52w, 2) if iv_high_52w is not None else None,
+        "iv_low_52w": round(iv_low_52w, 2) if iv_low_52w is not None else None
     }
