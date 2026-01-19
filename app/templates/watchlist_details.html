@@ -571,11 +571,14 @@
                 });
             }
             
-            initDataTable('stocksTable', {
-                pageLength: 100,
-                order: [[signalColumnIndex, "desc"]], // Sort by Signal column descending (Extreme Oversold=5 first)
-                columnDefs: columnDefs
-            });
+            // Only initialize DataTables if table exists and has rows
+            if ($('#stocksTable').length > 0 && $('#stocksTable tbody tr').length > 0) {
+                initDataTable('stocksTable', {
+                    pageLength: 100,
+                    order: [[signalColumnIndex, "desc"]], // Sort by Signal column descending (Extreme Oversold=5 first)
+                    columnDefs: columnDefs
+                });
+            }
         });
         
         function editWatchListDescription() {
