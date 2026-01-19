@@ -416,7 +416,11 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
     
     try:
         # Use options provider for Greeks support (MarketData if configured, else yfinance)
-        provider = ProviderFactory.get_options_provider()
+        # Fallback to default provider if get_options_provider doesn't exist (for backwards compatibility)
+        if hasattr(ProviderFactory, 'get_options_provider'):
+            provider = ProviderFactory.get_options_provider()
+        else:
+            provider = ProviderFactory.get_default_provider()
         
         # Get all available expiration dates
         try:
