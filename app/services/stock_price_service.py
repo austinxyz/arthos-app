@@ -338,11 +338,20 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
             # If latest_date + 1 is today, try intraday first, otherwise fetch historical
             next_date = attributes.latest_date + timedelta(days=1)
             
+            # Skip weekends: if next_date is Saturday (5) or Sunday (6), move to Monday
+            while next_date.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
+                next_date += timedelta(days=1)
+            
             if next_date == today:
                 # Next date is today - try intraday first, fallback to daily
                 start_date = None
                 end_date = None
                 fetch_intraday = True
+            elif next_date > today:
+                # Next trading day is in the future (e.g., latest_date is Friday, today is Saturday)
+                # No new data available yet
+                logger.info(f\"No new data available for {ticker_upper} - next trading day is {next_date}, today is {today}\")
+                return pd.DataFrame(), 0
             else:
                 # Fetch historical data from next_date to today
                 start_date = next_date
