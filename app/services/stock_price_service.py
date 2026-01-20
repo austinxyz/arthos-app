@@ -295,7 +295,10 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
     """
     Fetch stock price data from data provider and save to database.
     Also updates stock attributes (dividend_amt, dividend_yield).
-    Uses stock attributes to determine what data to fetch.
+    
+    Simplified two-step process:
+    1. Fetch historical data if there's a gap (today > latest_date + 1)
+    2. Always fetch intraday data for today
     
     Args:
         ticker: Stock ticker symbol
@@ -312,284 +315,206 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
     # Get data provider
     provider = ProviderFactory.get_default_provider()
     
-    # Check stock attributes
+    # Check stock attributes to determine if we have existing data
     attributes = get_stock_attributes(ticker_upper)
     
-    if attributes is None:
-        # No watermark - fetch 2 years of data
-        start_date = today - timedelta(days=730)
-        end_date = today
-        fetch_intraday = False
-    else:
-        # Stock attributes exist - fetch data after latest_date
-        days_since_latest = (today - attributes.latest_date).days
-        
-        if days_since_latest == 0:
-            # Latest date is today - fetch only current prices (intraday)
-            start_date = None
-            end_date = None
-            fetch_intraday = True
-        elif days_since_latest < 0:
-            # Latest date is in the future (shouldn't happen, but handle gracefully)
-            logger.warning(f"Stock {ticker_upper} has latest_date {attributes.latest_date} in the future. Today is {today}. Skipping fetch.")
-            return pd.DataFrame(), 0
-        else:
-            # Fetch data from latest_date + 1 day to today
-            # If latest_date + 1 is today, try intraday first, otherwise fetch historical
-            next_date = attributes.latest_date + timedelta(days=1)
-            
-            # Skip weekends: if next_date is Saturday (5) or Sunday (6), move to Monday
-            while next_date.weekday() >= 5:  # 5 = Saturday, 6 = Sunday
-                next_date += timedelta(days=1)
-            
-            if next_date == today:
-                # Next date is today - try intraday first, fallback to daily
-                start_date = None
-                end_date = None
-                fetch_intraday = True
-            elif next_date > today:
-                # Next trading day is in the future (e.g., latest_date is Friday, today is Saturday)
-                # No new data available yet
-                logger.info(f"No new data available for {ticker_upper} - next trading day is {next_date}, today is {today}")
-                return pd.DataFrame(), 0
-            else:
-                # Fetch historical data from next_date to today
-                start_date = next_date
-                end_date = today
-                fetch_intraday = False
+    all_price_data = []
     
-    try:
+    # ========================================================================
+    # STEP 1: Fetch historical data if there's a gap
+    # ========================================================================
+    
+    if attributes is None:
+        # New stock - fetch 2 years of historical data
+        logger.info(f"New stock {ticker_upper} - fetching 2 years of historical data")
+        start_date = today - timedelta(days=730)
+        end_date = today + timedelta(days=1)  # +1 because yfinance end is exclusive
         
-        if fetch_intraday:
-            # Fetch only today's intraday data
-            logger.info(f"Fetching intraday data for {ticker_upper} for today ({today})")
-            
-            # Try intraday first (minute-by-minute data)
-            intraday_data = provider.fetch_intraday_prices(ticker_upper, today)
-            
-            if intraday_data is None or len(intraday_data) == 0:
-                # No intraday data, try daily aggregated data for today
-                # Note: This only works after market closes and data is finalized
-                try:
-                    hist_data = provider.fetch_historical_prices(ticker_upper, today, today + timedelta(days=1))
-                    if not hist_data:
-                        # No daily data for today - market may be closed or it's a weekend/holiday
-                        # Try fetching recent days (last 5 days) as fallback
-                        if attributes and attributes.latest_date < today:
-                            logger.info(f"No daily data for today ({today}), trying recent days for {ticker_upper}")
-                            # Fetch last 5 days
-                            recent_start = today - timedelta(days=5)
-                            hist_data = provider.fetch_historical_prices(ticker_upper, recent_start, today + timedelta(days=1))
-                            if hist_data:
-                                # Filter to only dates after latest_date
-                                hist_data = [p for p in hist_data if p.date > attributes.latest_date]
-                                if not hist_data:
-                                    logger.info(f"No new data available for {ticker_upper} (all data already in database)")
-                                    return pd.DataFrame(), 0
-                            else:
-                                logger.info(f"No data available for {ticker_upper} today (market may be closed)")
-                                return pd.DataFrame(), 0
-                        else:
-                            logger.info(f"No data available for {ticker_upper} today (market may be closed)")
-                            return pd.DataFrame(), 0
-                    
-                    # Convert to DataFrame
-                    price_data = stock_price_data_to_dataframe(hist_data)
-                except (TickerNotFoundError, DataNotAvailableError) as e:
-                    logger.info(f"No data available for {ticker_upper} today: {e}")
-                    return pd.DataFrame(), 0
-            else:
-                # Aggregate intraday data into daily OHLC
-                daily_data = aggregate_intraday_to_daily(intraday_data)
-                price_data = stock_price_data_to_dataframe([daily_data])
-        else:
-            # Fetch historical data using start/end dates
-            logger.info(f"Fetching historical data for {ticker_upper} from {start_date} to {end_date}")
+        try:
+            hist_data = provider.fetch_historical_prices(ticker_upper, start_date, end_date)
+            if hist_data:
+                all_price_data.extend(hist_data)
+                logger.info(f"Fetched {len(hist_data)} historical records for {ticker_upper}")
+        except (TickerNotFoundError, DataNotAvailableError) as e:
+            logger.info(f"No historical data available for {ticker_upper}: {e}")
+    
+    elif (today - attributes.latest_date).days > 1:
+        # Gap exists - fetch from latest_date + 1 to today
+        gap_days = (today - attributes.latest_date).days
+        logger.info(f"Gap of {gap_days} days detected for {ticker_upper} (latest_date: {attributes.latest_date})")
+        
+        start_date = attributes.latest_date + timedelta(days=1)
+        
+        # Skip weekends: if start_date is Saturday (5) or Sunday (6), move to Monday
+        while start_date.weekday() >= 5:
+            start_date += timedelta(days=1)
+        
+        # Only fetch if start_date <= today
+        if start_date <= today:
+            end_date = today + timedelta(days=1)  # +1 because yfinance end is exclusive
+            logger.info(f"Fetching historical data for {ticker_upper} from {start_date} to {today}")
             
             try:
                 hist_data = provider.fetch_historical_prices(ticker_upper, start_date, end_date)
-            except DataNotAvailableError:
-                # No new data available for the requested range
-                # If we're trying to fetch today's data and it's not available, try recent days as fallback
-                if start_date == today and attributes and attributes.latest_date < today:
-                    logger.info(f"No data for today ({today}) using date range, trying recent days for {ticker_upper}")
-                    # Fetch last 5 days
-                    recent_start = today - timedelta(days=5)
-                    try:
-                        hist_data = provider.fetch_historical_prices(ticker_upper, recent_start, end_date + timedelta(days=1))
-                        if hist_data:
-                            # Filter to only dates after latest_date
-                            hist_data = [p for p in hist_data if p.date > attributes.latest_date]
-                            if not hist_data:
-                                logger.info(f"No new data available for {ticker_upper} (all data already in database)")
-                                return pd.DataFrame(), 0
-                        else:
-                            logger.info(f"No new data available for {ticker_upper} from {start_date} to {end_date} (market may be closed or no updates)")
-                            return pd.DataFrame(), 0
-                    except (TickerNotFoundError, DataNotAvailableError):
-                        logger.info(f"No new data available for {ticker_upper} from {start_date} to {end_date} (market may be closed or no updates)")
-                        return pd.DataFrame(), 0
+                if hist_data:
+                    all_price_data.extend(hist_data)
+                    logger.info(f"Fetched {len(hist_data)} historical records for {ticker_upper}")
                 else:
-                    # No new data available - this is normal when:
-                    # 1. Market is closed (evenings, weekends, holidays)
-                    # 2. No new data since last fetch
-                    logger.info(f"No new data available for {ticker_upper} from {start_date} to {end_date} (market may be closed or no updates)")
-                    return pd.DataFrame(), 0
+                    logger.info(f"No historical data returned for {ticker_upper} from {start_date} to {today} (holidays/weekends)")
+            except DataNotAvailableError:
+                # No data in this range (holidays, etc.) - that's OK
+                logger.info(f"No historical data available for {ticker_upper} from {start_date} to {today} (market may be closed)")
+        else:
+            logger.info(f"Start date {start_date} is in the future, skipping historical fetch for {ticker_upper}")
+    
+    else:
+        # No gap (latest_date is yesterday or today) - skip historical fetch
+        logger.info(f"No gap detected for {ticker_upper} (latest_date: {attributes.latest_date}), skipping historical fetch")
+    
+    # ========================================================================
+    # STEP 2: Always fetch intraday data for today
+    # ========================================================================
+    
+    logger.info(f"Fetching intraday data for {ticker_upper} for today ({today})")
+    intraday_data = provider.fetch_intraday_prices(ticker_upper, today)
+    
+    if intraday_data and len(intraday_data) > 0:
+        # Aggregate intraday data into daily OHLC
+        daily_today = aggregate_intraday_to_daily(intraday_data)
+        all_price_data.append(daily_today)
+        logger.info(f"Fetched and aggregated intraday data for {ticker_upper} for {today}")
+    else:
+        logger.info(f"No intraday data available for {ticker_upper} for {today} (market may be closed)")
+    
+    # ========================================================================
+    # Combine and save data
+    # ========================================================================
+    
+    if not all_price_data:
+        logger.info(f"No new price data available for {ticker_upper}")
+        # Even if no new data, ensure stock_attributes exists (for first-time entries)
+        if attributes is None:
+            update_stock_attributes(ticker_upper, today, today)
+        return pd.DataFrame(), 0
+    
+    # Convert to DataFrame
+    price_data = stock_price_data_to_dataframe(all_price_data)
+    
+    # Calculate IV for today's date (if we have price data for today)
+    iv_data = {}
+    
+    # Check if we're saving data for today
+    price_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in price_data.index]
+    if today in price_dates:
+        # Calculate IV from options data for today
+        try:
+            from app.services.stock_service import get_options_data
+            from app.services.options_cache_service import calculate_atm_iv
             
-            # Convert to DataFrame
-            price_data = stock_price_data_to_dataframe(hist_data)
+            # Get current price from latest data
+            current_price = float(price_data['Close'].iloc[-1]) if not price_data.empty else None
             
-            # Try to fetch intraday data for today if available
-            intraday_today = provider.fetch_intraday_prices(ticker_upper, today)
-            
-            if intraday_today is not None and len(intraday_today) > 0:
-                # Aggregate intraday data for today
-                daily_today = aggregate_intraday_to_daily(intraday_today)
-                today_df = stock_price_data_to_dataframe([daily_today])
+            if current_price:
+                # Fetch options data (will use cache if available)
+                options_expiration, options_data = get_options_data(ticker_upper, current_price)
                 
-                # Remove today's daily data from price_data if it exists
-                if not price_data.empty:
-                    price_data_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in price_data.index]
-                    today_mask = [d == today for d in price_data_dates]
-                    if any(today_mask):
-                        price_data = price_data[~pd.Series(today_mask, index=price_data.index)]
-                
-                # Add aggregated today's data
-                price_data = pd.concat([price_data, today_df]).sort_index()
-        
-        # Count records before saving
-        records_before = 0
-        if attributes:
-            with Session(engine) as session:
-                statement = select(StockPrice).where(StockPrice.ticker == ticker_upper)
-                records_before = len(session.exec(statement).all())
-        
-        # Save to database - only proceed if we have data to save
-        if price_data.empty:
-            # No new data available - this is normal when:
-            # 1. Market is closed (evenings, weekends, holidays)
-            # 2. No new data since last fetch
-            # 3. Date range is in the future
-            logger.info(f"No new price data available for {ticker_upper} (this is normal when market is closed)")
-            # Even if no new data, ensure stock_attributes exists (for first-time entries)
-            if attributes is None:
-                # Create minimal stock_attributes entry if it doesn't exist
-                # This handles the case where validation passed but no data was available
-                today = datetime.now(ET_TIMEZONE).date()
-                update_stock_attributes(ticker_upper, today, today)
-            return pd.DataFrame(), 0
-        
-        # Calculate IV for today's date (if we have price data for today)
-        iv_data = {}
-        today = datetime.now(ET_TIMEZONE).date()
-        
-        # Check if we're saving data for today
-        price_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in price_data.index]
-        if today in price_dates:
-            # Calculate IV from options data for today
-            try:
-                from app.services.stock_service import get_options_data
-                from app.services.options_cache_service import calculate_atm_iv
-                
-                # Get current price from latest data
-                current_price = float(price_data['Close'].iloc[-1]) if not price_data.empty else None
-                
-                if current_price:
-                    # Fetch options data (will use cache if available)
-                    options_expiration, options_data = get_options_data(ticker_upper, current_price)
-                    
-                    if options_data:
-                        # Calculate ATM IV
-                        atm_iv = calculate_atm_iv(options_data, current_price)
-                        if atm_iv is not None:
-                            iv_data[today] = atm_iv
-                            logger.info(f"Calculated IV for {ticker_upper} on {today}: {atm_iv:.2f}%")
-            except Exception as e:
-                # Log but don't fail the price save if IV calculation fails
-                logger.warning(f"Could not calculate IV for {ticker_upper} on {today}: {e}")
-        
-        # Save prices with IV data - this also updates latest_date in stock_attributes immediately
-        save_stock_prices(ticker_upper, price_data, iv_data if iv_data else None)
-        
-        # Count records after saving
+                if options_data:
+                    # Calculate ATM IV
+                    atm_iv = calculate_atm_iv(options_data, current_price)
+                    if atm_iv is not None:
+                        iv_data[today] = atm_iv
+                        logger.info(f"Calculated IV for {ticker_upper} on {today}: {atm_iv:.2f}%")
+        except Exception as e:
+            # Log but don't fail the price save if IV calculation fails
+            logger.warning(f"Could not calculate IV for {ticker_upper} on {today}: {e}")
+    
+    # Count records before saving
+    records_before = 0
+    if attributes:
         with Session(engine) as session:
             statement = select(StockPrice).where(StockPrice.ticker == ticker_upper)
-            records_after = len(session.exec(statement).all())
+            records_before = len(session.exec(statement).all())
+    
+    # Save prices with IV data - this also updates latest_date in stock_attributes immediately
+    save_stock_prices(ticker_upper, price_data, iv_data if iv_data else None)
+    
+    # Count records after saving
+    with Session(engine) as session:
+        statement = select(StockPrice).where(StockPrice.ticker == ticker_upper)
+        records_after = len(session.exec(statement).all())
+    
+    new_records = records_after - records_before
+    
+    # Only create/update stock_attributes after successful data save
+    # Get date range from saved prices
+    price_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in price_data.index]
+    earliest_date = min(price_dates)
+    latest_date = max(price_dates)
+    
+    # If attributes exist, update date range to include existing data
+    if attributes:
+        earliest_date = min(attributes.earliest_date, earliest_date)
+        latest_date = max(attributes.latest_date, latest_date)
+    
+    # Fetch and update dividend information from provider
+    try:
+        stock_info = provider.fetch_stock_info(ticker_upper)
         
-        new_records = records_after - records_before
+        dividend_amt = None
+        dividend_yield = None
+        current_price = None
+        next_earnings_date = None
+        is_earnings_date_estimate = None
+        next_dividend_date = None
         
-        # Only create/update stock_attributes after successful data save
-        # Get date range from saved prices
-        price_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in price_data.index]
-        earliest_date = min(price_dates)
-        latest_date = max(price_dates)
+        # Get current price from latest saved data or from provider
+        if not price_data.empty:
+            current_price = float(price_data['Close'].iloc[-1])
+        else:
+            current_price = stock_info.current_price
         
-        # If attributes exist, update date range to include existing data
-        if attributes:
-            earliest_date = min(attributes.earliest_date, earliest_date)
-            latest_date = max(attributes.latest_date, latest_date)
+        # Get dividend amount
+        if stock_info.dividend_amount is not None:
+            dividend_amt = Decimal(str(stock_info.dividend_amount)).quantize(Decimal('0.0001'))
         
-        # Fetch and update dividend information from provider
-        try:
-            stock_info = provider.fetch_stock_info(ticker_upper)
-            
-            dividend_amt = None
-            dividend_yield = None
-            current_price = None
-            next_earnings_date = None
-            is_earnings_date_estimate = None
-            next_dividend_date = None
-            
-            # Get current price from latest saved data or from provider
-            if not price_data.empty:
-                current_price = float(price_data['Close'].iloc[-1])
-            else:
-                current_price = stock_info.current_price
-            
-            # Get dividend amount
-            if stock_info.dividend_amount is not None:
-                dividend_amt = Decimal(str(stock_info.dividend_amount)).quantize(Decimal('0.0001'))
-            
-            # Get dividend yield
-            if stock_info.dividend_yield is not None:
-                dividend_yield = Decimal(str(stock_info.dividend_yield)).quantize(Decimal('0.0001'))
-            elif dividend_amt is not None and current_price is not None and current_price > 0:
-                # Calculate dividend yield from dividend amount and current price
-                dividend_yield = Decimal(str((float(dividend_amt) / current_price) * 100)).quantize(Decimal('0.0001'))
-            
-            # Get earnings date (already converted to date by provider)
-            next_earnings_date = stock_info.next_earnings_date
-            is_earnings_date_estimate = stock_info.is_earnings_date_estimate
-            
-            # Get next dividend date (ex-dividend date)
-            next_dividend_date = stock_info.next_dividend_date
-            
-            # Create or update stock attributes with all information (only after successful data save)
-            update_stock_attributes(
-                ticker_upper, 
-                earliest_date, 
-                latest_date,
-                dividend_amt=dividend_amt,
-                dividend_yield=dividend_yield,
-                current_price=current_price,
-                next_earnings_date=next_earnings_date,
-                is_earnings_date_estimate=is_earnings_date_estimate,
-                next_dividend_date=next_dividend_date
-            )
-        except Exception as e:
-            # Log error but don't fail the price data save
-            # Still create stock_attributes with date range even if dividend fetch fails
-            logger.warning(f"Could not update dividend information for {ticker_upper}: {e}")
-            update_stock_attributes(
-                ticker_upper, 
-                earliest_date, 
-                latest_date
-            )
+        # Get dividend yield
+        if stock_info.dividend_yield is not None:
+            dividend_yield = Decimal(str(stock_info.dividend_yield)).quantize(Decimal('0.0001'))
+        elif dividend_amt is not None and current_price is not None and current_price > 0:
+            # Calculate dividend yield from dividend amount and current price
+            dividend_yield = Decimal(str((float(dividend_amt) / current_price) * 100)).quantize(Decimal('0.0001'))
         
-        return price_data, new_records
+        # Get earnings date (already converted to date by provider)
+        next_earnings_date = stock_info.next_earnings_date
+        is_earnings_date_estimate = stock_info.is_earnings_date_estimate
         
+        # Get next dividend date (ex-dividend date)
+        next_dividend_date = stock_info.next_dividend_date
+        
+        # Create or update stock attributes with all information (only after successful data save)
+        update_stock_attributes(
+            ticker_upper, 
+            earliest_date, 
+            latest_date,
+            dividend_amt=dividend_amt,
+            dividend_yield=dividend_yield,
+            current_price=current_price,
+            next_earnings_date=next_earnings_date,
+            is_earnings_date_estimate=is_earnings_date_estimate,
+            next_dividend_date=next_dividend_date
+        )
     except Exception as e:
-        raise ValueError(f"Error fetching data for {ticker}: {str(e)}")
+        # Log error but don't fail the price data save
+        # Still create stock_attributes with date range even if dividend fetch fails
+        logger.warning(f"Could not update dividend information for {ticker_upper}: {e}")
+        update_stock_attributes(
+            ticker_upper, 
+            earliest_date, 
+            latest_date
+        )
+    
+    return price_data, new_records
+
 
 
 def get_stock_prices_from_db(ticker: str, start_date: Optional[date] = None, end_date: Optional[date] = None) -> list:
