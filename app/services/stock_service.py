@@ -438,11 +438,26 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
         else:
             provider = ProviderFactory.get_default_provider()
         
+        # Track if we need to fallback to yfinance due to rate limits
+        use_fallback = False
+        
         # Get all available expiration dates
         try:
             expirations = provider.fetch_options_expirations(ticker)
-        except DataNotAvailableError:
-            return (None, {})
+        except DataNotAvailableError as e:
+            # Check if this is a rate limit error
+            if "rate limit" in str(e).lower():
+                logger.warning(f"MarketData rate limit hit for {ticker}, falling back to yfinance")
+                use_fallback = True
+                # Retry with yfinance
+                from app.providers.yfinance_provider import YFinanceProvider
+                provider = YFinanceProvider()
+                try:
+                    expirations = provider.fetch_options_expirations(ticker)
+                except DataNotAvailableError:
+                    return (None, {})
+            else:
+                return (None, {})
         
         if not expirations:
             return (None, {})
@@ -478,8 +493,20 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
         # Get options chain for the last expiration within 90 days
         try:
             opt_chain = provider.fetch_options_chain(ticker, last_expiration)
-        except DataNotAvailableError:
-            return (None, {})
+        except DataNotAvailableError as e:
+            # Check if this is a rate limit error and we haven't already fallen back
+            if "rate limit" in str(e).lower() and not use_fallback:
+                logger.warning(f"MarketData rate limit hit for {ticker} options chain, falling back to yfinance")
+                use_fallback = True
+                # Retry with yfinance
+                from app.providers.yfinance_provider import YFinanceProvider
+                provider = YFinanceProvider()
+                try:
+                    opt_chain = provider.fetch_options_chain(ticker, last_expiration)
+                except DataNotAvailableError:
+                    return (None, {})
+            else:
+                return (None, {})
         
         # Filter strikes within 10% of current price
         price_range_low = current_price * 0.9  # 10% below
@@ -672,8 +699,19 @@ def get_leaps_expirations(ticker: str) -> List[str]:
             
         try:
             expirations = provider.fetch_options_expirations(ticker)
-        except DataNotAvailableError:
-            return []
+        except DataNotAvailableError as e:
+            # Check if this is a rate limit error
+            if "rate limit" in str(e).lower():
+                logger.warning(f"MarketData rate limit hit for {ticker} LEAPS, falling back to yfinance")
+                # Retry with yfinance
+                from app.providers.yfinance_provider import YFinanceProvider
+                provider = YFinanceProvider()
+                try:
+                    expirations = provider.fetch_options_expirations(ticker)
+                except DataNotAvailableError:
+                    return []
+            else:
+                return []
         
         if not expirations:
             return []
@@ -733,6 +771,9 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
             provider = ProviderFactory.get_options_provider()
         else:
             provider = ProviderFactory.get_default_provider()
+        
+        # Track if we need to fallback to yfinance due to rate limits
+        use_fallback = False
             
         leaps_expirations = get_leaps_expirations(ticker)
         
@@ -750,9 +791,22 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
             try:
                 try:
                     opt_chain = provider.fetch_options_chain(ticker, expiration)
-                except DataNotAvailableError:
-                    logger.debug(f"Risk Reversal for {ticker} {expiration}: Options chain not available")
-                    continue
+                except DataNotAvailableError as e:
+                    # Check if this is a rate limit error and we haven't already fallen back
+                    if "rate limit" in str(e).lower() and not use_fallback:
+                        logger.warning(f"MarketData rate limit hit for {ticker} {expiration}, falling back to yfinance")
+                        use_fallback = True
+                        # Retry with yfinance
+                        from app.providers.yfinance_provider import YFinanceProvider
+                        provider = YFinanceProvider()
+                        try:
+                            opt_chain = provider.fetch_options_chain(ticker, expiration)
+                        except DataNotAvailableError:
+                            logger.debug(f"Risk Reversal for {ticker} {expiration}: Options chain not available from yfinance")
+                            continue
+                    else:
+                        logger.debug(f"Risk Reversal for {ticker} {expiration}: Options chain not available")
+                        continue
                 
                 strategies = []
                 
