@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional, Tuple, Dict, Any
+from zoneinfo import ZoneInfo
 from app.database import engine
 from app.models.stock_price import StockPrice, StockAttributes
 from app.providers.factory import ProviderFactory
@@ -13,6 +14,10 @@ from app.providers.converters import stock_price_data_to_dataframe, aggregate_in
 from app.providers.exceptions import TickerNotFoundError, DataNotAvailableError
 
 logger = logging.getLogger(__name__)
+
+# Use Eastern Time for all date calculations (where the US stock market operates)
+# This ensures consistent behavior regardless of server timezone (e.g., Railway uses UTC)
+ET_TIMEZONE = ZoneInfo("America/New_York")
 
 
 def get_stock_attributes(ticker: str) -> Optional[StockAttributes]:
@@ -110,7 +115,7 @@ def save_stock_prices(ticker: str, price_data: pd.DataFrame, iv_data: Optional[D
         return
     
     ticker_upper = ticker.upper()
-    today = datetime.now().date()
+    today = datetime.now(ET_TIMEZONE).date()
     earliest_date = None
     latest_date = None
     
@@ -302,7 +307,7 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
         ValueError: If ticker is invalid or data cannot be fetched
     """
     ticker_upper = ticker.upper()
-    today = datetime.now().date()
+    today = datetime.now(ET_TIMEZONE).date()
     
     # Get data provider
     provider = ProviderFactory.get_default_provider()
@@ -461,13 +466,13 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
             if attributes is None:
                 # Create minimal stock_attributes entry if it doesn't exist
                 # This handles the case where validation passed but no data was available
-                today = datetime.now().date()
+                today = datetime.now(ET_TIMEZONE).date()
                 update_stock_attributes(ticker_upper, today, today)
             return pd.DataFrame(), 0
         
         # Calculate IV for today's date (if we have price data for today)
         iv_data = {}
-        today = datetime.now().date()
+        today = datetime.now(ET_TIMEZONE).date()
         
         # Check if we're saving data for today
         price_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in price_data.index]
