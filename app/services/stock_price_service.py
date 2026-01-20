@@ -350,7 +350,7 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
             elif next_date > today:
                 # Next trading day is in the future (e.g., latest_date is Friday, today is Saturday)
                 # No new data available yet
-                logger.info(f\"No new data available for {ticker_upper} - next trading day is {next_date}, today is {today}\")
+                logger.info(f"No new data available for {ticker_upper} - next trading day is {next_date}, today is {today}")
                 return pd.DataFrame(), 0
             else:
                 # Fetch historical data from next_date to today
