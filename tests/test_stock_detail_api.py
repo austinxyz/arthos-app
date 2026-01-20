@@ -64,11 +64,11 @@ class TestStockDetailAPI:
         """Test that stock detail page contains metrics."""
         # Populate database with test stock price data
         populate_test_stock_prices("GOOGL")
-        
+
         response = client.get("/stock/GOOGL")
-        
+
         assert response.status_code == status.HTTP_200_OK
-        assert "Current Metrics" in response.text
+        assert "Price & Averages" in response.text
         assert "Current Price" in response.text
         assert "SMA 50" in response.text
         assert "SMA 200" in response.text

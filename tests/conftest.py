@@ -58,6 +58,12 @@ def setup_database():
         for attr in session.exec(statement).all():
             session.delete(attr)
 
+        # Delete accounts
+        from app.models.account import Account
+        statement = select(Account)
+        for account in session.exec(statement).all():
+            session.delete(account)
+
         session.commit()
 
     yield
@@ -79,6 +85,12 @@ def setup_database():
         statement = select(RRWatchlist)
         for entry in session.exec(statement).all():
             session.delete(entry)
+            
+        # Delete accounts
+        from app.models.account import Account
+        statement = select(Account)
+        for account in session.exec(statement).all():
+            session.delete(account)
 
         session.commit()
 
@@ -161,3 +173,78 @@ def populate_test_stock_prices(ticker: str, num_days: int = 365, base_price: flo
         ))
         
         session.commit()
+
+
+@pytest.fixture
+def test_user(setup_database):
+    """Create a test user/account."""
+    from app.models.account import Account
+    from uuid import uuid4
+
+    from datetime import datetime
+    account_id = uuid4()
+    with Session(engine) as session:
+        user = Account(
+            id=account_id,
+            email="testuser@example.com",
+            google_sub="123456789",
+            full_name="Test User",
+            picture_url="http://example.com/pic.jpg",
+            last_login_at=datetime.now()
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def auth_client(test_user):
+    """
+    Return a TestClient with a logged-in user session.
+    Creates a fresh TestClient and uses a test endpoint to set up the session.
+    """
+    from app.main import app as main_app
+    from fastapi import Request
+    from fastapi.testclient import TestClient
+
+    # Check if test endpoint already exists, if not add it
+    test_endpoint_path = "/__test__/setup-session/{user_id}"
+
+    # Remove the endpoint if it exists to avoid conflicts
+    routes_to_remove = [route for route in main_app.routes if hasattr(route, 'path') and '/__test__/setup-session' in route.path]
+    for route in routes_to_remove:
+        main_app.routes.remove(route)
+
+    # Add a test-only endpoint to set up sessions with user_id parameter
+    @main_app.get(test_endpoint_path)
+    async def setup_test_session(user_id: str, request: Request):
+        """Test-only endpoint to set up session."""
+        # Find the user by ID
+        from app.models.account import Account
+        from sqlmodel import Session, select
+        from app.database import engine
+        from uuid import UUID
+
+        with Session(engine) as session:
+            account = session.get(Account, UUID(user_id))
+            if account:
+                request.session["account_id"] = str(account.id)
+                request.session["user"] = {
+                    "name": account.full_name,
+                    "email": account.email,
+                    "picture": account.picture_url
+                }
+                return {"status": "session_set", "account_id": str(account.id)}
+            return {"status": "user_not_found"}
+
+    # Create a new TestClient
+    client = TestClient(main_app)
+
+    # Use the test endpoint to set up the session
+    response = client.get(f"/__test__/setup-session/{test_user.id}")
+    assert response.status_code == 200, f"Failed to set up test session: {response.text}"
+    assert response.json()["status"] == "session_set", f"Session not set properly: {response.json()}"
+
+    # Now the client has a valid session cookie
+    return client
