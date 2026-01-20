@@ -11,6 +11,14 @@ from uuid import UUID
 from app.services.stock_price_service import get_stock_metrics_from_db
 from app.database import create_db_and_tables
 from pydantic import BaseModel
+import logging
+
+# Configure logging for both local and production (Railway)
+# This ensures scheduler debug logs appear regardless of how the app is started
+logging.basicConfig(
+    level=logging.INFO,  # INFO level for production (DEBUG creates too much noise)
+    format='%(levelname)s:     %(name)s - %(message)s'
+)
 
 # Load environment variables from .env file if it exists
 try:
@@ -19,6 +27,7 @@ try:
 except ImportError:
     # python-dotenv not installed, skip loading .env file
     pass
+
 
 
 @asynccontextmanager
