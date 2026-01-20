@@ -763,21 +763,33 @@ def _migrate_watchlist_user_column():
     try:
         with Session(engine) as session:
             is_sqlite = DATABASE_URL.startswith("sqlite")
-            
+
             if is_sqlite:
                 result = session.exec(text("PRAGMA table_info(watchlist)")).all()
                 if not any(row[1] == 'user_id' for row in result):
                     session.exec(text("ALTER TABLE watchlist ADD COLUMN user_id CHAR(36)"))
-                    session.exec(text("CREATE INDEX idx_watchlist_user_id ON watchlist(user_id)"))
                     session.commit()
                     print("Added user_id column to watchlist table")
+
+                # Check if index exists before creating
+                indexes = session.exec(text("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_watchlist_user_id'")).all()
+                if not indexes:
+                    session.exec(text("CREATE INDEX idx_watchlist_user_id ON watchlist(user_id)"))
+                    session.commit()
+                    print("Created index idx_watchlist_user_id")
             else:
                 result = session.exec(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'watchlist' AND column_name = 'user_id'")).first()
                 if not result:
                     session.exec(text("ALTER TABLE watchlist ADD COLUMN user_id UUID"))
-                    session.exec(text("CREATE INDEX idx_watchlist_user_id ON watchlist(user_id)"))
                     session.commit()
                     print("Added user_id column to watchlist table")
+
+                # Check if index exists before creating (PostgreSQL)
+                index_exists = session.exec(text("SELECT indexname FROM pg_indexes WHERE tablename = 'watchlist' AND indexname = 'idx_watchlist_user_id'")).first()
+                if not index_exists:
+                    session.exec(text("CREATE INDEX idx_watchlist_user_id ON watchlist(user_id)"))
+                    session.commit()
+                    print("Created index idx_watchlist_user_id")
     except Exception as e:
         print(f"Warning: Could not migrate watchlist user_id column: {e}")
 
@@ -787,21 +799,33 @@ def _migrate_rr_watchlist_user_column():
     try:
         with Session(engine) as session:
             is_sqlite = DATABASE_URL.startswith("sqlite")
-            
+
             if is_sqlite:
                 result = session.exec(text("PRAGMA table_info(rr_watchlist)")).all()
                 if not any(row[1] == 'user_id' for row in result):
                     session.exec(text("ALTER TABLE rr_watchlist ADD COLUMN user_id CHAR(36)"))
-                    session.exec(text("CREATE INDEX idx_rr_watchlist_user_id ON rr_watchlist(user_id)"))
                     session.commit()
                     print("Added user_id column to rr_watchlist table")
+
+                # Check if index exists before creating
+                indexes = session.exec(text("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_rr_watchlist_user_id'")).all()
+                if not indexes:
+                    session.exec(text("CREATE INDEX idx_rr_watchlist_user_id ON rr_watchlist(user_id)"))
+                    session.commit()
+                    print("Created index idx_rr_watchlist_user_id")
             else:
                 result = session.exec(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'rr_watchlist' AND column_name = 'user_id'")).first()
                 if not result:
                     session.exec(text("ALTER TABLE rr_watchlist ADD COLUMN user_id UUID"))
-                    session.exec(text("CREATE INDEX idx_rr_watchlist_user_id ON rr_watchlist(user_id)"))
                     session.commit()
                     print("Added user_id column to rr_watchlist table")
+
+                # Check if index exists before creating (PostgreSQL)
+                index_exists = session.exec(text("SELECT indexname FROM pg_indexes WHERE tablename = 'rr_watchlist' AND indexname = 'idx_rr_watchlist_user_id'")).first()
+                if not index_exists:
+                    session.exec(text("CREATE INDEX idx_rr_watchlist_user_id ON rr_watchlist(user_id)"))
+                    session.commit()
+                    print("Created index idx_rr_watchlist_user_id")
     except Exception as e:
         print(f"Warning: Could not migrate rr_watchlist user_id column: {e}")
 
@@ -809,96 +833,118 @@ def _migrate_rr_watchlist_user_column():
 def _migrate_data_ownership_to_default_user():
     """Create default user kgajjala@gmail.com and assign all orphaned data to it."""
     try:
-
         from uuid import uuid4
         from datetime import datetime
-        
+
         default_email = "kgajjala@gmail.com"
+        default_account_id = None
 
         with Session(engine) as session:
-            # Check if we have orphaned data (account_id is NULL)
-            # Note: The columns might still be user_id if this runs BEFORE rename, 
-            # OR account_id if AFTER. Ideally we run this AFTER rename.
-            # But the order in create_db_and_tables puts this BEFORE rename!
-            # So we should probably check for user_id columns first found in previous steps.
-            
-            # Actually, let's make this robust. 
-            # If we are refactoring, we should ensure data ownership is clean.
-            # But if we renamed user->account, we should use Account model.
-            
-            # Since _rename_user_concepts_to_account runs AFTER this, 
-            # the table is likely still 'user' and columns 'user_id'.
-            # BUT we deleted User model! So we can't use generic SQLModel for User.
-            # We must use raw SQL or the new Account model mapping to 'account' table?
-            # If we map Account to 'account' table, but table is still 'user', SQLModel will fail?
-            # No, SQLModel just generates SQL. 
-            
-            # Safest is to use raw SQL for this migration since models are in flux during refactor.
-            
-            # Check if default user exists (in 'user' or 'account' table)
-            # Try 'account' first (post-rename), then 'user' (pre-rename)
-            default_account_id = None
-            
-            # Check account table
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            # Check if default account exists (in 'account' or 'user' table)
+            # Try 'account' first (post-rename), then 'user' (pre-rename, quoted for PostgreSQL)
+
+            # Try account table first
             try:
                 result = session.exec(text(f"SELECT id FROM account WHERE email = '{default_email}'")).first()
                 if result:
                     default_account_id = result[0]
-            except Exception:
+                    print(f"Found existing account {default_email} with ID {default_account_id}")
+            except Exception as e:
                 pass
-                
+
+            # Try user table (quoted for PostgreSQL reserved keyword)
             if not default_account_id:
                 try:
-                    result = session.exec(text(f"SELECT id FROM user WHERE email = '{default_email}'")).first()
+                    # Quote "user" table name for PostgreSQL
+                    user_table = "user" if is_sqlite else '"user"'
+                    result = session.exec(text(f"SELECT id FROM {user_table} WHERE email = '{default_email}'")).first()
                     if result:
                         default_account_id = result[0]
-                except Exception:
+                        print(f"Found existing user {default_email} with ID {default_account_id}")
+                except Exception as e:
                     pass
-            
+
+            # Create account if it doesn't exist
             if not default_account_id:
-                 # Need to create it. In which table?
-                 # If 'account' exists, insert there. Else 'user'.
-                 new_id = str(uuid4())
-                 now_str = datetime.now().isoformat()
-                 try:
-                     session.exec(text(f"INSERT INTO account (id, email, google_sub, full_name, created_at) VALUES ('{new_id}', '{default_email}', 'migration_placeholder', 'Karthik Gajjala', '{now_str}')"))
-                     session.commit()
-                     default_account_id = new_id
-                     print(f"Created default account {default_email} in 'account' table")
-                 except Exception:
-                     try:
-                         session.exec(text(f"INSERT INTO user (id, email, google_sub, full_name, created_at) VALUES ('{new_id}', '{default_email}', 'migration_placeholder', 'Karthik Gajjala', '{now_str}')"))
-                         session.commit()
-                         default_account_id = new_id
-                         print(f"Created default user {default_email} in 'user' table")
-                     except Exception as e:
-                         print(f"Could not create default user/account: {e}")
-                         return
+                new_id = str(uuid4())
+                now_str = datetime.utcnow().isoformat()
+
+                # Try to insert into account table first
+                try:
+                    session.exec(text(
+                        f"INSERT INTO account (id, email, google_sub, full_name, created_at) "
+                        f"VALUES ('{new_id}', '{default_email}', 'migration_placeholder', 'Karthik Gajjala', '{now_str}')"
+                    ))
+                    session.commit()
+                    default_account_id = new_id
+                    print(f"Created default account {default_email} in 'account' table with ID {new_id}")
+                except Exception as e1:
+                    session.rollback()
+                    # Try user table with quoted name
+                    try:
+                        user_table = "user" if is_sqlite else '"user"'
+                        session.exec(text(
+                            f"INSERT INTO {user_table} (id, email, google_sub, full_name, created_at) "
+                            f"VALUES ('{new_id}', '{default_email}', 'migration_placeholder', 'Karthik Gajjala', '{now_str}')"
+                        ))
+                        session.commit()
+                        default_account_id = new_id
+                        print(f"Created default user {default_email} in 'user' table with ID {new_id}")
+                    except Exception as e2:
+                        session.rollback()
+                        print(f"Could not create default user/account in either table:")
+                        print(f"  - account table error: {e1}")
+                        print(f"  - user table error: {e2}")
+                        return
+
+            if not default_account_id:
+                print("ERROR: Could not find or create default account")
+                return
 
             # Now update orphaned records
-            # Check watchlist column name
-            col_name = "user_id"
+            # Determine which column name to use (user_id or account_id)
+            watchlist_col = "user_id"
             try:
                 session.exec(text("SELECT account_id FROM watchlist LIMIT 1"))
-                col_name = "account_id"
+                watchlist_col = "account_id"
             except Exception:
-                pass
-                
-            session.exec(text(f"UPDATE watchlist SET {col_name} = '{default_account_id}' WHERE {col_name} IS NULL"))
-            
-            # Check rr_watchlist column name
-            col_name = "user_id"
+                session.rollback()
+
+            rr_col = "user_id"
             try:
                 session.exec(text("SELECT account_id FROM rr_watchlist LIMIT 1"))
-                col_name = "account_id"
+                rr_col = "account_id"
             except Exception:
-                pass
-                
-            session.exec(text(f"UPDATE rr_watchlist SET {col_name} = '{default_account_id}' WHERE {col_name} IS NULL"))
-            
-            session.commit()
-            print(f"Assigned orphaned data to account {default_account_id}")
-            
+                session.rollback()
+
+            # Update orphaned watchlists
+            try:
+                result = session.exec(text(
+                    f"UPDATE watchlist SET {watchlist_col} = '{default_account_id}' WHERE {watchlist_col} IS NULL"
+                ))
+                watchlist_updated = result.rowcount if hasattr(result, 'rowcount') else 0
+                session.commit()
+                print(f"Assigned {watchlist_updated} orphaned watchlists to {default_email}")
+            except Exception as e:
+                session.rollback()
+                print(f"Warning: Could not update watchlist ownership: {e}")
+
+            # Update orphaned rr_watchlist entries
+            try:
+                result = session.exec(text(
+                    f"UPDATE rr_watchlist SET {rr_col} = '{default_account_id}' WHERE {rr_col} IS NULL"
+                ))
+                rr_updated = result.rowcount if hasattr(result, 'rowcount') else 0
+                session.commit()
+                print(f"Assigned {rr_updated} orphaned RR entries to {default_email}")
+            except Exception as e:
+                session.rollback()
+                print(f"Warning: Could not update rr_watchlist ownership: {e}")
+
+            print(f"✅ Data ownership migration complete for {default_email}")
+
     except Exception as e:
         print(f"Warning: Could not migrate data ownership: {e}")
 
