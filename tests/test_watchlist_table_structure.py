@@ -2,64 +2,19 @@
 import pytest
 from playwright.sync_api import Page, expect
 from app.services.watchlist_service import create_watchlist, add_stocks_to_watchlist
-from app.database import engine, create_db_and_tables
-from sqlmodel import Session
-from app.models.watchlist import WatchList, WatchListStock
-from app.models.stock_price import StockPrice, StockAttributes
 from tests.conftest import populate_test_stock_prices
 
 
 @pytest.fixture(autouse=True)
-def setup_database():
-    """Create database tables and clean up before and after each test."""
-    create_db_and_tables()
-    
-    # Cleanup before test
-    with Session(engine) as session:
-        from sqlmodel import select
-        statement = select(WatchListStock)
-        all_stocks = session.exec(statement).all()
-        for stock in all_stocks:
-            session.delete(stock)
-        
-        statement = select(WatchList)
-        all_watchlists = session.exec(statement).all()
-        for watchlist in all_watchlists:
-            session.delete(watchlist)
-        
-        # Clean stock_price tables
-        statement = select(StockPrice)
-        all_prices = session.exec(statement).all()
-        for price in all_prices:
-            session.delete(price)
-        
-        statement = select(StockAttributes)
-        all_attributes = session.exec(statement).all()
-        for attributes in all_attributes:
-            session.delete(attributes)
-        
-        session.commit()
-    
-    # Populate test data
+def setup_test_data(setup_database):
+    """
+    Use the consolidated setup_database fixture from conftest.py,
+    then populate test data for this test module.
+    """
+    # Populate test data after database cleanup
     populate_test_stock_prices("AAPL")
     populate_test_stock_prices("MSFT")
-    
     yield
-    
-    # Cleanup after test
-    with Session(engine) as session:
-        from sqlmodel import select
-        statement = select(WatchListStock)
-        all_stocks = session.exec(statement).all()
-        for stock in all_stocks:
-            session.delete(stock)
-        
-        statement = select(WatchList)
-        all_watchlists = session.exec(statement).all()
-        for watchlist in all_watchlists:
-            session.delete(watchlist)
-        
-        session.commit()
 
 
 @pytest.fixture

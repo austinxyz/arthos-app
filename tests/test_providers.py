@@ -162,3 +162,63 @@ class TestProviderFactory:
         provider1 = ProviderFactory.get_default_provider()
         provider2 = ProviderFactory.get_default_provider()
         assert provider1 is provider2
+
+    def test_get_options_provider_default(self):
+        """Test getting options provider without MarketData API key."""
+        import os
+        # Ensure no MarketData key is set
+        original_key = os.environ.pop('MARKETDATA_API_KEY', None)
+        ProviderFactory.reset_options_provider()
+
+        try:
+            provider = ProviderFactory.get_options_provider()
+            # Should fall back to default provider (yfinance)
+            assert isinstance(provider, YFinanceProvider)
+        finally:
+            if original_key:
+                os.environ['MARKETDATA_API_KEY'] = original_key
+
+    def test_get_options_provider_singleton(self):
+        """Test that options provider is a singleton."""
+        ProviderFactory.reset_options_provider()
+        provider1 = ProviderFactory.get_options_provider()
+        provider2 = ProviderFactory.get_options_provider()
+        assert provider1 is provider2
+
+    def test_reset_all_providers(self):
+        """Test resetting all providers."""
+        # Get providers first
+        ProviderFactory.get_default_provider()
+        ProviderFactory.get_options_provider()
+
+        # Reset all
+        ProviderFactory.reset_all_providers()
+
+        # Verify they are None
+        assert ProviderFactory._default_provider is None
+        assert ProviderFactory._options_provider is None
+
+    def test_get_provider_case_insensitive(self):
+        """Test that provider name is case insensitive."""
+        provider1 = ProviderFactory.get_provider('YFINANCE')
+        provider2 = ProviderFactory.get_provider('YFinance')
+        provider3 = ProviderFactory.get_provider('yfinance')
+
+        assert isinstance(provider1, YFinanceProvider)
+        assert isinstance(provider2, YFinanceProvider)
+        assert isinstance(provider3, YFinanceProvider)
+
+    def test_get_provider_from_environment(self):
+        """Test provider selection from environment variable."""
+        import os
+        original = os.environ.get('STOCK_DATA_PROVIDER')
+        os.environ['STOCK_DATA_PROVIDER'] = 'yfinance'
+
+        try:
+            provider = ProviderFactory.get_provider()
+            assert isinstance(provider, YFinanceProvider)
+        finally:
+            if original:
+                os.environ['STOCK_DATA_PROVIDER'] = original
+            else:
+                os.environ.pop('STOCK_DATA_PROVIDER', None)

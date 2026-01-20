@@ -249,9 +249,126 @@ class TestWatchListAPI:
     def test_remove_stock_not_found(self, client):
         """Test removing a stock that doesn't exist."""
         watchlist = create_watchlist("Test WatchList")
-        
+
         response = client.delete(
             f"/v1/watchlist/{watchlist.watchlist_id}/stocks/AAPL"
         )
-        
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+class TestWatchListAPIErrorHandling:
+    """Tests for watchlist API error handling scenarios."""
+
+    def test_get_watchlist_invalid_uuid_format(self, client):
+        """Test getting watchlist with invalid UUID format."""
+        response = client.get("/v1/watchlist/not-a-valid-uuid")
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_create_watchlist_empty_name(self, client):
+        """Test creating watchlist with empty name."""
+        response = client.post(
+            "/v1/watchlist",
+            json={"watchlist_name": ""}
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_watchlist_whitespace_only_name(self, client):
+        """Test creating watchlist with whitespace-only name."""
+        response = client.post(
+            "/v1/watchlist",
+            json={"watchlist_name": "   "}
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_create_watchlist_missing_name_field(self, client):
+        """Test creating watchlist without name field."""
+        response = client.post(
+            "/v1/watchlist",
+            json={}
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_update_nonexistent_watchlist(self, client):
+        """Test updating a watchlist that doesn't exist."""
+        fake_id = "00000000-0000-0000-0000-000000000000"
+        response = client.put(
+            f"/v1/watchlist/{fake_id}",
+            json={"watchlist_name": "New Name"}
+        )
+
+        # API returns 400 Bad Request for non-existent watchlist
+        assert response.status_code in [
+            status.HTTP_400_BAD_REQUEST,
+            status.HTTP_404_NOT_FOUND
+        ]
+
+    def test_delete_nonexistent_watchlist(self, client):
+        """Test deleting a watchlist that doesn't exist."""
+        fake_id = "00000000-0000-0000-0000-000000000000"
+        response = client.delete(f"/v1/watchlist/{fake_id}")
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_add_stocks_to_nonexistent_watchlist(self, client):
+        """Test adding stocks to non-existent watchlist."""
+        fake_id = "00000000-0000-0000-0000-000000000000"
+        response = client.post(
+            f"/v1/watchlist/{fake_id}/stocks",
+            json={"tickers": "AAPL"}
+        )
+
+        # API returns 400 Bad Request for non-existent watchlist
+        assert response.status_code in [
+            status.HTTP_400_BAD_REQUEST,
+            status.HTTP_404_NOT_FOUND
+        ]
+
+    def test_add_stocks_empty_tickers(self, client):
+        """Test adding empty tickers to watchlist."""
+        watchlist = create_watchlist("Test WatchList")
+
+        response = client.post(
+            f"/v1/watchlist/{watchlist.watchlist_id}/stocks",
+            json={"tickers": ""}
+        )
+
+        # API returns 400 when tickers is empty
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_add_stocks_missing_tickers_field(self, client):
+        """Test adding stocks without tickers field."""
+        watchlist = create_watchlist("Test WatchList")
+
+        response = client.post(
+            f"/v1/watchlist/{watchlist.watchlist_id}/stocks",
+            json={}
+        )
+
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_create_watchlist_with_very_long_name(self, client):
+        """Test creating watchlist with very long name."""
+        long_name = "A" * 500
+        response = client.post(
+            "/v1/watchlist",
+            json={"watchlist_name": long_name}
+        )
+
+        # Should either succeed or reject gracefully
+        assert response.status_code in [
+            status.HTTP_200_OK,
+            status.HTTP_400_BAD_REQUEST,
+            status.HTTP_422_UNPROCESSABLE_ENTITY
+        ]
+
+    def test_remove_stock_from_nonexistent_watchlist(self, client):
+        """Test removing stock from non-existent watchlist."""
+        fake_id = "00000000-0000-0000-0000-000000000000"
+        response = client.delete(f"/v1/watchlist/{fake_id}/stocks/AAPL")
+
         assert response.status_code == status.HTTP_404_NOT_FOUND

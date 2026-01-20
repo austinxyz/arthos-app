@@ -4,8 +4,8 @@ from fastapi.testclient import TestClient
 from app.main import app
 from datetime import date, timedelta
 from decimal import Decimal
-from sqlmodel import Session, delete
-from app.database import engine
+from sqlmodel import Session, delete, select
+from app.database import engine, create_db_and_tables
 from app.models.stock_price import StockPrice, StockAttributes
 
 
@@ -13,6 +13,74 @@ from app.models.stock_price import StockPrice, StockAttributes
 def client():
     """Create a test client for the FastAPI app."""
     return TestClient(app)
+
+
+@pytest.fixture
+def setup_database():
+    """
+    Consolidated database setup fixture.
+    Creates tables and cleans up watchlist/RR data before and after tests.
+    Use this fixture for tests that need a clean database state.
+    """
+    from app.models.watchlist import WatchList, WatchListStock
+    from app.models.rr_watchlist import RRWatchlist, RRHistory
+
+    create_db_and_tables()
+
+    # Cleanup before test
+    with Session(engine) as session:
+        # Delete watchlist stocks first (foreign key)
+        statement = select(WatchListStock)
+        for stock in session.exec(statement).all():
+            session.delete(stock)
+
+        # Delete watchlists
+        statement = select(WatchList)
+        for watchlist in session.exec(statement).all():
+            session.delete(watchlist)
+
+        # Delete RR history first (foreign key)
+        statement = select(RRHistory)
+        for hist in session.exec(statement).all():
+            session.delete(hist)
+
+        # Delete RR watchlist entries
+        statement = select(RRWatchlist)
+        for entry in session.exec(statement).all():
+            session.delete(entry)
+
+        # Clean stock price data
+        statement = select(StockPrice)
+        for price in session.exec(statement).all():
+            session.delete(price)
+
+        statement = select(StockAttributes)
+        for attr in session.exec(statement).all():
+            session.delete(attr)
+
+        session.commit()
+
+    yield
+
+    # Cleanup after test
+    with Session(engine) as session:
+        statement = select(WatchListStock)
+        for stock in session.exec(statement).all():
+            session.delete(stock)
+
+        statement = select(WatchList)
+        for watchlist in session.exec(statement).all():
+            session.delete(watchlist)
+
+        statement = select(RRHistory)
+        for hist in session.exec(statement).all():
+            session.delete(hist)
+
+        statement = select(RRWatchlist)
+        for entry in session.exec(statement).all():
+            session.delete(entry)
+
+        session.commit()
 
 
 @pytest.fixture
