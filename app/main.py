@@ -12,13 +12,18 @@ from app.services.stock_price_service import get_stock_metrics_from_db
 from app.database import create_db_and_tables
 from pydantic import BaseModel
 import logging
+import os
 
 # Configure logging for both local and production (Railway)
 # This ensures scheduler debug logs appear regardless of how the app is started
+# Set LOG_LEVEL environment variable to 'DEBUG' for detailed logs, defaults to 'INFO'
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
 logging.basicConfig(
-    level=logging.INFO,  # INFO level for production (DEBUG creates too much noise)
+    level=getattr(logging, log_level, logging.INFO),
     format='%(levelname)s:     %(name)s - %(message)s'
 )
+logger = logging.getLogger(__name__)
+logger.info(f"Logging configured at {log_level} level")
 
 # Load environment variables from .env file if it exists
 try:
