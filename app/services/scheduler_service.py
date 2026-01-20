@@ -55,8 +55,14 @@ def fetch_all_watchlist_stocks():
     log_entry = None
     start_time = datetime.now()
     
+    logger.info("="*80)
+    logger.info("SCHEDULER JOB TRIGGERED: fetch_all_watchlist_stocks()")
+    logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info("="*80)
+    
     try:
         # Create log entry at start
+        logger.debug("Creating scheduler_log entry in database...")
         with Session(engine) as session:
             log_entry = SchedulerLog(
                 start_time=start_time,
@@ -67,17 +73,29 @@ def fetch_all_watchlist_stocks():
             session.commit()
             session.refresh(log_entry)
             log_id = log_entry.id
+        logger.info(f"✓ Created scheduler_log entry with ID: {log_id}")
         
         # Check if market is open (unless this is the post-market update)
         et_now = datetime.now(ET_TIMEZONE)
         current_time = et_now.time()
         market_close = time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
         
+        logger.debug(f"Market hours check:")
+        logger.debug(f"  Current ET time: {et_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+        logger.debug(f"  Current time: {current_time}")
+        logger.debug(f"  Market close time: {market_close}")
+        logger.debug(f"  Day of week: {et_now.strftime('%A')} (weekday={et_now.weekday()})")
+        
         # Allow execution if market is open OR if it's the post-market update (4:00 PM - 4:05 PM)
         is_post_market = market_close <= current_time <= time(16, 5)
+        market_open = is_market_open()
         
-        if not is_market_open() and not is_post_market:
-            logger.info("Market is closed. Skipping scheduled fetch.")
+        logger.info(f"Market status: is_open={market_open}, is_post_market={is_post_market}")
+        
+        if not market_open and not is_post_market:
+            logger.warning("⊘ SKIPPING: Market is closed and not in post-market window")
+            logger.info(f"  Reason: Market hours are {MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} - {MARKET_CLOSE_HOUR}:{MARKET_CLOSE_MINUTE:02d} ET")
+            logger.info(f"  Post-market window: 16:00 - 16:05 ET")
             # Update log entry
             with Session(engine) as session:
                 log_entry = session.get(SchedulerLog, log_id)
@@ -86,21 +104,26 @@ def fetch_all_watchlist_stocks():
                     log_entry.notes = "Market is closed. Skipped fetch."
                     session.add(log_entry)
                     session.commit()
+            logger.debug(f"✓ Updated scheduler_log entry {log_id} with skip reason")
             return
         
-        logger.info("Starting scheduled fetch for all watchlist stocks...")
+        logger.info("✓ Market is open or in post-market window - proceeding with fetch")
         logger.info(f"Current ET time: {et_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-        logger.info(f"Market open check: {is_market_open()}, Post-market check: {is_post_market}")
+        logger.info(f"Market open: {market_open}, Post-market: {is_post_market}")
         
         # Get all unique tickers from all watchlists
+        logger.debug("Querying database for watchlist tickers...")
         with Session(engine) as session:
             statement = select(WatchListStock.ticker).distinct()
             tickers = session.exec(statement).all()
         
         unique_tickers = list(set([ticker.upper() for ticker in tickers]))
+        logger.info(f"Found {len(tickers)} ticker entries in watchlist table")
+        logger.info(f"Unique tickers after deduplication: {len(unique_tickers)}")
         
         if not unique_tickers:
-            logger.info("No tickers found in watchlists. Skipping fetch.")
+            logger.warning("⊘ SKIPPING: No tickers found in watchlists")
+            logger.debug("  Reason: watchlist table is empty or has no ticker entries")
             # Update log entry
             end_time = datetime.now()
             with Session(engine) as session:
@@ -110,40 +133,47 @@ def fetch_all_watchlist_stocks():
                     log_entry.notes = "No tickers found in watchlists. Skipped fetch."
                     session.add(log_entry)
                     session.commit()
+            logger.debug(f"✓ Updated scheduler_log entry {log_id} with skip reason")
             return
         
-        logger.info(f"Found {len(unique_tickers)} unique tickers across all watchlists")
+        logger.info(f"Processing {len(unique_tickers)} unique tickers: {', '.join(unique_tickers)}")
+        logger.info("-" * 80)
         
         success_count = 0
         error_count = 0
         
-        for ticker in unique_tickers:
+        for idx, ticker in enumerate(unique_tickers, 1):
+            logger.info(f"[{idx}/{len(unique_tickers)}] Processing {ticker}...")
             try:
-                logger.info(f"Fetching data for {ticker}...")
                 price_data, new_records = fetch_and_save_stock_prices(ticker)
                 
                 if new_records > 0:
                     success_count += 1
-                    logger.info(f"Successfully fetched and saved {new_records} new record(s) for {ticker}")
+                    logger.info(f"  ✓ Inserted/updated {new_records} record(s) in stock_price table for {ticker}")
                 else:
                     # No new records - this is normal when market is closed or no updates available
                     success_count += 1
-                    logger.info(f"No new data available for {ticker} (market may be closed or no updates)")
+                    logger.info(f"  ⊘ No new records to insert for {ticker} (data already up-to-date)")
             except ValueError as e:
                 # ValueError indicates a real problem (invalid ticker, network error, etc.)
                 error_count += 1
-                logger.error(f"Error fetching data for {ticker}: {str(e)}")
+                logger.error(f"  ✗ ValueError for {ticker}: {str(e)}")
             except Exception as e:
                 # Other exceptions (unexpected errors)
                 error_count += 1
-                logger.error(f"Unexpected error fetching data for {ticker}: {str(e)}")
+                logger.error(f"  ✗ Unexpected error for {ticker}: {str(e)}")
+                import traceback
+                logger.debug(f"  Stack trace:\n{traceback.format_exc()}")
         
-        logger.info(f"Scheduled fetch completed. Success: {success_count}, Errors: {error_count}")
+        logger.info("-" * 80)
+        logger.info(f"✓ Scheduled fetch completed. Success: {success_count}, Errors: {error_count}")
         
         # Update log entry with completion info
         end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
         notes = f"Fetched data for {len(unique_tickers)} stock(s). Success: {success_count}, Errors: {error_count}"
         
+        logger.debug(f"Updating scheduler_log entry {log_id} with completion info...")
         with Session(engine) as session:
             log_entry = session.get(SchedulerLog, log_id)
             if log_entry:
@@ -151,6 +181,9 @@ def fetch_all_watchlist_stocks():
                 log_entry.notes = notes
                 session.add(log_entry)
                 session.commit()
+        logger.info(f"✓ Updated scheduler_log entry {log_id}")
+        logger.info(f"Total execution time: {duration:.2f} seconds")
+        logger.info("=" * 80)
         
     except Exception as e:
         logger.error(f"Error in scheduled fetch_all_watchlist_stocks: {str(e)}")
@@ -178,15 +211,26 @@ def start_scheduler():
     """
     global scheduler
     
+    logger.info("="*80)
+    logger.info("INITIALIZING SCHEDULER")
+    logger.info("="*80)
+    
     if scheduler is not None and scheduler.running:
-        logger.warning("Scheduler is already running")
+        logger.warning("⚠ Scheduler is already running - skipping initialization")
         return
     
+    logger.info("Creating BackgroundScheduler instance...")
+    logger.info(f"  Timezone: {ET_TIMEZONE}")
     scheduler = BackgroundScheduler(timezone=ET_TIMEZONE)
+    logger.info("✓ BackgroundScheduler created")
     
     # Schedule the job to run every 60 minutes
     # The fetch_all_watchlist_stocks function will check market hours internally
     # This ensures it runs every hour, refreshing today's data during market hours
+    logger.info("Registering job: fetch_watchlist_stocks (interval)")
+    logger.info("  Function: fetch_all_watchlist_stocks")
+    logger.info("  Trigger: IntervalTrigger(minutes=60)")
+    logger.info("  ID: fetch_watchlist_stocks")
     scheduler.add_job(
         func=fetch_all_watchlist_stocks,
         trigger=IntervalTrigger(minutes=60),
@@ -194,8 +238,13 @@ def start_scheduler():
         name='Fetch stock data for all watchlist tickers (every 60 min, refreshes today during market hours)',
         replace_existing=True
     )
+    logger.info("✓ Job registered: fetch_watchlist_stocks")
     
     # Schedule a post-market update at 4:00 PM ET
+    logger.info("Registering job: fetch_watchlist_stocks_post_market (cron)")
+    logger.info("  Function: fetch_all_watchlist_stocks")
+    logger.info("  Trigger: CronTrigger(hour=16, minute=0, timezone=ET_TIMEZONE)")
+    logger.info("  ID: fetch_watchlist_stocks_post_market")
     scheduler.add_job(
         func=fetch_all_watchlist_stocks,
         trigger=CronTrigger(hour=16, minute=0, timezone=ET_TIMEZONE),
@@ -203,8 +252,13 @@ def start_scheduler():
         name='Fetch stock data after market close (4:00 PM ET)',
         replace_existing=True
     )
+    logger.info("✓ Job registered: fetch_watchlist_stocks_post_market")
     
     # Schedule RR history update job (every hour during market hours + 60 mins after close)
+    logger.info("Registering job: update_rr_history (interval)")
+    logger.info("  Function: update_rr_history")
+    logger.info("  Trigger: IntervalTrigger(minutes=60)")
+    logger.info("  ID: update_rr_history")
     scheduler.add_job(
         func=update_rr_history,
         trigger=IntervalTrigger(minutes=60),
@@ -212,10 +266,23 @@ def start_scheduler():
         name='Update RR history (every 60 min, during market hours + 60 mins after close)',
         replace_existing=True
     )
+    logger.info("✓ Job registered: update_rr_history")
     
+    logger.info("Starting scheduler...")
     scheduler.start()
-    logger.info("Scheduler started. Will fetch stock data every 60 minutes during market hours (9:30 AM - 4:00 PM ET) and once after market close (4:00 PM ET).")
-    logger.info("RR history update job scheduled to run every 60 minutes during market hours + 60 mins after close.")
+    logger.info("✓ Scheduler started successfully")
+    logger.info("")
+    logger.info("Scheduler configuration:")
+    logger.info(f"  Market hours: {MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} - {MARKET_CLOSE_HOUR}:{MARKET_CLOSE_MINUTE:02d} ET")
+    logger.info(f"  Timezone: {ET_TIMEZONE}")
+    logger.info(f"  Jobs registered: {len(scheduler.get_jobs())}")
+    
+    # Log next run times for each job
+    for job in scheduler.get_jobs():
+        next_run = job.next_run_time
+        logger.info(f"  - {job.id}: next run at {next_run.strftime('%Y-%m-%d %H:%M:%S %Z') if next_run else 'N/A'}")
+    
+    logger.info("="*80)
 
 
 def stop_scheduler():
@@ -405,7 +472,10 @@ def update_rr_history():
         is_post_market_window = market_close <= current_time <= post_market_end
         
         if not is_market_open() and not is_post_market_window:
-            logger.debug("Outside market hours and post-market window. Skipping RR history update.")
+            logger.info("⊘ SKIPPING RR history update: Outside market hours and post-market window")
+            logger.debug(f"  Current time: {current_time}")
+            logger.debug(f"  Market hours: {MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} - {MARKET_CLOSE_HOUR}:{MARKET_CLOSE_MINUTE:02d} ET")
+            logger.debug(f"  Post-market window: 16:00 - 17:00 ET")
             # Update log entry
             with Session(engine) as session:
                 log_entry = session.get(RRHistoryLog, log_id)
@@ -414,6 +484,7 @@ def update_rr_history():
                     log_entry.notes = "Outside market hours and post-market window. Skipped update."
                     session.add(log_entry)
                     session.commit()
+            logger.debug(f"✓ Updated rr_history_log entry {log_id} with skip reason")
             return
         
         logger.info("Starting RR history update...")
@@ -546,6 +617,7 @@ def update_rr_history():
                     
                     if existing:
                         # Update existing entry
+                        logger.debug(f"  ✓ Updating existing rr_history record for {entry.ticker} {expiration_str}")
                         existing.curr_value = Decimal(str(curr_value))
                         existing.call_price = call_price
                         existing.put_price = put_price
@@ -553,6 +625,7 @@ def update_rr_history():
                         session.add(existing)
                     else:
                         # Create new history entry
+                        logger.debug(f"  ✓ Inserting new rr_history record for {entry.ticker} {expiration_str}")
                         history_entry = RRHistory(
                             rr_uuid=entry.id,
                             ticker=entry.ticker,

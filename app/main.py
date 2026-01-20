@@ -29,22 +29,43 @@ async def lifespan(app: FastAPI):
     
     # Start the scheduler for fetching stock data every 60 minutes
     try:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("Attempting to start scheduler...")
+        
         from app.services.scheduler_service import start_scheduler
         start_scheduler()
-        print("Scheduler started for fetching stock data every 60 minutes")
+        
+        logger.info("✓ Scheduler initialization completed successfully")
+        print("✓ Scheduler started for fetching stock data every 60 minutes")
     except Exception as e:
         # Don't crash startup if scheduler fails
-        print(f"Warning: Could not start scheduler: {e}")
+        import logging
+        import traceback
+        logger = logging.getLogger(__name__)
+        logger.error(f"✗ Failed to start scheduler: {e}")
+        logger.error(f"Stack trace:\n{traceback.format_exc()}")
+        print(f"⚠ Warning: Could not start scheduler: {e}")
+        print("Application will continue without scheduler")
     
     yield
     
     # Shutdown
     try:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("Attempting to stop scheduler...")
+        
         from app.services.scheduler_service import stop_scheduler
         stop_scheduler()
-        print("Scheduler stopped")
+        
+        logger.info("✓ Scheduler stopped successfully")
+        print("✓ Scheduler stopped")
     except Exception as e:
-        print(f"Warning: Could not stop scheduler: {e}")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Could not stop scheduler: {e}")
+        print(f"⚠ Warning: Could not stop scheduler: {e}")
 
 
 # Initialize FastAPI app with lifespan handler
