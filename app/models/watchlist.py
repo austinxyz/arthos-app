@@ -2,7 +2,10 @@
 from sqlmodel import SQLModel, Field, Relationship
 from datetime import datetime
 from uuid import UUID, uuid4
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.account import Account
 
 
 class WatchList(SQLModel, table=True):
@@ -32,8 +35,12 @@ class WatchList(SQLModel, table=True):
         description="Optional brief description of the watchlist (max 265 characters)"
     )
     
-    # Relationship to watchlist stocks
+    
+    # Relationships
     stocks: List["WatchListStock"] = Relationship(back_populates="watchlist", cascade_delete=True)
+    # Foreign Key to Account
+    account_id: Optional[UUID] = Field(default=None, foreign_key="account.id", index=True)
+    account: Optional["Account"] = Relationship(back_populates="watchlists")
 
 
 class WatchListStock(SQLModel, table=True):

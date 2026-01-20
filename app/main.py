@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, HTTPException, Query, Path as FPath
 from fastapi.staticfiles import StaticFiles
 from starlette.templating import Jinja2Templates
 from starlette.responses import RedirectResponse
+from fastapi.responses import HTMLResponse
 from pathlib import Path
 from uuid import UUID
 from app.services.stock_price_service import get_stock_metrics_from_db
@@ -53,6 +54,16 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Add Session Middleware
+import os
+from starlette.middleware.sessions import SessionMiddleware
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=86400*30, same_site='lax', https_only=False)
+
+# Include Routers
+from app.routers import auth
+app.include_router(auth.router)
+
 # Set up templates directory
 templates_dir = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
@@ -69,33 +80,21 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/watchlists")
-async def list_watchlists_page(request: Request):
+@app.get("/watchlists", response_class=HTMLResponse)
+async def watchlists_page(request: Request):
     """
     Display list of all watchlists.
     
     Returns:
         HTML page with list of watchlists
     """
-    from app.services.watchlist_service import get_all_watchlists
+    from app.services import watchlist_service
+    # Get user from session
+    account_id_str = request.session.get('account_id')
+    account_id = UUID(account_id_str) if account_id_str else None
     
-    watchlists = get_all_watchlists()
-    
-    # Format dates for display
-    watchlists_data = []
-    for w in watchlists:
-        watchlists_data.append({
-            "watchlist_id": str(w.watchlist_id),
-            "watchlist_name": w.watchlist_name,
-            "description": w.description,
-            "date_added": w.date_added.strftime("%Y-%m-%d %H:%M:%S"),
-            "date_modified": w.date_modified.strftime("%Y-%m-%d %H:%M:%S")
-        })
-    
-    return templates.TemplateResponse("watchlists.html", {
-        "request": request,
-        "watchlists": watchlists_data
-    })
+    watchlists = watchlist_service.get_all_watchlists(account_id=account_id)
+    return templates.TemplateResponse("watchlists.html", {"request": request, "watchlists": watchlists})
 
 
 @app.get("/create-watchlist")
@@ -109,7 +108,7 @@ async def create_watchlist_page(request: Request):
     return templates.TemplateResponse("create_watchlist.html", {"request": request})
 
 
-@app.get("/rr-list")
+@app.get("/rr-list", response_class=HTMLResponse)
 async def rr_list_page(request: Request):
     """
     Display RR watchlist page with all Risk Reversal entries.
@@ -117,13 +116,16 @@ async def rr_list_page(request: Request):
     Returns:
         HTML page with list of RR watchlist entries
     """
-    from app.services.rr_watchlist_service import get_all_rr_watchlist_entries, get_latest_net_cost
+    from app.services import rr_watchlist_service
+    # Get user from session
+    account_id_str = request.session.get('account_id')
+    account_id = UUID(account_id_str) if account_id_str else None
     
-    entries = get_all_rr_watchlist_entries()
+    rr_entries = rr_watchlist_service.get_all_rr_watchlist_entries(account_id=account_id)
     
     # Format entries for display
     formatted_entries = []
-    for entry in entries:
+    for entry in rr_entries:
         # Build legs data for crisp display
         legs = []
         # Put leg (short)
@@ -150,7 +152,7 @@ async def rr_list_page(request: Request):
             })
         
         # Get latest net cost from history
-        latest_net_cost = get_latest_net_cost(entry.id)
+        latest_net_cost = rr_watchlist_service.get_latest_net_cost(entry.id)
         current_price = float(latest_net_cost) if latest_net_cost is not None else None
         
         # Calculate Change and Change %
@@ -199,7 +201,10 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
     from app.services.rr_watchlist_service import get_rr_watchlist_entry, get_rr_history
     from datetime import date
     
-    entry = get_rr_watchlist_entry(rr_uuid)
+    account_id_str = request.session.get('account_id')
+    account_id = UUID(account_id_str) if account_id_str else None
+    
+    entry = get_rr_watchlist_entry(rr_uuid, account_id)
     
     if not entry:
         raise HTTPException(status_code=404, detail="RR entry not found")
@@ -330,8 +335,8 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
     })
 
 
-@app.get("/watchlist/{watchlist_id}")
-async def watchlist_details_page(request: Request, watchlist_id: UUID = FPath(...)):
+@app.get("/watchlist/{watchlist_id}", response_class=HTMLResponse)
+async def watchlist_details_page(request: Request, watchlist_id: UUID):
     """
     Display watchlist details page with stocks.
     
@@ -341,26 +346,26 @@ async def watchlist_details_page(request: Request, watchlist_id: UUID = FPath(..
     Returns:
         HTML page with watchlist details and stocks
     """
-    from app.services.watchlist_service import get_watchlist, get_watchlist_stocks_with_metrics
+    from app.services import watchlist_service
     
-    try:
-        watchlist = get_watchlist(watchlist_id)
-    except ValueError:
-        raise HTTPException(status_code=404, detail="WatchList not found")
+    # Get user from session
+    account_id_str = request.session.get('account_id')
+    account_id = UUID(account_id_str) if account_id_str else None
     
-    # Get stocks in watchlist with metrics
-    metrics_list = get_watchlist_stocks_with_metrics(watchlist_id)
+    watchlist = watchlist_service.get_watchlist(watchlist_id, account_id=account_id)
+    if not watchlist:
+        raise HTTPException(status_code=404, detail="Watchlist not found")
+        
+    # Check ownership if needed (service layer handles this logic mostly, but good to be consistent)
+    # The service.get_watchlist already checks ownership if account_id is passed, 
+    # but for UI we might want to handle display logic differently? 
+    # For now relying on service layer.
     
+    metrics = watchlist_service.get_watchlist_stocks_with_metrics(watchlist_id, account_id=account_id)
     return templates.TemplateResponse("watchlist_details.html", {
-        "request": request,
-        "watchlist": {
-            "watchlist_id": str(watchlist.watchlist_id),
-            "watchlist_name": watchlist.watchlist_name,
-            "description": watchlist.description,
-            "date_added": watchlist.date_added.strftime("%Y-%m-%d %H:%M:%S"),
-            "date_modified": watchlist.date_modified.strftime("%Y-%m-%d %H:%M:%S")
-        },
-        "metrics": metrics_list
+        "request": request, 
+        "watchlist": watchlist, 
+        "metrics": metrics
     })
 
 
@@ -542,6 +547,12 @@ async def save_rr_to_watchlist_api(request: Request):
         if sold_call_strike is not None:
             sold_call_strike = float(sold_call_strike)
         collar_type = data.get('collar_type')
+
+        account_id_str = request.session.get('account_id')
+        account_id = UUID(account_id_str) if account_id_str else None
+        
+        if not account_id:
+             return {"success": False, "error": "User must be logged in to save strategies"}
         
         if not all([ticker, expiration, put_strike, call_strike, current_price]):
             return {"success": False, "error": "Missing required fields"}
@@ -554,7 +565,8 @@ async def save_rr_to_watchlist_api(request: Request):
             ratio=ratio,
             current_price=current_price,
             sold_call_strike=sold_call_strike,
-            collar_type=collar_type
+            collar_type=collar_type,
+            account_id=account_id
         )
         
         return result
@@ -571,7 +583,13 @@ async def delete_rr_watchlist_api(rr_uuid: UUID = FPath(...)):
     from app.services.rr_watchlist_service import delete_rr_watchlist_entry
     
     try:
-        success = delete_rr_watchlist_entry(rr_uuid)
+        account_id_str = request.session.get('account_id')
+        account_id = UUID(account_id_str) if account_id_str else None
+        
+        if not account_id:
+             return {"success": False, "error": "User must be logged in to delete strategies"}
+
+        success = delete_rr_watchlist_entry(rr_uuid, account_id)
         if success:
             return {"success": True, "message": "Risk Reversal entry deleted successfully"}
         else:
@@ -734,8 +752,13 @@ class AddStocksRequest(BaseModel):
 
 
 # WatchList API Endpoints
+    # NOTE: request object not directly available in standard FastAPI without dependency or Request parameter.
+    # But here we didn't add Request parameter. We need to add it or use dependency.
+    # Let's add Request param to the functions.
+    pass
+
 @app.get("/v1/watchlist")
-async def list_watchlists():
+async def list_watchlists(request: Request):
     """
     List all watchlists.
     
@@ -744,7 +767,10 @@ async def list_watchlists():
     """
     from app.services.watchlist_service import get_all_watchlists
     
-    watchlists = get_all_watchlists()
+    account_id_str = request.session.get('account_id')
+    account_id = UUID(account_id_str) if account_id_str else None
+    
+    watchlists = get_all_watchlists(account_id)
     return {
         "watchlists": [
             {
@@ -760,7 +786,7 @@ async def list_watchlists():
 
 
 @app.get("/v1/watchlist/{watchlist_id}")
-async def get_watchlist(watchlist_id: UUID = FPath(...)):
+async def get_watchlist(request: Request, watchlist_id: UUID = FPath(...)):
     """
     Get watchlist details.
     
@@ -772,9 +798,12 @@ async def get_watchlist(watchlist_id: UUID = FPath(...)):
     """
     from app.services.watchlist_service import get_watchlist, get_watchlist_stocks
     
+    account_id_str = request.session.get('account_id')
+    account_id = UUID(account_id_str) if account_id_str else None
+    
     try:
-        watchlist = get_watchlist(watchlist_id)
-        stocks = get_watchlist_stocks(watchlist_id)
+        watchlist = get_watchlist(watchlist_id, account_id)
+        stocks = get_watchlist_stocks(watchlist_id, account_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     
@@ -795,20 +824,31 @@ async def get_watchlist(watchlist_id: UUID = FPath(...)):
 
 
 @app.post("/v1/watchlist")
-async def create_watchlist(watchlist: WatchListCreate):
+async def create_watchlist(request: Request, watchlist: WatchListCreate):
     """
     Create a new watchlist.
     
     Args:
+        request: Request object
         watchlist: WatchList creation request with watchlist_name
         
     Returns:
         JSON response with created watchlist
     """
-    from app.services.watchlist_service import create_watchlist
+    from app.services import watchlist_service
     
+    account_id_str = request.session.get('account_id')
+    account_id = UUID(account_id_str) if account_id_str else None
+    
+    if not account_id:
+        raise HTTPException(status_code=401, detail="User must be logged in to create a watchlist")
+
     try:
-        new_watchlist = create_watchlist(watchlist.watchlist_name, watchlist.description)
+        new_watchlist = watchlist_service.create_watchlist(
+            watchlist_name=watchlist.watchlist_name, 
+            description=watchlist.description,
+            account_id=account_id
+        )
         return {
             "watchlist_id": str(new_watchlist.watchlist_id),
             "watchlist_name": new_watchlist.watchlist_name,
@@ -821,11 +861,12 @@ async def create_watchlist(watchlist: WatchListCreate):
 
 
 @app.put("/v1/watchlist/{watchlist_id}")
-async def update_watchlist(watchlist_id: UUID = FPath(...), watchlist: WatchListUpdate = None):
+async def update_watchlist(request: Request, watchlist_id: UUID = FPath(...), watchlist: WatchListUpdate = None):
     """
     Update watchlist name and/or description.
     
     Args:
+        request: Request object
         watchlist_id: UUID of the watchlist
         watchlist: WatchList update request with watchlist_name and optional description
         
@@ -834,11 +875,17 @@ async def update_watchlist(watchlist_id: UUID = FPath(...), watchlist: WatchList
     """
     from app.services.watchlist_service import update_watchlist
     
+    account_id_str = request.session.get('account_id')
+    account_id = UUID(account_id_str) if account_id_str else None
+    
+    if not account_id:
+        raise HTTPException(status_code=401, detail="User must be logged in to update a watchlist")
+
     if not watchlist:
         raise HTTPException(status_code=400, detail="WatchList name is required")
     
     try:
-        updated_watchlist = update_watchlist(watchlist_id, watchlist.watchlist_name, watchlist.description)
+        updated_watchlist = update_watchlist(watchlist_id, watchlist.watchlist_name, watchlist.description, account_id)
         if not updated_watchlist:
             raise HTTPException(status_code=404, detail="WatchList not found")
         
@@ -854,50 +901,65 @@ async def update_watchlist(watchlist_id: UUID = FPath(...), watchlist: WatchList
 
 
 @app.delete("/v1/watchlist/{watchlist_id}")
-async def delete_watchlist(watchlist_id: UUID = FPath(...)):
+async def delete_watchlist_api(watchlist_id: UUID, request: Request):
     """
     Delete a watchlist and all its stocks (cascade delete).
     
     Args:
+        request: Request object
         watchlist_id: UUID of the watchlist
         
     Returns:
         JSON response with deletion status
     """
-    from app.services.watchlist_service import delete_watchlist
-    
+    from app.services import watchlist_service
+    # Ensure user is logged in
+    account_id_str = request.session.get('account_id')
+    if not account_id_str:
+        raise HTTPException(status_code=401, detail="User must be logged in to delete a watchlist")
+        
     try:
-        delete_watchlist(watchlist_id)
+        account_id = UUID(account_id_str)
+        result = watchlist_service.delete_watchlist(watchlist_id, account_id=account_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="WatchList not found")
         return {"message": "WatchList deleted successfully"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
 @app.post("/v1/watchlist/{watchlist_id}/stocks")
-async def add_stocks_to_watchlist(watchlist_id: UUID = FPath(...), request: AddStocksRequest = None):
+async def add_stocks_to_watchlist(request: Request, watchlist_id: UUID = FPath(...), request_body: AddStocksRequest = None):
     """
     Add stocks to a watchlist. Filters out invalid tickers and returns info about them.
     
     Args:
+        request: Request object
         watchlist_id: UUID of the watchlist
-        request: Request with comma-separated tickers
+        request_body: Request with comma-separated tickers
         
     Returns:
         JSON response with added stocks and invalid tickers
     """
     from app.services.watchlist_service import add_stocks_to_watchlist
     
-    if not request or not request.tickers:
+    account_id_str = request.session.get('account_id')
+    account_id = UUID(account_id_str) if account_id_str else None
+    
+    if not account_id:
+        raise HTTPException(status_code=401, detail="User must be logged in to add stocks")
+
+    if not request_body or not request_body.tickers:
         raise HTTPException(status_code=400, detail="Tickers are required")
     
     # Parse tickers
-    ticker_list = [t.strip().upper() for t in request.tickers.split(',') if t.strip()]
+    ticker_list = [t.strip().upper() for t in request_body.tickers.split(',') if t.strip()]
     
     if not ticker_list:
         raise HTTPException(status_code=400, detail="At least one ticker is required")
     
     try:
-        added_stocks, invalid_tickers = add_stocks_to_watchlist(watchlist_id, ticker_list)
+        added_stocks, invalid_tickers = add_stocks_to_watchlist(watchlist_id, ticker_list, account_id)
         
         # Build response message
         messages = []
@@ -925,21 +987,31 @@ async def add_stocks_to_watchlist(watchlist_id: UUID = FPath(...), request: AddS
 
 
 @app.delete("/v1/watchlist/{watchlist_id}/stocks/{ticker}")
-async def remove_stock_from_watchlist(watchlist_id: UUID = FPath(...), ticker: str = FPath(...)):
+async def remove_stock_from_watchlist_api(watchlist_id: UUID, ticker: str, request: Request):
     """
     Remove a stock from a watchlist.
     
     Args:
+        request: Request object
         watchlist_id: UUID of the watchlist
         ticker: Stock ticker symbol
         
     Returns:
         JSON response with deletion status
     """
-    from app.services.watchlist_service import remove_stock_from_watchlist
-    
+    from app.services import watchlist_service
+    # Ensure user is logged in
+    account_id_str = request.session.get('account_id')
+    if not account_id_str:
+        raise HTTPException(status_code=401, detail="User must be logged in to remove stocks")
+        
     try:
-        remove_stock_from_watchlist(watchlist_id, ticker)
+        account_id = UUID(account_id_str)
+        result = watchlist_service.remove_stock_from_watchlist(
+            watchlist_id=watchlist_id, 
+            ticker=ticker,
+            account_id=account_id
+        )
         return {"message": f"Stock {ticker} removed from watchlist"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))

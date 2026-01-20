@@ -46,12 +46,13 @@ services:
     environment:
       DATABASE_URL: postgresql://test_user:test_password@postgres:5432/test_db
       TEST_SERVER_URL: http://test-server:8000
+      MARKETDATA_API_KEY: ${MARKETDATA_API_KEY}
     volumes:
       - .:/app
       - pip_cache:/root/.cache/pip
     working_dir: /app
-    # Override command when running specific tests
-    command: ["pytest", "tests/", "-v", "--tb=short", "-k", "not browser and not e2e"]
+    # Run all tests including browser/e2e
+    command: ["pytest", "tests/", "-v", "--tb=short"]
 
 volumes:
   postgres_test_data:

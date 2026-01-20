@@ -2,8 +2,11 @@
 from sqlmodel import SQLModel, Field, Relationship
 from datetime import datetime, date
 from uuid import UUID, uuid4
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from decimal import Decimal
+
+if TYPE_CHECKING:
+    from app.models.account import Account
 
 
 class RRWatchlist(SQLModel, table=True):
@@ -82,8 +85,11 @@ class RRWatchlist(SQLModel, table=True):
         description="Collar sub-type (e.g., '1:1', '1:2')"
     )
     
-    # Relationship to history
+    # Relationships
     history: List["RRHistory"] = Relationship(back_populates="rr_entry", cascade_delete=True)
+    # Foreign Key to Account
+    account_id: Optional[UUID] = Field(default=None, foreign_key="account.id", index=True)
+    account: Optional["Account"] = Relationship(back_populates="rr_watchlists")
 
 
 class RRHistory(SQLModel, table=True):

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,20 +18,24 @@
             margin: 0;
             background-color: #fff;
         }
+
         .logo-container {
             margin-bottom: 30px;
         }
+
         .logo {
             font-size: 72px;
             font-weight: 400;
             color: #4285f4;
             margin: 0;
         }
+
         .search-container {
             width: 100%;
             max-width: 584px;
             margin: 0 auto;
         }
+
         .search-box {
             display: flex;
             align-items: center;
@@ -38,15 +43,18 @@
             border-radius: 24px;
             padding: 10px 15px;
             margin-bottom: 10px;
-            box-shadow: 0 2px 5px 1px rgba(64,60,67,.16);
+            box-shadow: 0 2px 5px 1px rgba(64, 60, 67, .16);
         }
+
         .search-box:hover {
-            box-shadow: 0 2px 8px 1px rgba(64,60,67,.24);
+            box-shadow: 0 2px 8px 1px rgba(64, 60, 67, .24);
         }
+
         .search-box:focus-within {
-            box-shadow: 0 2px 8px 1px rgba(64,60,67,.24);
+            box-shadow: 0 2px 8px 1px rgba(64, 60, 67, .24);
             border-color: transparent;
         }
+
         #tickerInput {
             flex: 1;
             border: none;
@@ -54,6 +62,7 @@
             font-size: 16px;
             padding: 5px;
         }
+
         .explore-btn {
             background-color: #4285f4;
             color: white;
@@ -64,15 +73,18 @@
             cursor: pointer;
             margin-left: 10px;
         }
+
         .explore-btn:hover {
             background-color: #357ae8;
         }
+
         .hint-text {
             font-size: 11px;
             color: #70757a;
             text-align: center;
             margin-top: 5px;
         }
+
         .error-message {
             color: #d93025;
             font-size: 14px;
@@ -82,26 +94,27 @@
         }
     </style>
 </head>
+
 <body>
     <div class="logo-container">
         <h1 class="logo">Arthos</h1>
     </div>
-    
+
+    <!-- Auth Controls -->
+    {% include 'partials/auth_header.html' %}
+
+    {% if request.session.get('account_id') %}
     <div style="margin-bottom: 20px;">
-        <a href="/watchlists" class="text-decoration-none" style="color: #4285f4; font-size: 14px; margin-right: 20px;">View My WatchLists</a>
+        <a href="/watchlists" class="text-decoration-none"
+            style="color: #4285f4; font-size: 14px; margin-right: 20px;">View My WatchLists</a>
         <a href="/rr-list" class="text-decoration-none" style="color: #4285f4; font-size: 14px;">RR List</a>
     </div>
-    
+    {% endif %}
+
     <div class="search-container">
         <form id="searchForm" onsubmit="handleSearch(event)">
             <div class="search-box">
-                <input 
-                    type="text" 
-                    id="tickerInput" 
-                    name="tickers" 
-                    placeholder="Enter stock tickers"
-                    autocomplete="off"
-                >
+                <input type="text" id="tickerInput" name="tickers" placeholder="Enter stock tickers" autocomplete="off">
                 <button type="submit" class="explore-btn">Explore</button>
             </div>
             <div class="hint-text">Enter comma-separated stock tickers (e.g., AAPL, MSFT, GOOGL)</div>
@@ -118,31 +131,31 @@
             const pattern = /^[A-Z0-9]{1,5}(\.[A-Z0-9]{1,5})?$/;
             return pattern.test(trimmed);
         }
-        
+
         function handleSearch(event) {
             event.preventDefault();
             const tickerInput = document.getElementById('tickerInput');
             const errorMessage = document.getElementById('errorMessage');
             const tickers = tickerInput.value.trim();
-            
+
             // Hide previous error
             errorMessage.style.display = 'none';
-            
+
             if (!tickers) {
                 errorMessage.textContent = 'Please enter at least one stock ticker';
                 errorMessage.style.display = 'block';
                 return;
             }
-            
+
             // Parse and validate tickers
             const tickerList = tickers.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
-            
+
             if (tickerList.length === 0) {
                 errorMessage.textContent = 'Please enter at least one valid stock ticker';
                 errorMessage.style.display = 'block';
                 return;
             }
-            
+
             // Validate each ticker format
             const invalidTickers = [];
             for (const ticker of tickerList) {
@@ -150,7 +163,7 @@
                     invalidTickers.push(ticker);
                 }
             }
-            
+
             if (invalidTickers.length > 0) {
                 if (invalidTickers.length === 1) {
                     errorMessage.textContent = `Invalid ticker format: ${invalidTickers[0]}. Tickers must be 1-5 alphanumeric characters (e.g., AAPL, MSFT).`;
@@ -160,17 +173,18 @@
                 errorMessage.style.display = 'block';
                 return;
             }
-            
+
             // All tickers are valid, redirect to results page
             window.location.href = `/results?tickers=${encodeURIComponent(tickerList.join(','))}`;
         }
-        
+
         // Allow Enter key to submit
-        document.getElementById('tickerInput').addEventListener('keypress', function(e) {
+        document.getElementById('tickerInput').addEventListener('keypress', function (e) {
             if (e.key === 'Enter') {
                 handleSearch(e);
             }
         });
     </script>
 </body>
+
 </html>

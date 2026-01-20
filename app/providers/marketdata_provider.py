@@ -68,7 +68,7 @@ class MarketDataProvider(StockDataProvider):
                 raise DataNotAvailableError("MarketData API key invalid or missing")
             elif response.status_code == 429:
                 raise DataNotAvailableError("MarketData API rate limit exceeded (100 calls/day on free tier)")
-            elif response.status_code != 200:
+            elif response.status_code not in (200, 203):
                 raise DataNotAvailableError(f"MarketData API error: {response.status_code} - {response.text}")
             
             data = response.json()

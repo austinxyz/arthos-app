@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,58 +8,67 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
     <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
     {% include 'partials/datatables_includes.html' %}
     <style>
         body {
             background-color: #f5f5f5;
             padding: 20px 0;
         }
+
         .header h1 {
             color: #4285f4;
         }
+
         .error-message {
             color: #d93025;
             font-size: 14px;
             margin-top: 10px;
             display: none;
         }
+
         .success-message {
             color: #28a745;
             font-size: 14px;
             margin-top: 10px;
             display: none;
         }
+
         .watchlist-name-display {
             display: inline-block;
         }
+
         .watchlist-name-edit {
             display: none;
         }
+
         .trading-range-container {
             display: flex;
             flex-direction: column;
             gap: 5px;
             min-width: 200px;
         }
+
         .trading-range-bar {
             position: relative;
             height: 24px;
-            background: linear-gradient(to right, 
-                rgba(60, 179, 113, 0.3) 0%, 
-                rgba(60, 179, 113, 0.3) 16.67%,
-                rgba(144, 238, 144, 0.3) 16.67%,
-                rgba(144, 238, 144, 0.3) 33.33%,
-                rgba(150, 150, 150, 0.15) 33.33%,
-                rgba(150, 150, 150, 0.15) 66.67%,
-                rgba(255, 182, 193, 0.3) 66.67%,
-                rgba(255, 182, 193, 0.3) 83.33%,
-                rgba(220, 20, 60, 0.3) 83.33%,
-                rgba(220, 20, 60, 0.3) 100%);
+            background: linear-gradient(to right,
+                    rgba(60, 179, 113, 0.3) 0%,
+                    rgba(60, 179, 113, 0.3) 16.67%,
+                    rgba(144, 238, 144, 0.3) 16.67%,
+                    rgba(144, 238, 144, 0.3) 33.33%,
+                    rgba(150, 150, 150, 0.15) 33.33%,
+                    rgba(150, 150, 150, 0.15) 66.67%,
+                    rgba(255, 182, 193, 0.3) 66.67%,
+                    rgba(255, 182, 193, 0.3) 83.33%,
+                    rgba(220, 20, 60, 0.3) 83.33%,
+                    rgba(220, 20, 60, 0.3) 100%);
             border: 1px solid #ddd;
             border-radius: 4px;
             overflow: visible;
         }
+
         .trading-range-dma-line {
             position: absolute;
             left: 50%;
@@ -68,6 +78,7 @@
             background-color: #000;
             z-index: 1;
         }
+
         .trading-range-dot {
             position: absolute;
             top: 50%;
@@ -77,8 +88,9 @@
             border-radius: 50%;
             border: 2px solid #000;
             z-index: 2;
-            box-shadow: 0 0 2px rgba(0,0,0,0.3);
+            box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
         }
+
         .trading-range-tail {
             position: absolute;
             top: 50%;
@@ -89,8 +101,10 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
+        {% include 'partials/auth_header.html' %}
         <div class="header mb-4">
             <a href="/watchlists" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to WatchLists</a>
             <div class="d-flex justify-content-between align-items-center">
@@ -98,16 +112,19 @@
                     <span class="watchlist-name-display" id="watchlistNameDisplay">
                         <h1 class="d-inline">{{ watchlist.watchlist_name }}</h1>
                         <button class="btn btn-sm btn-outline-secondary ms-2" onclick="editWatchListName()">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
-                                <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                                class="bi bi-pencil" viewBox="0 0 16 16">
+                                <path
+                                    d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
                             </svg>
                         </button>
                     </span>
                     <span class="watchlist-name-edit" id="watchlistNameEdit">
-                        <input type="text" class="form-control d-inline-block" id="watchlistNameInput" 
-                               value="{{ watchlist.watchlist_name }}" maxlength="128" style="width: 300px;">
+                        <input type="text" class="form-control d-inline-block" id="watchlistNameInput"
+                            value="{{ watchlist.watchlist_name }}" maxlength="128" style="width: 300px;">
                         <button class="btn btn-sm btn-success ms-2" onclick="saveWatchListName()">Save</button>
-                        <button class="btn btn-sm btn-secondary ms-2" onclick="cancelEditWatchListName()">Cancel</button>
+                        <button class="btn btn-sm btn-secondary ms-2"
+                            onclick="cancelEditWatchListName()">Cancel</button>
                     </span>
                 </div>
             </div>
@@ -115,50 +132,42 @@
             <div class="mt-3">
                 <span class="watchlist-description-display" id="watchlistDescriptionDisplay">
                     {% if watchlist.description %}
-                        <p class="text-muted mb-0">{{ watchlist.description }}</p>
+                    <p class="text-muted mb-0">{{ watchlist.description }}</p>
                     {% else %}
-                        <p class="text-muted mb-0 fst-italic">No description</p>
+                    <p class="text-muted mb-0 fst-italic">No description</p>
                     {% endif %}
                     <button class="btn btn-sm btn-outline-secondary mt-1" onclick="editWatchListDescription()">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-pencil" viewBox="0 0 16 16">
-                            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z"/>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                            class="bi bi-pencil" viewBox="0 0 16 16">
+                            <path
+                                d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
                         </svg>
                         Edit
                     </button>
                 </span>
                 <span class="watchlist-description-edit" id="watchlistDescriptionEdit" style="display: none;">
-                    <textarea 
-                        class="form-control" 
-                        id="watchlistDescriptionInput" 
-                        maxlength="265" 
-                        rows="3"
-                        style="width: 100%; max-width: 600px;"
-                    >{{ watchlist.description or '' }}</textarea>
+                    <textarea class="form-control" id="watchlistDescriptionInput" maxlength="265" rows="3"
+                        style="width: 100%; max-width: 600px;">{{ watchlist.description or '' }}</textarea>
                     <div class="form-text mt-1">
                         <span id="descriptionCharCount">{{ (watchlist.description or '')|length }}</span>/265 characters
                     </div>
                     <div class="mt-2">
                         <button class="btn btn-sm btn-success" onclick="saveWatchListDescription()">Save</button>
-                        <button class="btn btn-sm btn-secondary ms-2" onclick="cancelEditWatchListDescription()">Cancel</button>
+                        <button class="btn btn-sm btn-secondary ms-2"
+                            onclick="cancelEditWatchListDescription()">Cancel</button>
                     </div>
                 </span>
             </div>
         </div>
-        
+
         <div class="card mb-4">
             <div class="card-body">
                 <h5 class="card-title">Add Stocks to WatchList</h5>
                 <form id="addStocksForm" onsubmit="handleAddStocks(event)">
                     <div class="mb-3">
                         <label for="tickersInput" class="form-label">Stock Tickers</label>
-                        <input 
-                            type="text" 
-                            class="form-control" 
-                            id="tickersInput" 
-                            name="tickers" 
-                            placeholder="Enter stock tickers (e.g., AAPL, MSFT, GOOGL)"
-                            required
-                        >
+                        <input type="text" class="form-control" id="tickersInput" name="tickers"
+                            placeholder="Enter stock tickers (e.g., AAPL, MSFT, GOOGL)" required>
                         <div class="form-text">Enter comma-separated stock tickers</div>
                     </div>
                     <div class="error-message" id="errorMessage"></div>
@@ -167,7 +176,7 @@
                 </form>
             </div>
         </div>
-        
+
         <div class="table-responsive">
             {% if metrics and metrics|length > 0 %}
             <table id="stocksTable" class="table table-striped table-hover table-bordered">
@@ -190,134 +199,138 @@
                     <tr class="{% if 'error' in metric %}table-danger{% endif %}">
                         <td>
                             {% if 'error' not in metric %}
-                                <a href="/stock/{{ metric.ticker }}" class="text-decoration-none">
-                                    <strong>{{ metric.ticker }}</strong>
-                                </a>
-                            {% else %}
+                            <a href="/stock/{{ metric.ticker }}" class="text-decoration-none">
                                 <strong>{{ metric.ticker }}</strong>
+                            </a>
+                            {% else %}
+                            <strong>{{ metric.ticker }}</strong>
                             {% endif %}
                         </td>
                         {% if 'error' in metric %}
-                            <td colspan="8" class="text-danger fw-bold">{{ metric.error }}</td>
-                            <td class="text-center">
-                                <button class="btn btn-sm btn-danger" onclick="removeStock('{{ metric.ticker }}')">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
-                                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                                    </svg>
-                                </button>
-                            </td>
+                        <td colspan="8" class="text-danger fw-bold">{{ metric.error }}</td>
+                        <td class="text-center">
+                            <button class="btn btn-sm btn-danger" onclick="removeStock('{{ metric.ticker }}')">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                                    class="bi bi-trash" viewBox="0 0 16 16">
+                                    <path
+                                        d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                                    <path fill-rule="evenodd"
+                                        d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                                </svg>
+                            </button>
+                        </td>
                         {% else %}
-                            <td>{{ metric.current_price_formatted }}</td>
-                            <td>{{ metric.sma_50_formatted }}</td>
-                            <td>{{ metric.sma_200_formatted }}</td>
-                            <td>{{ metric.dividend_yield_formatted }}</td>
-                            <td>
-                                {% if metric.next_dividend_date_formatted %}
-                                    {{ metric.next_dividend_date_formatted }}
-                                {% else %}
-                                    <span class="text-muted">N/A</span>
+                        <td>{{ metric.current_price_formatted }}</td>
+                        <td>{{ metric.sma_50_formatted }}</td>
+                        <td>{{ metric.sma_200_formatted }}</td>
+                        <td>{{ metric.dividend_yield_formatted }}</td>
+                        <td>
+                            {% if metric.next_dividend_date_formatted %}
+                            {{ metric.next_dividend_date_formatted }}
+                            {% else %}
+                            <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if metric.next_earnings_date_formatted %}
+                            {{ metric.next_earnings_date_formatted }}
+                            {% if metric.is_earnings_date_estimate %}
+                            <small class="text-muted">(Est.)</small>
+                            {% endif %}
+                            {% else %}
+                            <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </td>
+                        <td
+                            data-sort="{% if metric.signal == 'Extreme Oversold' %}5{% elif metric.signal == 'Oversold' %}4{% elif metric.signal == 'Neutral' %}3{% elif metric.signal == 'Overbought' %}2{% elif metric.signal == 'Extreme Overbought' %}1{% else %}0{% endif %}">
+                            {% if metric.signal == "Extreme Oversold" %}
+                            <span class="badge bg-success">Extreme OS</span>
+                            {% elif metric.signal == "Oversold" %}
+                            <span class="badge bg-info text-dark">Oversold</span>
+                            {% elif metric.signal == "Neutral" %}
+                            <span class="badge bg-secondary">Neutral</span>
+                            {% elif metric.signal == "Overbought" %}
+                            <span class="badge bg-warning text-dark">Overbought</span>
+                            {% elif metric.signal == "Extreme Overbought" %}
+                            <span class="badge bg-danger">Extreme OB</span>
+                            {% else %}
+                            <span class="badge bg-secondary">{{ metric.signal }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set dot_position = (50 + (metric.devstep / 3) * 50) %}
+                            {% if dot_position < 0 %} {% set dot_position=0 %} {% elif dot_position> 100 %}
+                                {% set dot_position = 100 %}
                                 {% endif %}
-                            </td>
-                            <td>
-                                {% if metric.next_earnings_date_formatted %}
-                                    {{ metric.next_earnings_date_formatted }}
-                                    {% if metric.is_earnings_date_estimate %}
-                                        <small class="text-muted">(Est.)</small>
-                                    {% endif %}
-                                {% else %}
-                                    <span class="text-muted">N/A</span>
-                                {% endif %}
-                            </td>
-                            <td data-sort="{% if metric.signal == 'Extreme Oversold' %}5{% elif metric.signal == 'Oversold' %}4{% elif metric.signal == 'Neutral' %}3{% elif metric.signal == 'Overbought' %}2{% elif metric.signal == 'Extreme Overbought' %}1{% else %}0{% endif %}">
-                                {% if metric.signal == "Extreme Oversold" %}
-                                    <span class="badge bg-success">Extreme OS</span>
-                                {% elif metric.signal == "Oversold" %}
-                                    <span class="badge bg-info text-dark">Oversold</span>
-                                {% elif metric.signal == "Neutral" %}
-                                    <span class="badge bg-secondary">Neutral</span>
-                                {% elif metric.signal == "Overbought" %}
-                                    <span class="badge bg-warning text-dark">Overbought</span>
-                                {% elif metric.signal == "Extreme Overbought" %}
-                                    <span class="badge bg-danger">Extreme OB</span>
-                                {% else %}
-                                    <span class="badge bg-secondary">{{ metric.signal }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% set dot_position = (50 + (metric.devstep / 3) * 50) %}
-                                {% if dot_position < 0 %}
-                                    {% set dot_position = 0 %}
-                                {% elif dot_position > 100 %}
-                                    {% set dot_position = 100 %}
-                                {% endif %}
-                                
+
                                 {# Calculate 5-days-ago position #}
                                 {% if metric.movement_5day_stddev is defined %}
-                                    {% set devstep_5days_ago = metric.devstep - metric.movement_5day_stddev %}
-                                    {% set dot_position_5days_ago = (50 + (devstep_5days_ago / 3) * 50) %}
-                                    {% if dot_position_5days_ago < 0 %}
-                                        {% set dot_position_5days_ago = 0 %}
-                                    {% elif dot_position_5days_ago > 100 %}
-                                        {% set dot_position_5days_ago = 100 %}
+                                {% set devstep_5days_ago = metric.devstep - metric.movement_5day_stddev %}
+                                {% set dot_position_5days_ago = (50 + (devstep_5days_ago / 3) * 50) %}
+                                {% if dot_position_5days_ago < 0 %} {% set dot_position_5days_ago=0 %} {% elif
+                                    dot_position_5days_ago> 100 %}
+                                    {% set dot_position_5days_ago = 100 %}
                                     {% endif %}
-                                    
+
                                     {# Dot color based on 5-day price movement #}
                                     {% set dot_color = "#28a745" if metric.is_price_positive_5day else "#dc3545" %}
-                                    
+
                                     {# Calculate tail line position and width #}
                                     {% set tail_start = dot_position_5days_ago %}
                                     {% set tail_end = dot_position %}
-                                    {% if tail_start < tail_end %}
-                                        {% set tail_left = tail_start %}
-                                        {% set tail_width = tail_end - tail_start %}
-                                    {% else %}
-                                        {% set tail_left = tail_end %}
-                                        {% set tail_width = tail_start - tail_end %}
-                                    {% endif %}
-                                {% else %}
-                                    {# Fallback for old data without movement_5day_stddev #}
-                                    {% set dot_color = "#28a745" if metric.devstep < -1 else ("#6c757d" if metric.devstep <= 1 else "#dc3545") %}
-                                {% endif %}
-                                
-                                <div class="trading-range-container">
-                                    <div class="trading-range-bar">
-                                        <div class="trading-range-dma-line"></div>
-                                        {% if metric.movement_5day_stddev is defined and metric.movement_5day_stddev != 0 %}
-                                        <div class="trading-range-tail" style="left: {{ tail_left|round(1) }}%; width: {{ tail_width|round(1) }}%;"></div>
-                                        {% endif %}
-                                        <div class="trading-range-dot" style="left: {{ dot_position|round(1) }}%; background-color: {{ dot_color }};"></div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-danger" onclick="removeStock('{{ metric.ticker }}')">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
-                                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
-                                        <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
-                                    </svg>
-                                </button>
-                            </td>
-                        {% endif %}
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <div class="alert alert-info">
-                No stocks in this watchlist. Add stocks using the form above.
-            </div>
-            {% endif %}
+                                    {% if tail_start < tail_end %} {% set tail_left=tail_start %} {% set
+                                        tail_width=tail_end - tail_start %} {% else %} {% set tail_left=tail_end %} {%
+                                        set tail_width=tail_start - tail_end %} {% endif %} {% else %} {# Fallback for
+                                        old data without movement_5day_stddev #} {% set dot_color="#28a745" if
+                                        metric.devstep < -1 else ("#6c757d" if metric.devstep <=1 else "#dc3545" ) %} {%
+                                        endif %} <div class="trading-range-container">
+                                        <div class="trading-range-bar">
+                                            <div class="trading-range-dma-line"></div>
+                                            {% if metric.movement_5day_stddev is defined and metric.movement_5day_stddev
+                                            != 0 %}
+                                            <div class="trading-range-tail"
+                                                style="left: {{ tail_left|round(1) }}%; width: {{ tail_width|round(1) }}%;">
+                                            </div>
+                                            {% endif %}
+                                            <div class="trading-range-dot"
+                                                style="left: {{ dot_position|round(1) }}%; background-color: {{ dot_color }};">
+                                            </div>
+                                        </div>
         </div>
+        </td>
+        <td>
+            <button class="btn btn-sm btn-danger" onclick="removeStock('{{ metric.ticker }}')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash"
+                    viewBox="0 0 16 16">
+                    <path
+                        d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
+                    <path fill-rule="evenodd"
+                        d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
+                </svg>
+            </button>
+        </td>
+        {% endif %}
+        </tr>
+        {% endfor %}
+        </tbody>
+        </table>
+        {% else %}
+        <div class="alert alert-info">
+            No stocks in this watchlist. Add stocks using the form above.
+        </div>
+        {% endif %}
+    </div>
 
     {% include 'partials/datatables_scripts.html' %}
     <script src="/static/js/datatables_init.js"></script>
     <!-- Bootstrap 5 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+        crossorigin="anonymous"></script>
+
     <script>
         const watchlistId = '{{ watchlist.watchlist_id }}';
-        
+
         // Ticker format validation
         function validateTickerFormat(ticker) {
             const trimmed = ticker.trim().toUpperCase();
@@ -325,33 +338,33 @@
             const pattern = /^[A-Z0-9]{1,5}(\.[A-Z0-9]{1,5})?$/;
             return pattern.test(trimmed);
         }
-        
+
         async function handleAddStocks(event) {
             event.preventDefault();
             const errorMessage = document.getElementById('errorMessage');
             const successMessage = document.getElementById('successMessage');
             const tickersInput = document.getElementById('tickersInput');
             const tickers = tickersInput.value.trim();
-            
+
             // Hide previous messages
             errorMessage.style.display = 'none';
             successMessage.style.display = 'none';
-            
+
             if (!tickers) {
                 errorMessage.textContent = 'Please enter at least one stock ticker';
                 errorMessage.style.display = 'block';
                 return;
             }
-            
+
             // Parse and validate tickers
             const tickerList = tickers.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
-            
+
             if (tickerList.length === 0) {
                 errorMessage.textContent = 'Please enter at least one valid stock ticker';
                 errorMessage.style.display = 'block';
                 return;
             }
-            
+
             // Validate each ticker format
             const invalidTickers = [];
             for (const ticker of tickerList) {
@@ -359,7 +372,7 @@
                     invalidTickers.push(ticker);
                 }
             }
-            
+
             if (invalidTickers.length > 0) {
                 if (invalidTickers.length === 1) {
                     errorMessage.textContent = `Invalid ticker format: ${invalidTickers[0]}. Tickers must be 1-5 alphanumeric characters (e.g., AAPL, MSFT).`;
@@ -369,12 +382,12 @@
                 errorMessage.style.display = 'block';
                 return;
             }
-            
+
             // Disable submit button
             const submitButton = event.target.querySelector('button[type="submit"]');
             submitButton.disabled = true;
             submitButton.textContent = 'Adding...';
-            
+
             try {
                 const response = await fetch(`/v1/watchlist/${watchlistId}/stocks`, {
                     method: 'POST',
@@ -385,13 +398,13 @@
                         tickers: tickerList.join(',')
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (!response.ok) {
                     throw new Error(data.detail || 'Failed to add stocks');
                 }
-                
+
                 // Show message (may include invalid ticker warnings)
                 if (data.invalid_tickers && data.invalid_tickers.length > 0) {
                     // Show error message for invalid tickers
@@ -402,10 +415,10 @@
                     successMessage.textContent = data.message;
                     successMessage.style.display = 'block';
                 }
-                
+
                 // Clear input
                 tickersInput.value = '';
-                
+
                 // Refresh page after a short delay if stocks were added
                 if (data.added_stocks && data.added_stocks.length > 0) {
                     setTimeout(() => {
@@ -423,66 +436,66 @@
                 submitButton.textContent = 'Add Stocks';
             }
         }
-        
+
         async function removeStock(ticker) {
             if (!confirm(`Are you sure you want to remove ${ticker} from this watchlist?`)) {
                 return;
             }
-            
+
             try {
                 const response = await fetch(`/v1/watchlist/${watchlistId}/stocks/${ticker}`, {
                     method: 'DELETE'
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (!response.ok) {
                     throw new Error(data.detail || 'Failed to remove stock');
                 }
-                
+
                 // Refresh page
                 window.location.reload();
             } catch (error) {
                 alert('Error: ' + error.message);
             }
         }
-        
+
         function editWatchListName() {
             document.getElementById('watchlistNameDisplay').style.display = 'none';
             document.getElementById('watchlistNameEdit').style.display = 'inline-block';
             document.getElementById('watchlistNameInput').focus();
         }
-        
+
         function cancelEditWatchListName() {
             document.getElementById('watchlistNameInput').value = '{{ watchlist.watchlist_name }}';
             document.getElementById('watchlistNameDisplay').style.display = 'inline-block';
             document.getElementById('watchlistNameEdit').style.display = 'none';
         }
-        
+
         async function saveWatchListName() {
             const newName = document.getElementById('watchlistNameInput').value.trim();
             const oldName = '{{ watchlist.watchlist_name }}';
-            
+
             if (!newName) {
                 alert('WatchList name cannot be empty');
                 return;
             }
-            
+
             if (newName.length > 128) {
                 alert('WatchList name cannot exceed 128 characters');
                 return;
             }
-            
+
             if (!/^[a-zA-Z0-9\s]+$/.test(newName)) {
                 alert('WatchList name can only contain alphanumeric characters and spaces');
                 return;
             }
-            
+
             if (newName === oldName) {
                 cancelEditWatchListName();
                 return;
             }
-            
+
             try {
                 const response = await fetch(`/v1/watchlist/${watchlistId}`, {
                     method: 'PUT',
@@ -494,29 +507,29 @@
                         description: '{{ watchlist.description or "" }}'
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (!response.ok) {
                     throw new Error(data.detail || 'Failed to update watchlist name');
                 }
-                
+
                 // Update display
                 document.querySelector('#watchlistNameDisplay h1').textContent = newName;
                 cancelEditWatchListName();
-                
+
                 // Refresh page to show updated name in title
                 window.location.reload();
             } catch (error) {
                 alert('Error: ' + error.message);
             }
         }
-        
+
         // Initialize DataTable with custom sorting for Signal and Earnings Date columns
-        $(document).ready(function() {
+        $(document).ready(function () {
             // Register custom sort type that uses data-sort attribute (numeric sorting)
-            $.fn.dataTable.ext.order['dom-data-sort'] = function(settings, col) {
-                return this.api().column(col, {order: 'index'}).nodes().map(function(td, i) {
+            $.fn.dataTable.ext.order['dom-data-sort'] = function (settings, col) {
+                return this.api().column(col, { order: 'index' }).nodes().map(function (td, i) {
                     const sortValue = $(td).attr('data-sort');
                     // For numeric values (like Signal column)
                     return parseInt(sortValue) || 0;
@@ -524,13 +537,13 @@
             };
 
             // Text-based date sorting for earnings column, with N/A always at bottom
-            $.fn.dataTable.ext.order['earnings-date-text'] = function(settings, col) {
+            $.fn.dataTable.ext.order['earnings-date-text'] = function (settings, col) {
                 const api = new $.fn.dataTable.Api(settings);
                 const order = api.order();
                 const matchingOrder = order.find(item => item[0] === col);
                 const isDescending = matchingOrder && matchingOrder[1] === 'desc';
 
-                return api.column(col, {order: 'index'}).nodes().map(function(td, i) {
+                return api.column(col, { order: 'index' }).nodes().map(function (td, i) {
                     const text = $(td).text().trim();
                     if (!text || text === 'N/A') {
                         return isDescending ? '0000-00-00' : '9999-12-31';
@@ -539,7 +552,7 @@
                     return match ? match[0] : text;
                 });
             };
-            
+
             // Find column indices dynamically
             const signalColumnIndex = $('#stocksTable thead th[data-column="signal"]').index();
             const tradingRangeColumnIndex = $('#stocksTable thead th[data-column="trading-range"]').index();
@@ -548,10 +561,10 @@
             const dividendColumnIndex = 5;
             // Next Earnings is the 7th column (0-indexed: 0=Ticker, 1=Price, 2=SMA50, 3=SMA200, 4=DivYield, 5=NextDiv, 6=Earnings)
             const earningsColumnIndex = 6;
-            
+
             // Build columnDefs dynamically
             const columnDefs = [
-                { 
+                {
                     "type": "dom-data-sort",
                     "targets": [signalColumnIndex] // Signal column - uses custom sort
                 },
@@ -560,7 +573,7 @@
                     "targets": [earningsColumnIndex] // Next Earnings column - text sort with N/A bottom
                 }
             ];
-            
+
             // Add non-sortable columns if they exist
             if (tradingRangeColumnIndex >= 0) {
                 columnDefs.push({
@@ -574,7 +587,7 @@
                     "targets": [actionsColumnIndex]
                 });
             }
-            
+
             // Only initialize DataTables if table exists and has rows
             if ($('#stocksTable').length > 0 && $('#stocksTable tbody tr').length > 0) {
                 initDataTable('stocksTable', {
@@ -584,41 +597,41 @@
                 });
             }
         });
-        
+
         function editWatchListDescription() {
             document.getElementById('watchlistDescriptionDisplay').style.display = 'none';
             document.getElementById('watchlistDescriptionEdit').style.display = 'block';
             document.getElementById('watchlistDescriptionInput').focus();
-            
+
             // Character counter
             const textarea = document.getElementById('watchlistDescriptionInput');
             const charCount = document.getElementById('descriptionCharCount');
-            textarea.addEventListener('input', function() {
+            textarea.addEventListener('input', function () {
                 charCount.textContent = this.value.length;
             });
         }
-        
+
         function cancelEditWatchListDescription() {
             document.getElementById('watchlistDescriptionInput').value = '{{ watchlist.description or "" }}';
             document.getElementById('descriptionCharCount').textContent = '{{ (watchlist.description or "")|length }}';
             document.getElementById('watchlistDescriptionDisplay').style.display = 'block';
             document.getElementById('watchlistDescriptionEdit').style.display = 'none';
         }
-        
+
         async function saveWatchListDescription() {
             const newDescription = document.getElementById('watchlistDescriptionInput').value.trim();
             const oldDescription = '{{ watchlist.description or "" }}';
-            
+
             if (newDescription.length > 265) {
                 alert('Description cannot exceed 265 characters');
                 return;
             }
-            
+
             if (newDescription === oldDescription) {
                 cancelEditWatchListDescription();
                 return;
             }
-            
+
             try {
                 const response = await fetch(`/v1/watchlist/${watchlistId}`, {
                     method: 'PUT',
@@ -630,13 +643,13 @@
                         description: newDescription || null
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (!response.ok) {
                     throw new Error(data.detail || 'Failed to update description');
                 }
-                
+
                 // Refresh page to show updated description
                 window.location.reload();
             } catch (error) {
@@ -645,5 +658,5 @@
         }
     </script>
 </body>
-</html>
 
+</html>

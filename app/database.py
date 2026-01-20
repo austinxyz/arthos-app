@@ -1,11 +1,12 @@
 """Database configuration using SQLModel."""
 import os
-from sqlmodel import SQLModel, create_engine, Session, text
+from sqlmodel import SQLModel, create_engine, Session, text, select
 from app.models.watchlist import WatchList, WatchListStock  # Import to register with metadata
 from app.models.stock_price import StockPrice, StockAttributes  # Import to register with metadata
 from app.models.scheduler_log import SchedulerLog  # Import to register with metadata
-from app.models.rr_watchlist import RRWatchlist, RRHistory  # Import to register with metadata
+from app.models.rr_watchlist import RRWatchlist, RRHistory
 from app.models.rr_history_log import RRHistoryLog  # Import to register with metadata
+from app.models.account import Account # New import, fixed typo
 
 # Database URL - supports both SQLite (local dev) and PostgreSQL (production)
 # Railway provides DATABASE_URL environment variable automatically
@@ -50,6 +51,16 @@ def create_db_and_tables():
     # Create indexes on stock_price and stock_attributes for faster queries
     _create_stock_price_index()
     _create_stock_attributes_index()
+    
+    # Account Feature Migrations (Ordered)
+    _create_user_table() # Initially created as user
+    _migrate_watchlist_user_column() # Initially added as user_id
+    _migrate_rr_watchlist_user_column() # Initially added as user_id
+    _migrate_data_ownership_to_default_user() # Backfill to user
+    
+    # Rename Refactor Migration
+    _rename_user_concepts_to_account()
+    
 
 
 def _migrate_stock_price_dma_columns():
@@ -726,3 +737,285 @@ def get_session():
     with Session(engine) as session:
         yield session
 
+
+def _create_user_table():
+    """Create user table if it doesn't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            if is_sqlite:
+                result = session.exec(text("SELECT name FROM sqlite_master WHERE type='table' AND name='user'")).all()
+                if not result:
+                    SQLModel.metadata.create_all(engine)
+                    print("Created user table")
+            else:
+                result = session.exec(text("SELECT tablename FROM pg_tables WHERE tablename = 'user'")).all()
+                if not result:
+                    SQLModel.metadata.create_all(engine)
+                    print("Created user table")
+    except Exception as e:
+        print(f"Warning: Could not create user table: {e}")
+
+
+def _migrate_watchlist_user_column():
+    """Add user_id column to watchlist table if it doesn't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            if is_sqlite:
+                result = session.exec(text("PRAGMA table_info(watchlist)")).all()
+                if not any(row[1] == 'user_id' for row in result):
+                    session.exec(text("ALTER TABLE watchlist ADD COLUMN user_id CHAR(36)"))
+                    session.exec(text("CREATE INDEX idx_watchlist_user_id ON watchlist(user_id)"))
+                    session.commit()
+                    print("Added user_id column to watchlist table")
+            else:
+                result = session.exec(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'watchlist' AND column_name = 'user_id'")).first()
+                if not result:
+                    session.exec(text("ALTER TABLE watchlist ADD COLUMN user_id UUID"))
+                    session.exec(text("CREATE INDEX idx_watchlist_user_id ON watchlist(user_id)"))
+                    session.commit()
+                    print("Added user_id column to watchlist table")
+    except Exception as e:
+        print(f"Warning: Could not migrate watchlist user_id column: {e}")
+
+
+def _migrate_rr_watchlist_user_column():
+    """Add user_id column to rr_watchlist table if it doesn't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+            
+            if is_sqlite:
+                result = session.exec(text("PRAGMA table_info(rr_watchlist)")).all()
+                if not any(row[1] == 'user_id' for row in result):
+                    session.exec(text("ALTER TABLE rr_watchlist ADD COLUMN user_id CHAR(36)"))
+                    session.exec(text("CREATE INDEX idx_rr_watchlist_user_id ON rr_watchlist(user_id)"))
+                    session.commit()
+                    print("Added user_id column to rr_watchlist table")
+            else:
+                result = session.exec(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'rr_watchlist' AND column_name = 'user_id'")).first()
+                if not result:
+                    session.exec(text("ALTER TABLE rr_watchlist ADD COLUMN user_id UUID"))
+                    session.exec(text("CREATE INDEX idx_rr_watchlist_user_id ON rr_watchlist(user_id)"))
+                    session.commit()
+                    print("Added user_id column to rr_watchlist table")
+    except Exception as e:
+        print(f"Warning: Could not migrate rr_watchlist user_id column: {e}")
+
+
+def _migrate_data_ownership_to_default_user():
+    """Create default user kgajjala@gmail.com and assign all orphaned data to it."""
+    try:
+
+        from uuid import uuid4
+        from datetime import datetime
+        
+        default_email = "kgajjala@gmail.com"
+
+        with Session(engine) as session:
+            # Check if we have orphaned data (account_id is NULL)
+            # Note: The columns might still be user_id if this runs BEFORE rename, 
+            # OR account_id if AFTER. Ideally we run this AFTER rename.
+            # But the order in create_db_and_tables puts this BEFORE rename!
+            # So we should probably check for user_id columns first found in previous steps.
+            
+            # Actually, let's make this robust. 
+            # If we are refactoring, we should ensure data ownership is clean.
+            # But if we renamed user->account, we should use Account model.
+            
+            # Since _rename_user_concepts_to_account runs AFTER this, 
+            # the table is likely still 'user' and columns 'user_id'.
+            # BUT we deleted User model! So we can't use generic SQLModel for User.
+            # We must use raw SQL or the new Account model mapping to 'account' table?
+            # If we map Account to 'account' table, but table is still 'user', SQLModel will fail?
+            # No, SQLModel just generates SQL. 
+            
+            # Safest is to use raw SQL for this migration since models are in flux during refactor.
+            
+            # Check if default user exists (in 'user' or 'account' table)
+            # Try 'account' first (post-rename), then 'user' (pre-rename)
+            default_account_id = None
+            
+            # Check account table
+            try:
+                result = session.exec(text(f"SELECT id FROM account WHERE email = '{default_email}'")).first()
+                if result:
+                    default_account_id = result[0]
+            except Exception:
+                pass
+                
+            if not default_account_id:
+                try:
+                    result = session.exec(text(f"SELECT id FROM user WHERE email = '{default_email}'")).first()
+                    if result:
+                        default_account_id = result[0]
+                except Exception:
+                    pass
+            
+            if not default_account_id:
+                 # Need to create it. In which table?
+                 # If 'account' exists, insert there. Else 'user'.
+                 new_id = str(uuid4())
+                 now_str = datetime.now().isoformat()
+                 try:
+                     session.exec(text(f"INSERT INTO account (id, email, google_sub, full_name, created_at) VALUES ('{new_id}', '{default_email}', 'migration_placeholder', 'Karthik Gajjala', '{now_str}')"))
+                     session.commit()
+                     default_account_id = new_id
+                     print(f"Created default account {default_email} in 'account' table")
+                 except Exception:
+                     try:
+                         session.exec(text(f"INSERT INTO user (id, email, google_sub, full_name, created_at) VALUES ('{new_id}', '{default_email}', 'migration_placeholder', 'Karthik Gajjala', '{now_str}')"))
+                         session.commit()
+                         default_account_id = new_id
+                         print(f"Created default user {default_email} in 'user' table")
+                     except Exception as e:
+                         print(f"Could not create default user/account: {e}")
+                         return
+
+            # Now update orphaned records
+            # Check watchlist column name
+            col_name = "user_id"
+            try:
+                session.exec(text("SELECT account_id FROM watchlist LIMIT 1"))
+                col_name = "account_id"
+            except Exception:
+                pass
+                
+            session.exec(text(f"UPDATE watchlist SET {col_name} = '{default_account_id}' WHERE {col_name} IS NULL"))
+            
+            # Check rr_watchlist column name
+            col_name = "user_id"
+            try:
+                session.exec(text("SELECT account_id FROM rr_watchlist LIMIT 1"))
+                col_name = "account_id"
+            except Exception:
+                pass
+                
+            session.exec(text(f"UPDATE rr_watchlist SET {col_name} = '{default_account_id}' WHERE {col_name} IS NULL"))
+            
+            session.commit()
+            print(f"Assigned orphaned data to account {default_account_id}")
+            
+    except Exception as e:
+        print(f"Warning: Could not migrate data ownership: {e}")
+
+def _rename_user_concepts_to_account():
+    """
+    Renames 'user' table to 'account' and 'user_id' columns to 'account_id'.
+    Safety checks included to skip if already renamed.
+    """
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            # 1. Rename 'user' table to 'account'
+            user_table_exists = False
+            account_table_exists = False
+
+            if is_sqlite:
+                user_table_exists = session.exec(text("SELECT name FROM sqlite_master WHERE type='table' AND name='user'")).first() is not None
+                account_table_exists = session.exec(text("SELECT name FROM sqlite_master WHERE type='table' AND name='account'")).first() is not None
+            else: # PostgreSQL
+                user_table_exists = session.exec(text("SELECT tablename FROM pg_tables WHERE tablename = 'user'")).first() is not None
+                account_table_exists = session.exec(text("SELECT tablename FROM pg_tables WHERE tablename = 'account'")).first() is not None
+            
+            if user_table_exists:
+                if not account_table_exists:
+                    print("Renaming 'user' table to 'account'...")
+                    try:
+                        session.exec(text("ALTER TABLE user RENAME TO account"))
+                        session.commit()
+                        print("Renamed 'user' table to 'account'")
+                    except Exception as e:
+                        print(f"Error renaming table 'user' to 'account': {e}")
+                        session.rollback()
+                else:
+                    # Check if account table is empty (created by SQLModel.create_all)
+                    # and user table has data.
+                    account_count = session.exec(text("SELECT COUNT(*) FROM account")).scalar_one()
+                    user_count = session.exec(text("SELECT COUNT(*) FROM user")).scalar_one()
+                    
+                    if account_count == 0 and user_count > 0:
+                        print("'account' table is empty and 'user' table has data. Dropping empty 'account' and renaming 'user'.")
+                        try:
+                            # Disable FK checks temporarily for SQLite safety
+                            if is_sqlite:
+                                session.exec(text("PRAGMA foreign_keys = OFF"))
+                                
+                            # SQLite doesn't support CASCADE in DROP TABLE
+                            session.exec(text("DROP TABLE account")) 
+                            session.commit()
+                            session.exec(text("ALTER TABLE user RENAME TO account"))
+                            session.commit()
+                            
+                            if is_sqlite:
+                                session.exec(text("PRAGMA foreign_keys = ON"))
+                                
+                            print("Renamed 'user' table to 'account'")
+                        except Exception as e:
+                            print(f"Error handling empty 'account' table collision: {e}")
+                            session.rollback()
+                    else:
+                        print("'account' table already exists and is not empty (or user is empty), skipping table rename.")
+            elif account_table_exists:
+                print("'account' table already exists, skipping table rename.")
+            else:
+                print("'user' table does not exist, skipping table rename.")
+
+            # 2. Rename 'user_id' column to 'account_id' in 'watchlist'
+            if is_sqlite:
+                watchlist_columns = {row[1] for row in session.exec(text("PRAGMA table_info(watchlist)")).all()}
+                if 'user_id' in watchlist_columns and 'account_id' not in watchlist_columns:
+                    print("Renaming 'user_id' column in 'watchlist' to 'account_id'...")
+                    session.exec(text("ALTER TABLE watchlist RENAME COLUMN user_id TO account_id"))
+                    session.commit()
+                    print("Renamed 'watchlist.user_id' to 'account_id'")
+                elif 'account_id' in watchlist_columns:
+                    print("'watchlist.account_id' already exists, skipping column rename.")
+                else:
+                    print("'watchlist.user_id' does not exist, skipping column rename.")
+            else: # PostgreSQL
+                watchlist_user_id_exists = session.exec(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'watchlist' AND column_name = 'user_id'")).first() is not None
+                watchlist_account_id_exists = session.exec(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'watchlist' AND column_name = 'account_id'")).first() is not None
+                if watchlist_user_id_exists and not watchlist_account_id_exists:
+                    print("Renaming 'user_id' column in 'watchlist' to 'account_id'...")
+                    session.exec(text("ALTER TABLE watchlist RENAME COLUMN user_id TO account_id"))
+                    session.commit()
+                    print("Renamed 'watchlist.user_id' to 'account_id'")
+                elif watchlist_account_id_exists:
+                    print("'watchlist.account_id' already exists, skipping column rename.")
+                else:
+                    print("'watchlist.user_id' does not exist, skipping column rename.")
+
+            # 3. Rename 'user_id' column to 'account_id' in 'rr_watchlist'
+            if is_sqlite:
+                rr_watchlist_columns = {row[1] for row in session.exec(text("PRAGMA table_info(rr_watchlist)")).all()}
+                if 'user_id' in rr_watchlist_columns and 'account_id' not in rr_watchlist_columns:
+                    print("Renaming 'user_id' column in 'rr_watchlist' to 'account_id'...")
+                    session.exec(text("ALTER TABLE rr_watchlist RENAME COLUMN user_id TO account_id"))
+                    session.commit()
+                    print("Renamed 'rr_watchlist.user_id' to 'account_id'")
+                elif 'account_id' in rr_watchlist_columns:
+                    print("'rr_watchlist.account_id' already exists, skipping column rename.")
+                else:
+                    print("'rr_watchlist.user_id' does not exist, skipping column rename.")
+            else: # PostgreSQL
+                rr_watchlist_user_id_exists = session.exec(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'rr_watchlist' AND column_name = 'user_id'")).first() is not None
+                rr_watchlist_account_id_exists = session.exec(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'rr_watchlist' AND column_name = 'account_id'")).first() is not None
+                if rr_watchlist_user_id_exists and not rr_watchlist_account_id_exists:
+                    print("Renaming 'user_id' column in 'rr_watchlist' to 'account_id'...")
+                    session.exec(text("ALTER TABLE rr_watchlist RENAME COLUMN user_id TO account_id"))
+                    session.commit()
+                    print("Renamed 'rr_watchlist.user_id' to 'account_id'")
+                elif rr_watchlist_account_id_exists:
+                    print("'rr_watchlist.account_id' already exists, skipping column rename.")
+                else:
+                    print("'rr_watchlist.user_id' does not exist, skipping column rename.")
+
+
+
+    except Exception as e:
+        print(f"Warning: Could not rename user concepts to account: {e}")

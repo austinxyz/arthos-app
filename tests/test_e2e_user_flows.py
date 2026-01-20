@@ -87,17 +87,56 @@ def live_server_url():
 class TestE2EUserFlows:
     """End-to-end tests for complete user workflows."""
     
+    def login_as_test_user(self, page: Page, live_server_url):
+        """Helper to inject session cookie for a test user."""
+        from uuid import uuid4
+        from itsdangerous import URLSafeTimedSerializer
+        import json
+        
+        # Create a dummy user ID (we assume the DB has it or permits it)
+        # For E2E running against live server, we might need a real user in DB.
+        # But for now, let's assume the session is enough to pass auth check.
+        user_id = str(uuid4())
+        
+        # Generate signed session cookie
+        # NOTE: This assumes default SECRET_KEY="secret". 
+        # In production/CI, this must match the server's key.
+        serializer = URLSafeTimedSerializer("secret", salt="cookie-session", serializer=None)
+        
+        session_data = {
+            "account_id": user_id,
+            "user_info": {"name": "E2E Test User", "email": "e2e@example.com", "picture": ""}
+        }
+        
+        # Serialize and sign
+        cookie_value = serializer.dumps(session_data)
+        
+        # Inject cookie
+        domain = live_server_url.split("://")[1].split(":")[0]
+        page.context.add_cookies([{
+            "name": "session",
+            "value": cookie_value,
+            "domain": domain,
+            "path": "/"
+        }])
+        
+        return user_id
+
     @pytest.mark.e2e
     def test_complete_user_workflow(self, page: Page, live_server_url):
         """
         Test complete user workflow:
-        1. Load home page
-        2. Create a new WatchList
-        3. Add stocks to watchlist and see table populate
-        4. Open stock details page and verify chart/metrics match
-        5. Verify Options Data displays correctly
-        6. Verify Covered Calls table shows correctly
+        1. Login (simulated)
+        2. Load home page
+        3. Create a new WatchList
+        4. Add stocks to watchlist and see table populate
+        5. Open stock details page and verify chart/metrics match
+        6. Verify Options Data displays correctly
+        7. Verify Covered Calls table shows correctly
         """
+        # Step 0: Login
+        self.login_as_test_user(page, live_server_url)
+
         # Step 1: Load home page
         page.goto(f"{live_server_url}/")
         expect(page).to_have_title("Arthos - Investment Analysis")

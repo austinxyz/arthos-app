@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, date
 from decimal import Decimal
 from uuid import UUID
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from sqlmodel import Session, select
 from app.database import engine
 from app.models.rr_watchlist import RRWatchlist, RRHistory
@@ -22,7 +22,8 @@ def save_rr_to_watchlist(
     ratio: str,
     current_price: float,
     sold_call_strike: Optional[float] = None,
-    collar_type: Optional[str] = None
+    collar_type: Optional[str] = None,
+    account_id: Optional[UUID] = None
 ) -> Dict[str, Any]:
     """
     Save a Risk Reversal strategy to the watchlist.
@@ -125,29 +126,64 @@ def save_rr_to_watchlist(
         
         # Create RR watchlist entry
         with Session(engine) as session:
-            rr_entry = RRWatchlist(
-                ticker=ticker.upper(),
-                call_strike=Decimal(str(call_strike)),
-                call_quantity=call_quantity,
-                put_strike=Decimal(str(put_strike)),
-                put_quantity=put_quantity,
-                stock_price=Decimal(str(current_price)),
-                entry_price=Decimal(str(entry_price)),
-                call_option_quote=Decimal(str(call_option_quote)),
-                put_option_quote=Decimal(str(put_option_quote)),
-                expiration=exp_date,
-                ratio=ratio,
-                expired_yn="N",
-                # Collar-specific fields
-                short_call_strike=Decimal(str(sold_call_strike)) if sold_call_strike else None,
-                short_call_quantity=short_call_quantity,
-                short_call_option_quote=Decimal(str(short_call_option_quote)) if short_call_option_quote else None,
-                collar_type=collar_type
-            )
+            # Check if entry already exists for this calculation
+            # Logic: If account_id provided, unique per account.
             
-            session.add(rr_entry)
-            session.commit()
-            session.refresh(rr_entry)
+            statement = select(RRWatchlist).where(RRWatchlist.ticker == ticker.upper())
+            if account_id:
+                statement = statement.where(RRWatchlist.account_id == account_id)
+            else:
+                statement = statement.where(RRWatchlist.account_id == None)
+                
+            existing_entry = session.exec(statement).first()
+
+            if existing_entry:
+                # Update
+                existing_entry.call_strike = Decimal(str(call_strike))
+                existing_entry.call_quantity = call_quantity
+                existing_entry.put_strike = Decimal(str(put_strike))
+                existing_entry.put_quantity = put_quantity
+                existing_entry.stock_price = Decimal(str(current_price))
+                existing_entry.entry_price = Decimal(str(entry_price))
+                existing_entry.call_option_quote = Decimal(str(call_option_quote))
+                existing_entry.put_option_quote = Decimal(str(put_option_quote))
+                existing_entry.expiration = exp_date
+                existing_entry.ratio = ratio
+                existing_entry.short_call_strike = Decimal(str(sold_call_strike)) if sold_call_strike else None
+                existing_entry.short_call_quantity = short_call_quantity
+                existing_entry.short_call_option_quote = Decimal(str(short_call_option_quote)) if short_call_option_quote else None
+                existing_entry.collar_type = collar_type
+                existing_entry.date_added = datetime.now()
+                
+                session.add(existing_entry)
+                session.commit()
+                session.refresh(existing_entry)
+                rr_entry = existing_entry
+            else:
+                # Create
+                rr_entry = RRWatchlist(
+                    ticker=ticker.upper(),
+                    call_strike=Decimal(str(call_strike)),
+                    call_quantity=call_quantity,
+                    put_strike=Decimal(str(put_strike)),
+                    put_quantity=put_quantity,
+                    stock_price=Decimal(str(current_price)),
+                    entry_price=Decimal(str(entry_price)),
+                    call_option_quote=Decimal(str(call_option_quote)),
+                    put_option_quote=Decimal(str(put_option_quote)),
+                    expiration=exp_date,
+                    ratio=ratio,
+                    expired_yn="N",
+                    # Collar-specific fields
+                    short_call_strike=Decimal(str(sold_call_strike)) if sold_call_strike else None,
+                    short_call_quantity=short_call_quantity,
+                    short_call_option_quote=Decimal(str(short_call_option_quote)) if short_call_option_quote else None,
+                    collar_type=collar_type,
+                    account_id=account_id
+                )
+                session.add(rr_entry)
+                session.commit()
+                session.refresh(rr_entry)
             
             if is_collar:
                 logger.info(f"Saved Collar to watchlist: {ticker} {expiration} {collar_type} Put ${put_strike} Call ${call_strike} Short Call ${sold_call_strike}")
@@ -167,10 +203,23 @@ def save_rr_to_watchlist(
         return {"success": False, "error": f"Error saving Risk Reversal: {str(e)}"}
 
 
-def get_all_rr_watchlist_entries() -> list[RRWatchlist]:
-    """Get all entries from RR watchlist."""
+def get_all_rr_watchlist_entries(account_id: Optional[UUID] = None) -> List[RRWatchlist]:
+    """
+    Get all Risk Reversal watchlist entries.
+    
+    Args:
+        account_id: Optional ID of the account to filter by
+        
+    Returns:
+        List of RRWatchlist objects.
+    """
     with Session(engine) as session:
-        statement = select(RRWatchlist).order_by(RRWatchlist.date_added.desc())
+        statement = select(RRWatchlist)
+        if account_id:
+            statement = statement.where(RRWatchlist.account_id == account_id)
+        else:
+             statement = statement.where(RRWatchlist.account_id == None)
+             
         entries = session.exec(statement).all()
         return list(entries)
 
@@ -185,13 +234,17 @@ def get_latest_net_cost(rr_uuid: UUID) -> Optional[Decimal]:
         return latest.curr_value if latest else None
 
 
-def get_rr_watchlist_entry(rr_uuid: UUID) -> Optional[RRWatchlist]:
+def get_rr_watchlist_entry(rr_uuid: UUID, account_id: Optional[UUID] = None) -> Optional[RRWatchlist]:
     """Get a specific RR watchlist entry by UUID."""
     with Session(engine) as session:
-        return session.get(RRWatchlist, rr_uuid)
+        entry = session.get(RRWatchlist, rr_uuid)
+        if entry and account_id and entry.account_id != account_id:
+            logger.warning(f"Access denied for RR entry {rr_uuid} for account {account_id}")
+            return None
+        return entry
 
 
-def delete_rr_watchlist_entry(rr_uuid: UUID) -> bool:
+def delete_rr_watchlist_entry(rr_uuid: UUID, account_id: Optional[UUID] = None) -> bool:
     """
     Delete an RR watchlist entry and all associated history.
     Returns True if successful, False otherwise.
@@ -201,6 +254,10 @@ def delete_rr_watchlist_entry(rr_uuid: UUID) -> bool:
             rr_entry = session.get(RRWatchlist, rr_uuid)
             if not rr_entry:
                 return False
+            
+            if account_id and rr_entry.account_id != account_id:
+                 logger.warning(f"Attempt to delete RR entry {rr_uuid} by wrong account {account_id}")
+                 return False
             
             # Delete associated history (cascade should handle this, but explicit is better)
             statement = select(RRHistory).where(RRHistory.rr_uuid == rr_uuid)

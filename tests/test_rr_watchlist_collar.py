@@ -58,64 +58,66 @@ def create_mock_options_chain(puts, calls):
 class TestRRWatchlistCollar:
     """Tests for Collar functionality in RR Watchlist."""
     
-    @patch('app.services.rr_watchlist_service.ProviderFactory')
-    def test_save_collar_to_watchlist(self, mock_provider_factory):
+    def test_save_collar_to_watchlist(self, test_user):
         """Test saving a Collar strategy to the watchlist."""
-        # Setup mock provider
-        mock_provider = MagicMock()
-        mock_provider_factory.get_default_provider.return_value = mock_provider
-        
-        # Create mock options chain with put, call, and short call
-        mock_put = create_mock_option(strike=100.0, bid=5.0, ask=5.50)
-        mock_call = create_mock_option(strike=105.0, bid=3.0, ask=3.50)
-        mock_short_call = create_mock_option(strike=120.0, bid=1.0, ask=1.50)
-        
-        mock_chain = create_mock_options_chain(
-            puts=[mock_put],
-            calls=[mock_call, mock_short_call]
-        )
-        mock_provider.fetch_options_chain.return_value = mock_chain
-        
-        # Save Collar
-        result = save_rr_to_watchlist(
-            ticker="AAPL",
-            expiration="2027-01-15",
-            put_strike=100.0,
-            call_strike=105.0,
-            ratio="Collar",
-            current_price=102.0,
-            sold_call_strike=120.0,
-            collar_type="1:1"
-        )
-        
-        assert result["success"] is True
-        assert "id" in result
-        
-        # Verify saved entry
-        entries = get_all_rr_watchlist_entries()
-        assert len(entries) == 1
-        
-        entry = entries[0]
-        assert entry.ticker == "AAPL"
-        assert entry.ratio == "Collar"
-        assert entry.collar_type == "1:1"
-        assert entry.put_strike == Decimal("100.0")
-        assert entry.call_strike == Decimal("105.0")
-        assert entry.short_call_strike == Decimal("120.0")
-        assert entry.short_call_quantity == 1
-        assert entry.call_quantity == 1
-        assert entry.put_quantity == 1
-        
-        # Verify entry price calculation
-        # Put mid: (5.0 + 5.50) / 2 = 5.25
-        # Call mid: (3.0 + 3.50) / 2 = 3.25
-        # Short call mid: (1.0 + 1.50) / 2 = 1.25
-        # Entry price = call - put - short_call = 3.25 - 5.25 - 1.25 = -3.25
-        expected_entry_price = 3.25 - 5.25 - 1.25  # -3.25
-        assert float(entry.entry_price) == pytest.approx(expected_entry_price, rel=0.01)
-        
-        # Cleanup
-        delete_rr_watchlist_entry(entry.id)
+        with patch('app.services.rr_watchlist_service.ProviderFactory') as mock_provider_factory:
+            # Setup mock provider
+            mock_provider = MagicMock()
+            mock_provider_factory.get_default_provider.return_value = mock_provider
+            
+            # Create mock options chain with put, call, and short call
+            mock_put = create_mock_option(strike=100.0, bid=5.0, ask=5.50)
+            mock_call = create_mock_option(strike=105.0, bid=3.0, ask=3.50)
+            mock_short_call = create_mock_option(strike=120.0, bid=1.0, ask=1.50)
+            
+            mock_chain = create_mock_options_chain(
+                puts=[mock_put],
+                calls=[mock_call, mock_short_call]
+            )
+            mock_provider.fetch_options_chain.return_value = mock_chain
+            
+            # Save Collar
+            result = save_rr_to_watchlist(
+                ticker="AAPL",
+                expiration="2027-01-15",
+                put_strike=100.0,
+                call_strike=105.0,
+                ratio="Collar",
+                current_price=102.0,
+                sold_call_strike=120.0,
+                collar_type="1:1",
+                account_id=test_user.id
+            )
+            
+            assert result["success"] is True
+            assert "id" in result
+            
+            # Verify saved entry
+            entries = get_all_rr_watchlist_entries(test_user.id)
+            assert len(entries) == 1
+            
+            entry = entries[0]
+            assert entry.account_id == test_user.id
+            assert entry.ticker == "AAPL"
+            assert entry.ratio == "Collar"
+            assert entry.collar_type == "1:1"
+            assert entry.put_strike == Decimal("100.0")
+            assert entry.call_strike == Decimal("105.0")
+            assert entry.short_call_strike == Decimal("120.0")
+            assert entry.short_call_quantity == 1
+            assert entry.call_quantity == 1
+            assert entry.put_quantity == 1
+            
+            # Verify entry price calculation
+            # Put mid: (5.0 + 5.50) / 2 = 5.25
+            # Call mid: (3.0 + 3.50) / 2 = 3.25
+            # Short call mid: (1.0 + 1.50) / 2 = 1.25
+            # Entry price = call - put - short_call = 3.25 - 5.25 - 1.25 = -3.25
+            expected_entry_price = 3.25 - 5.25 - 1.25  # -3.25
+            assert float(entry.entry_price) == pytest.approx(expected_entry_price, rel=0.01)
+            
+            # Cleanup
+            delete_rr_watchlist_entry(entry.id)
     
     @patch('app.services.rr_watchlist_service.ProviderFactory')
     def test_save_collar_1_2_to_watchlist(self, mock_provider_factory):

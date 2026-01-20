@@ -1,0 +1,22 @@
+<div
+    style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 15px; font-family: sans-serif;">
+    {% if request.session.get('account_id') %}
+    <div style="display: flex; align-items: center; gap: 10px;">
+        {% if request.session.get('user', {}).get('picture') %}
+        <img src="{{ request.session.get('user', {}).get('picture') }}" alt="Profile"
+            style="width: 32px; height: 32px; border-radius: 50%;">
+        {% endif %}
+        <span style="font-weight: bold; color: #333;">{{ request.session.get('user', {}).get('name', 'User') }}</span>
+        <a href="/logout"
+            style="color: #dc3545; text-decoration: none; border: 1px solid #dc3545; padding: 5px 10px; border-radius: 4px; font-size: 14px; background: white;">Logout</a>
+    </div>
+    {% else %}
+    <div style="display: flex; gap: 10px;">
+        <a href="/login"
+            style="color: #4285f4; text-decoration: none; padding: 6px 12px; border: 1px solid #4285f4; border-radius: 4px; font-size: 14px; background: white;">Login</a>
+        <a href="/login"
+            style="background-color: #4285f4; color: white; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 14px;">Signup
+            with Google</a>
+    </div>
+    {% endif %}
+</div>

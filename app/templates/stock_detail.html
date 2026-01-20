@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +8,8 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
     <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
     {% include 'partials/datatables_includes.html' %}
     <!-- Plotly.js -->
     <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
@@ -16,23 +18,27 @@
             background-color: #f5f5f5;
             padding: 20px 0;
         }
+
         .header h1 {
             color: #4285f4;
         }
+
         .chart-container {
             background-color: white;
             border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
+
         .metrics-card {
             background-color: white;
             border-radius: 8px;
             padding: 16px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             margin-bottom: 12px;
         }
+
         .metrics-card h6 {
             font-size: 0.85rem;
             font-weight: 600;
@@ -43,92 +49,108 @@
             padding-bottom: 8px;
             border-bottom: 1px solid #e9ecef;
         }
+
         .metric-item {
             padding: 8px 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
+
         .metric-item:last-child {
             border-bottom: none;
         }
+
         .metric-label {
             font-weight: 500;
             color: #6c757d;
             font-size: 0.9rem;
         }
+
         .metric-value {
             font-size: 1.1em;
             color: #212529;
             font-weight: 600;
             text-align: right;
         }
+
         .metric-value-large {
             font-size: 1.4em;
             color: #212529;
             font-weight: 700;
         }
+
         /* Ensure tables expand to fill available space */
         table.dataTable {
             width: 100% !important;
         }
+
         /* Spread out columns when there are few columns */
         #coveredCallsTable,
         #optionsDataTable {
             table-layout: auto;
         }
+
         #coveredCallsTable th,
         #optionsDataTable th {
             white-space: nowrap;
             padding: 12px 15px;
         }
+
         #coveredCallsTable td,
         #optionsDataTable td {
             padding: 12px 15px;
         }
+
         /* Options table styling */
         #optionsDataTable {
             width: 100% !important;
             font-size: 0.9rem;
         }
+
         #optionsDataTable th {
             padding: 10px 8px !important;
             font-size: 0.85rem;
             font-weight: 600;
         }
+
         #optionsDataTable td {
             padding: 10px 8px !important;
             white-space: nowrap;
         }
+
         #optionsDataTable .table-secondary {
             background-color: #f8f9fa !important;
             font-weight: 700;
             font-size: 0.95rem;
         }
+
         .trading-range-container {
             display: flex;
             flex-direction: column;
             gap: 8px;
             width: 100%;
         }
+
         .trading-range-bar {
             position: relative;
             height: 28px;
-            background: linear-gradient(to right, 
-                rgba(60, 179, 113, 0.3) 0%, 
-                rgba(60, 179, 113, 0.3) 16.67%,
-                rgba(144, 238, 144, 0.3) 16.67%,
-                rgba(144, 238, 144, 0.3) 33.33%,
-                rgba(150, 150, 150, 0.15) 33.33%,
-                rgba(150, 150, 150, 0.15) 66.67%,
-                rgba(255, 182, 193, 0.3) 66.67%,
-                rgba(255, 182, 193, 0.3) 83.33%,
-                rgba(220, 20, 60, 0.3) 83.33%,
-                rgba(220, 20, 60, 0.3) 100%);
+            background: linear-gradient(to right,
+                    rgba(60, 179, 113, 0.3) 0%,
+                    rgba(60, 179, 113, 0.3) 16.67%,
+                    rgba(144, 238, 144, 0.3) 16.67%,
+                    rgba(144, 238, 144, 0.3) 33.33%,
+                    rgba(150, 150, 150, 0.15) 33.33%,
+                    rgba(150, 150, 150, 0.15) 66.67%,
+                    rgba(255, 182, 193, 0.3) 66.67%,
+                    rgba(255, 182, 193, 0.3) 83.33%,
+                    rgba(220, 20, 60, 0.3) 83.33%,
+                    rgba(220, 20, 60, 0.3) 100%);
             border: 1px solid #ddd;
             border-radius: 4px;
             overflow: visible;
         }
+
         .trading-range-dma-line {
             position: absolute;
             left: 50%;
@@ -138,6 +160,7 @@
             background-color: #000;
             z-index: 1;
         }
+
         .trading-range-dot {
             position: absolute;
             top: 50%;
@@ -147,8 +170,9 @@
             border-radius: 50%;
             border: 2px solid #000;
             z-index: 2;
-            box-shadow: 0 0 2px rgba(0,0,0,0.3);
+            box-shadow: 0 0 2px rgba(0, 0, 0, 0.3);
         }
+
         .trading-range-tail {
             position: absolute;
             top: 50%;
@@ -157,23 +181,27 @@
             z-index: 1;
             transform: translateY(-50%);
         }
+
         /* Risk Reversal table styling */
         .risk-reversal-table thead th {
             vertical-align: middle;
             text-align: center;
         }
+
         .risk-reversal-table tbody td {
             vertical-align: middle;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
+        {% include 'partials/auth_header.html' %}
         <div class="header mb-4">
             <a href="/" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Home</a>
             <h1>{{ ticker }} - Stock Details</h1>
         </div>
-        
+
         <div class="row">
             <div class="col-lg-8">
                 <div class="chart-container">
@@ -201,7 +229,7 @@
                         <div class="metric-value">${{ "%.2f"|format(metrics.sma_200) }}</div>
                     </div>
                 </div>
-                
+
                 {# Trading Signal #}
                 <div class="metrics-card">
                     <h6>Trading Signal</h6>
@@ -209,17 +237,17 @@
                         <div class="metric-label">Signal</div>
                         <div class="metric-value">
                             {% if metrics.signal == "Extreme Oversold" %}
-                                <span class="badge bg-success">Extreme OS</span>
+                            <span class="badge bg-success">Extreme OS</span>
                             {% elif metrics.signal == "Oversold" %}
-                                <span class="badge bg-info text-dark">Oversold</span>
+                            <span class="badge bg-info text-dark">Oversold</span>
                             {% elif metrics.signal == "Neutral" %}
-                                <span class="badge bg-secondary">Neutral</span>
+                            <span class="badge bg-secondary">Neutral</span>
                             {% elif metrics.signal == "Overbought" %}
-                                <span class="badge bg-warning text-dark">Overbought</span>
+                            <span class="badge bg-warning text-dark">Overbought</span>
                             {% elif metrics.signal == "Extreme Overbought" %}
-                                <span class="badge bg-danger">Extreme OB</span>
+                            <span class="badge bg-danger">Extreme OB</span>
                             {% else %}
-                                <span class="badge bg-secondary">{{ metrics.signal }}</span>
+                            <span class="badge bg-secondary">{{ metrics.signal }}</span>
                             {% endif %}
                         </div>
                     </div>
@@ -227,555 +255,561 @@
                         <div class="metric-label">Trading Range</div>
                         <div class="metric-value" style="width: 100%;">
                             {% set dot_position = (50 + (metrics.devstep / 3) * 50) %}
-                            {% if dot_position < 0 %}
-                                {% set dot_position = 0 %}
-                            {% elif dot_position > 100 %}
+                            {% if dot_position < 0 %} {% set dot_position=0 %} {% elif dot_position> 100 %}
                                 {% set dot_position = 100 %}
-                            {% endif %}
-                            
-                            {# Calculate 5-days-ago position #}
-                            {% if metrics.movement_5day_stddev is defined %}
+                                {% endif %}
+
+                                {# Calculate 5-days-ago position #}
+                                {% if metrics.movement_5day_stddev is defined %}
                                 {% set devstep_5days_ago = metrics.devstep - metrics.movement_5day_stddev %}
                                 {% set dot_position_5days_ago = (50 + (devstep_5days_ago / 3) * 50) %}
-                                {% if dot_position_5days_ago < 0 %}
-                                    {% set dot_position_5days_ago = 0 %}
-                                {% elif dot_position_5days_ago > 100 %}
+                                {% if dot_position_5days_ago < 0 %} {% set dot_position_5days_ago=0 %} {% elif
+                                    dot_position_5days_ago> 100 %}
                                     {% set dot_position_5days_ago = 100 %}
-                                {% endif %}
-                                
-                                {# Dot color based on 5-day price movement #}
-                                {% set dot_color = "#28a745" if metrics.is_price_positive_5day else "#dc3545" %}
-                                
-                                {# Calculate tail line position and width #}
-                                {% set tail_start = dot_position_5days_ago %}
-                                {% set tail_end = dot_position %}
-                                {% if tail_start < tail_end %}
-                                    {% set tail_left = tail_start %}
-                                    {% set tail_width = tail_end - tail_start %}
-                                {% else %}
-                                    {% set tail_left = tail_end %}
-                                    {% set tail_width = tail_start - tail_end %}
-                                {% endif %}
-                            {% else %}
-                                {# Fallback for old data without movement_5day_stddev #}
-                                {% set dot_color = "#28a745" if metrics.devstep < -1 else ("#6c757d" if metrics.devstep <= 1 else "#dc3545") %}
-                            {% endif %}
-                            
-                            <div class="trading-range-container">
-                                <div class="trading-range-bar">
-                                    <div class="trading-range-dma-line"></div>
-                                    {% if metrics.movement_5day_stddev is defined and metrics.movement_5day_stddev != 0 %}
-                                    <div class="trading-range-tail" style="left: {{ tail_left|round(1) }}%; width: {{ tail_width|round(1) }}%;"></div>
                                     {% endif %}
-                                    <div class="trading-range-dot" style="left: {{ dot_position|round(1) }}%; background-color: {{ dot_color }};"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {% if metrics.current_iv is not none %}
-                    <div class="metric-item">
-                        <div class="metric-label">Current IV</div>
-                        <div class="metric-value">
-                            {{ "%.1f"|format(metrics.current_iv) }}%
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-                
-                {# Dividends & Earnings #}
-                <div class="metrics-card">
-                    <h6>Dividends & Earnings</h6>
-                    <div class="metric-item">
-                        <div class="metric-label">Dividend Yield</div>
-                        <div class="metric-value">{{ metrics.dividend_yield_formatted }}</div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="metric-label">Next Dividend</div>
-                        <div class="metric-value">
-                            {% if metrics.next_dividend_date_formatted %}
-                                <small>{{ metrics.next_dividend_date_formatted }}</small>
-                            {% else %}
-                                <span class="text-muted">N/A</span>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="metric-label">Next Earnings</div>
-                        <div class="metric-value">
-                            {% if metrics.next_earnings_date_formatted %}
-                                <small>{{ metrics.next_earnings_date_formatted }}</small>
-                                {% if metrics.is_earnings_date_estimate %}
-                                    <small class="text-muted"> (Est.)</small>
-                                {% endif %}
-                            {% else %}
-                                <span class="text-muted">N/A</span>
-                            {% endif %}
+
+                                    {# Dot color based on 5-day price movement #}
+                                    {% set dot_color = "#28a745" if metrics.is_price_positive_5day else "#dc3545" %}
+
+                                    {# Calculate tail line position and width #}
+                                    {% set tail_start = dot_position_5days_ago %}
+                                    {% set tail_end = dot_position %}
+                                    {% if tail_start < tail_end %} {% set tail_left=tail_start %} {% set
+                                        tail_width=tail_end - tail_start %} {% else %} {% set tail_left=tail_end %} {%
+                                        set tail_width=tail_start - tail_end %} {% endif %} {% else %} {# Fallback for
+                                        old data without movement_5day_stddev #} {% set dot_color="#28a745" if
+                                        metrics.devstep < -1 else ("#6c757d" if metrics.devstep <=1 else "#dc3545" ) %}
+                                        {% endif %} <div class="trading-range-container">
+                                        <div class="trading-range-bar">
+                                            <div class="trading-range-dma-line"></div>
+                                            {% if metrics.movement_5day_stddev is defined and
+                                            metrics.movement_5day_stddev != 0 %}
+                                            <div class="trading-range-tail"
+                                                style="left: {{ tail_left|round(1) }}%; width: {{ tail_width|round(1) }}%;">
+                                            </div>
+                                            {% endif %}
+                                            <div class="trading-range-dot"
+                                                style="left: {{ dot_position|round(1) }}%; background-color: {{ dot_color }};">
+                                            </div>
+                                        </div>
                         </div>
                     </div>
                 </div>
+                {% if metrics.current_iv is not none %}
+                <div class="metric-item">
+                    <div class="metric-label">Current IV</div>
+                    <div class="metric-value">
+                        {{ "%.1f"|format(metrics.current_iv) }}%
+                    </div>
+                </div>
+                {% endif %}
             </div>
-        </div>
-        
-        <!-- Options and Covered Calls Section with Tabs -->
-        <div class="row mt-5">
-            <div class="col-12">
-                <ul class="nav nav-tabs" id="optionsTabs" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="option-data-tab" data-bs-toggle="tab" data-bs-target="#option-data" type="button" role="tab" aria-controls="option-data" aria-selected="true">Option Data</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="covered-calls-tab" data-bs-toggle="tab" data-bs-target="#covered-calls" type="button" role="tab" aria-controls="covered-calls" aria-selected="false">Covered Calls</button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="risk-reversal-tab" data-bs-toggle="tab" data-bs-target="#risk-reversal" type="button" role="tab" aria-controls="risk-reversal" aria-selected="false">RRR</button>
-                    </li>
-                </ul>
-                <div class="tab-content" id="optionsTabsContent">
-                    <!-- Option Data Tab -->
-                    <div class="tab-pane fade show active" id="option-data" role="tabpanel" aria-labelledby="option-data-tab">
-                        <div class="mt-3">
-                            {% if options_expiration and options_data and options_data|length > 0 %}
-                                <div class="d-flex justify-content-between align-items-center mb-3">
-                                    <div>
-                                        <span class="text-muted small">Expiration:</span>
-                                        <strong class="ms-2">{{ options_expiration }}</strong>
-                                    </div>
-                                </div>
-                                <div class="table-responsive">
-                                    <table id="optionsDataTable" class="table table-striped table-hover table-bordered">
-                                        <thead class="table-dark">
-                                            <tr>
-                                                <th>Put Last</th>
-                                                <th>Put Bid</th>
-                                                <th>Put Ask</th>
-                                                <th>Put Vol</th>
-                                                <th>Put OI</th>
-                                                <th>Put IV</th>
-                                                <th class="table-secondary">Strike</th>
-                                                <th>Call Last</th>
-                                                <th>Call Bid</th>
-                                                <th>Call Ask</th>
-                                                <th>Call Vol</th>
-                                                <th>Call OI</th>
-                                                <th>Call IV</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for strike in sorted_strikes %}
-                                                {% set strike_data = options_data[strike] %}
-                                                {# Check if this strike is closest to current price #}
-                                                {% set is_closest = false %}
-                                                {% set distance = none %}
-                                                {% set diff = none %}
-                                                {% if min_distance is not none and current_price and strike %}
-                                                    {% if strike > current_price %}
-                                                        {% set distance = strike - current_price %}
-                                                    {% else %}
-                                                        {% set distance = current_price - strike %}
-                                                    {% endif %}
-                                                    {# Compare with small epsilon to handle floating point precision #}
-                                                    {# Check if distance equals min_distance (within 0.01 tolerance) #}
-                                                    {% set diff = distance - min_distance %}
-                                                    {% if diff < 0 %}
-                                                        {% set diff = -diff %}
-                                                    {% endif %}
-                                                    {% if diff <= 0.01 %}
-                                                        {% set is_closest = true %}
-                                                    {% endif %}
-                                                {% endif %}
-                                                <tr{% if is_closest %} class="table-warning"{% endif %}>
-                                                    {# Put columns - always 6 columns #}
-                                                    <td>
-                                        {% if strike_data.put and strike_data.put.lastPrice is not none %}
-                                            ${{ "%.2f"|format(strike_data.put.lastPrice) }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if strike_data.put and strike_data.put.bid is not none %}
-                                            ${{ "%.2f"|format(strike_data.put.bid) }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if strike_data.put and strike_data.put.ask is not none %}
-                                            ${{ "%.2f"|format(strike_data.put.ask) }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if strike_data.put %}
-                                            {{ strike_data.put.volume }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if strike_data.put %}
-                                            {{ strike_data.put.openInterest }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if strike_data.put and strike_data.put.impliedVolatility is not none %}
-                                            {{ "%.2f"|format(strike_data.put.impliedVolatility) }}%
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    
-                                    {# Strike price (center) #}
-                                    <td class="text-center fw-bold table-secondary">${{ "%.2f"|format(strike) }}</td>
-                                    
-                                    {# Call columns - always 6 columns #}
-                                    <td>
-                                        {% if strike_data.call and strike_data.call.lastPrice is not none %}
-                                            ${{ "%.2f"|format(strike_data.call.lastPrice) }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if strike_data.call and strike_data.call.bid is not none %}
-                                            ${{ "%.2f"|format(strike_data.call.bid) }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if strike_data.call and strike_data.call.ask is not none %}
-                                            ${{ "%.2f"|format(strike_data.call.ask) }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if strike_data.call %}
-                                            {{ strike_data.call.volume }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if strike_data.call %}
-                                            {{ strike_data.call.openInterest }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        {% if strike_data.call and strike_data.call.impliedVolatility is not none %}
-                                            {{ "%.2f"|format(strike_data.call.impliedVolatility) }}%
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            {% else %}
-                                <div class="alert alert-info">
-                                    No options data available for this stock.
-                                </div>
-                            {% endif %}
-                        </div>
+
+            {# Dividends & Earnings #}
+            <div class="metrics-card">
+                <h6>Dividends & Earnings</h6>
+                <div class="metric-item">
+                    <div class="metric-label">Dividend Yield</div>
+                    <div class="metric-value">{{ metrics.dividend_yield_formatted }}</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Next Dividend</div>
+                    <div class="metric-value">
+                        {% if metrics.next_dividend_date_formatted %}
+                        <small>{{ metrics.next_dividend_date_formatted }}</small>
+                        {% else %}
+                        <span class="text-muted">N/A</span>
+                        {% endif %}
                     </div>
-                    
-                    <!-- Covered Calls Tab -->
-                    <div class="tab-pane fade" id="covered-calls" role="tabpanel" aria-labelledby="covered-calls-tab">
-                        <div class="mt-3">
-                            {% if covered_calls and covered_calls|length > 0 %}
-                                <div class="table-responsive">
-                        <table id="coveredCallsTable" class="table table-striped table-hover table-bordered">
-                            <thead class="table-dark">
-                                <tr>
-                                    <th>Strike Price</th>
-                                    <th>Call Premium</th>
-                                    <th>Total Return Exercised</th>
-                                    <th>Total Return Not Exercised</th>
-                                    <th>Return Breakdown</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for cc in covered_calls %}
-                                {# Check if this strike is closest to current price #}
-                                {% set is_closest = false %}
-                                {% set distance = none %}
-                                {% set diff = none %}
-                                {% if min_distance is not none and current_price and cc.strike %}
-                                    {% if cc.strike > current_price %}
-                                        {% set distance = cc.strike - current_price %}
-                                    {% else %}
-                                        {% set distance = current_price - cc.strike %}
-                                    {% endif %}
-                                    {# Compare with small epsilon to handle floating point precision #}
-                                    {# Check if distance equals min_distance (within 0.01 tolerance) #}
-                                    {% set diff = distance - min_distance %}
-                                    {% if diff < 0 %}
-                                        {% set diff = -diff %}
-                                    {% endif %}
-                                    {% if diff <= 0.01 %}
-                                        {% set is_closest = true %}
-                                    {% endif %}
-                                {% endif %}
-                                <tr{% if is_closest %} class="table-warning"{% endif %}>
-                                    <td class="fw-bold">${{ "%.2f"|format(cc.strike) }}</td>
-                                    <td>${{ "%.2f"|format(cc.callPremium) }}</td>
-                                    <td>
-                                        {% if cc.totalReturnExercised > 0 %}
-                                            <span class="text-success">${{ "%.2f"|format(cc.totalReturnExercised) }}</span>
-                                        {% elif cc.totalReturnExercised < 0 %}
-                                            <span class="text-danger">${{ "%.2f"|format(cc.totalReturnExercised) }}</span>
-                                        {% else %}
-                                            ${{ "%.2f"|format(cc.totalReturnExercised) }}
-                                        {% endif %}
-                                        <span class="text-muted"> (</span>
-                                        {% if cc.totalReturnPctExercised > 0 %}
-                                            <span class="text-success">{{ "%.2f"|format(cc.totalReturnPctExercised) }}%</span>
-                                        {% elif cc.totalReturnPctExercised < 0 %}
-                                            <span class="text-danger">{{ "%.2f"|format(cc.totalReturnPctExercised) }}%</span>
-                                        {% else %}
-                                            <span>{{ "%.2f"|format(cc.totalReturnPctExercised) }}%</span>
-                                        {% endif %}
-                                        <span class="text-muted">)</span>
-                                    </td>
-                                    <td>
-                                        {% if cc.totalReturnNotExercised > 0 %}
-                                            <span class="text-success">${{ "%.2f"|format(cc.totalReturnNotExercised) }}</span>
-                                        {% elif cc.totalReturnNotExercised < 0 %}
-                                            <span class="text-danger">${{ "%.2f"|format(cc.totalReturnNotExercised) }}</span>
-                                        {% else %}
-                                            ${{ "%.2f"|format(cc.totalReturnNotExercised) }}
-                                        {% endif %}
-                                        <span class="text-muted"> (</span>
-                                        {% if cc.totalReturnPctNotExercised > 0 %}
-                                            <span class="text-success">{{ "%.2f"|format(cc.totalReturnPctNotExercised) }}%</span>
-                                        {% elif cc.totalReturnPctNotExercised < 0 %}
-                                            <span class="text-danger">{{ "%.2f"|format(cc.totalReturnPctNotExercised) }}%</span>
-                                        {% else %}
-                                            <span>{{ "%.2f"|format(cc.totalReturnPctNotExercised) }}%</span>
-                                        {% endif %}
-                                        <span class="text-muted">)</span>
-                                    </td>
-                                    <td>
-                                        {# Progress bar showing return breakdown #}
-                                        {% set stock_app_pct = cc.stockAppreciationPct %}
-                                        {% set call_prem_pct = cc.callPremiumPct %}
-                                        {% set total_pct = cc.totalReturnPctExercised %}
-                                        
-                                        {# Progress bar showing return breakdown for exercised scenario #}
-                                        {% if stock_app_pct < 0 %}
-                                            {# Negative stock appreciation (ITM calls) - show red for negative portion #}
-                                            {% set abs_stock = -stock_app_pct %}
-                                            {% set abs_total = abs_stock + call_prem_pct %}
-                                            {% if abs_total > 0 %}
-                                                {% set stock_width = (abs_stock / abs_total) * 100 %}
-                                                {% set call_width = (call_prem_pct / abs_total) * 100 %}
-                                                
-                                                <div class="progress" style="height: 30px;">
-                                                    <div class="progress-bar bg-danger" role="progressbar" 
-                                                         style="width: {{ stock_width|round(1) }}%;" 
-                                                         title="Stock Appreciation: {{ "%.2f"|format(stock_app_pct) }}%">
-                                                        <span style="color: white; font-weight: bold;">{{ "%.2f"|format(stock_app_pct) }}%</span>
-                                                    </div>
-                                                    <div class="progress-bar bg-success" role="progressbar" 
-                                                         style="width: {{ call_width|round(1) }}%;" 
-                                                         title="Call Premium: {{ "%.2f"|format(call_prem_pct) }}%">
-                                                        <span style="color: white; font-weight: bold;">{{ "%.2f"|format(call_prem_pct) }}%</span>
-                                                    </div>
-                                                </div>
-                                            {% else %}
-                                                <span class="text-muted">N/A</span>
-                                            {% endif %}
-                                        {% else %}
-                                            {# Positive stock appreciation - show proportional breakdown #}
-                                            {% if total_pct > 0 %}
-                                                {% set stock_width = (stock_app_pct / total_pct) * 100 %}
-                                                {% set call_width = (call_prem_pct / total_pct) * 100 %}
-                                                
-                                                {# Ensure widths are valid percentages #}
-                                                {% if stock_width < 0 %}
-                                                    {% set stock_width = 0 %}
-                                                {% endif %}
-                                                {% if call_width < 0 %}
-                                                    {% set call_width = 0 %}
-                                                {% endif %}
-                                                {% if stock_width > 100 %}
-                                                    {% set stock_width = 100 %}
-                                                {% endif %}
-                                                {% if call_width > 100 %}
-                                                    {% set call_width = 100 %}
-                                                {% endif %}
-                                                
-                                                <div class="progress" style="height: 30px;">
-                                                    {% if stock_width > 0 %}
-                                                    <div class="progress-bar bg-info" role="progressbar" 
-                                                         style="width: {{ stock_width|round(1) }}%;" 
-                                                         title="Stock Appreciation: {{ "%.2f"|format(stock_app_pct) }}%">
-                                                        <span style="color: white; font-weight: bold;">{{ "%.2f"|format(stock_app_pct) }}%</span>
-                                                    </div>
-                                                    {% endif %}
-                                                    {% if call_width > 0 %}
-                                                    <div class="progress-bar bg-success" role="progressbar" 
-                                                         style="width: {{ call_width|round(1) }}%;" 
-                                                         title="Call Premium: {{ "%.2f"|format(call_prem_pct) }}%">
-                                                        <span style="color: white; font-weight: bold;">{{ "%.2f"|format(call_prem_pct) }}%</span>
-                                                    </div>
-                                                    {% endif %}
-                                                </div>
-                                            {% else %}
-                                                <span class="text-muted">N/A</span>
-                                            {% endif %}
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                            {% else %}
-                                <div class="alert alert-info">
-                                    No covered call data available. Call options are required for covered call strategy.
-                                </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    
-                    <!-- Risk Reversal Tab -->
-                    <div class="tab-pane fade" id="risk-reversal" role="tabpanel" aria-labelledby="risk-reversal-tab">
-                        <div class="mt-3">
-                            {% if risk_reversals and risk_reversals|length > 0 %}
-                                <!-- Type Filter Buttons -->
-                                <div class="mb-3">
-                                    <label class="me-2"><strong>Filter by Type:</strong></label>
-                                    <div class="btn-group" role="group" aria-label="Risk Reversal type filter">
-                                        <input type="radio" class="btn-check" name="rrTypeFilter" id="rrFilter1_1" value="1:1" checked>
-                                        <label class="btn btn-outline-primary" for="rrFilter1_1">1:1</label>
-                                        
-                                        <input type="radio" class="btn-check" name="rrTypeFilter" id="rrFilter1_2" value="1:2">
-                                        <label class="btn btn-outline-primary" for="rrFilter1_2">1:2</label>
-                                        
-                                        <input type="radio" class="btn-check" name="rrTypeFilter" id="rrFilterCollar" value="Collar">
-                                        <label class="btn btn-outline-primary" for="rrFilterCollar">Collar</label>
-                                        
-                                        <input type="radio" class="btn-check" name="rrTypeFilter" id="rrFilterAll" value="all">
-                                        <label class="btn btn-outline-primary" for="rrFilterAll">All</label>
-                                    </div>
-                                </div>
-                                {% for expiration, strategies in risk_reversals.items() %}
-                                <div class="mb-4">
-                                    <h5 class="mb-3">Expiration: {{ expiration }}</h5>
-                                    <div>
-                                        <table id="riskReversalTable_{{ expiration|replace('-', '_') }}" class="table table-striped table-hover table-bordered risk-reversal-table">
-                                            <thead class="table-dark">
-                                                <tr>
-                                                    <th>Type</th>
-                                                    <th>Put Strike</th>
-                                                    <th>Put Premium / BE</th>
-                                                    <th>Call Strike</th>
-                                                    <th>Call Premium / BE</th>
-                                                    <th>Strike Spread</th>
-                                                    <th>Net Cost ($)</th>
-                                                    <th>Net Cost (%)</th>
-                                                    <th>Days to Exp</th>
-                                                    <th>Put Risk</th>
-                                                    <th>Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {% for strategy in strategies %}
-                                                <tr class="{% if strategy.highlight %}table-warning{% endif %}">
-                                                    <td>
-                                                        <strong>{{ strategy.ratio }}</strong>
-                                                        {% if strategy.ratio == 'Collar' %}
-                                                            <br><small class="text-muted">({{ strategy.collar_type }})</small>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td><strong>${{ "%.2f"|format(strategy.put_strike) }}</strong></td>
-                                                    <td>
-                                                        ${{ "%.2f"|format(strategy.put_bid) }}<br>
-                                                        <small class="text-muted">BE: ${{ "%.2f"|format(strategy.put_breakeven) }}</small>
-                                                    </td>
-                                                    <td>
-                                                        <strong>${{ "%.2f"|format(strategy.call_strike) }}</strong>
-                                                        {% if strategy.ratio == 'Collar' %}
-                                                            <br><small class="text-muted">Sold: ${{ "%.2f"|format(strategy.sold_call_strike) }}</small>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td>
-                                                        {% if strategy.ratio == '1:2' or (strategy.ratio == 'Collar' and strategy.collar_type == '1:2') %}
-                                                            ${{ "%.2f"|format(strategy.call_ask) }} × 2<br>
-                                                        {% else %}
-                                                            ${{ "%.2f"|format(strategy.call_ask) }}<br>
-                                                        {% endif %}
-                                                        <small class="text-muted">BE: ${{ "%.2f"|format(strategy.call_breakeven) }}</small>
-                                                        {% if strategy.ratio == 'Collar' %}
-                                                            <br><small class="text-muted">Max: ${{ "%.2f"|format(strategy.max_profit_strike) }}</small>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td>
-                                                        {% if strategy.strike_spread > 0 %}
-                                                            ${{ "%.2f"|format(strategy.strike_spread) }}
-                                                        {% else %}
-                                                            <span class="text-muted">-</span>
-                                                        {% endif %}
-                                                    </td>
-                                                    <td>${{ "%.2f"|format(strategy.cost) }}</td>
-                                                    <td>{{ "%.2f"|format(strategy.cost_pct) }}%</td>
-                                                    <td><strong>{{ strategy.days_to_expiration }}</strong></td>
-                                                    <td>${{ strategy.put_risk_formatted }}</td>
-                                                    <td>
-                                                        <button class="btn btn-sm btn-primary save-rr-btn" 
-                                                                data-ticker="{{ ticker }}"
-                                                                data-expiration="{{ expiration }}"
-                                                                data-put-strike="{{ strategy.put_strike }}"
-                                                                data-call-strike="{{ strategy.call_strike }}"
-                                                                data-ratio="{{ strategy.ratio }}"
-                                                                data-current-price="{{ current_price }}"
-                                                                {% if strategy.ratio == 'Collar' %}
-                                                                data-sold-call-strike="{{ strategy.sold_call_strike }}"
-                                                                data-collar-type="{{ strategy.collar_type }}"
-                                                                {% endif %}>
-                                                            Save
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                                {% endfor %}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            {% else %}
-                                <div class="alert alert-info">
-                                    No risk reversal strategies found. Risk reversal strategies require LEAPS options (Jan of next year or later) with put strikes within 10% below to 30% above current price and net cost within ±3% of current stock price.
-                                </div>
-                            {% endif %}
-                        </div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Next Earnings</div>
+                    <div class="metric-value">
+                        {% if metrics.next_earnings_date_formatted %}
+                        <small>{{ metrics.next_earnings_date_formatted }}</small>
+                        {% if metrics.is_earnings_date_estimate %}
+                        <small class="text-muted"> (Est.)</small>
+                        {% endif %}
+                        {% else %}
+                        <span class="text-muted">N/A</span>
+                        {% endif %}
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Options and Covered Calls Section with Tabs -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <ul class="nav nav-tabs" id="optionsTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="option-data-tab" data-bs-toggle="tab"
+                        data-bs-target="#option-data" type="button" role="tab" aria-controls="option-data"
+                        aria-selected="true">Option Data</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="covered-calls-tab" data-bs-toggle="tab" data-bs-target="#covered-calls"
+                        type="button" role="tab" aria-controls="covered-calls" aria-selected="false">Covered
+                        Calls</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="risk-reversal-tab" data-bs-toggle="tab" data-bs-target="#risk-reversal"
+                        type="button" role="tab" aria-controls="risk-reversal" aria-selected="false">RRR</button>
+                </li>
+            </ul>
+            <div class="tab-content" id="optionsTabsContent">
+                <!-- Option Data Tab -->
+                <div class="tab-pane fade show active" id="option-data" role="tabpanel"
+                    aria-labelledby="option-data-tab">
+                    <div class="mt-3">
+                        {% if options_expiration and options_data and options_data|length > 0 %}
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <span class="text-muted small">Expiration:</span>
+                                <strong class="ms-2">{{ options_expiration }}</strong>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table id="optionsDataTable" class="table table-striped table-hover table-bordered">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Put Last</th>
+                                        <th>Put Bid</th>
+                                        <th>Put Ask</th>
+                                        <th>Put Vol</th>
+                                        <th>Put OI</th>
+                                        <th>Put IV</th>
+                                        <th class="table-secondary">Strike</th>
+                                        <th>Call Last</th>
+                                        <th>Call Bid</th>
+                                        <th>Call Ask</th>
+                                        <th>Call Vol</th>
+                                        <th>Call OI</th>
+                                        <th>Call IV</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for strike in sorted_strikes %}
+                                    {% set strike_data = options_data[strike] %}
+                                    {# Check if this strike is closest to current price #}
+                                    {% set is_closest = false %}
+                                    {% set distance = none %}
+                                    {% set diff = none %}
+                                    {% if min_distance is not none and current_price and strike %}
+                                    {% if strike > current_price %}
+                                    {% set distance = strike - current_price %}
+                                    {% else %}
+                                    {% set distance = current_price - strike %}
+                                    {% endif %}
+                                    {# Compare with small epsilon to handle floating point precision #}
+                                    {# Check if distance equals min_distance (within 0.01 tolerance) #}
+                                    {% set diff = distance - min_distance %}
+                                    {% if diff < 0 %} {% set diff=-diff %} {% endif %} {% if diff <=0.01 %} {% set
+                                        is_closest=true %} {% endif %} {% endif %} <tr{% if is_closest %}
+                                        class="table-warning" {% endif %}>
+                                        {# Put columns - always 6 columns #}
+                                        <td>
+                                            {% if strike_data.put and strike_data.put.lastPrice is not none %}
+                                            ${{ "%.2f"|format(strike_data.put.lastPrice) }}
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if strike_data.put and strike_data.put.bid is not none %}
+                                            ${{ "%.2f"|format(strike_data.put.bid) }}
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if strike_data.put and strike_data.put.ask is not none %}
+                                            ${{ "%.2f"|format(strike_data.put.ask) }}
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if strike_data.put %}
+                                            {{ strike_data.put.volume }}
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if strike_data.put %}
+                                            {{ strike_data.put.openInterest }}
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if strike_data.put and strike_data.put.impliedVolatility is not none %}
+                                            {{ "%.2f"|format(strike_data.put.impliedVolatility) }}%
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+
+                                        {# Strike price (center) #}
+                                        <td class="text-center fw-bold table-secondary">${{ "%.2f"|format(strike) }}
+                                        </td>
+
+                                        {# Call columns - always 6 columns #}
+                                        <td>
+                                            {% if strike_data.call and strike_data.call.lastPrice is not none %}
+                                            ${{ "%.2f"|format(strike_data.call.lastPrice) }}
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if strike_data.call and strike_data.call.bid is not none %}
+                                            ${{ "%.2f"|format(strike_data.call.bid) }}
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if strike_data.call and strike_data.call.ask is not none %}
+                                            ${{ "%.2f"|format(strike_data.call.ask) }}
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if strike_data.call %}
+                                            {{ strike_data.call.volume }}
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if strike_data.call %}
+                                            {{ strike_data.call.openInterest }}
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if strike_data.call and strike_data.call.impliedVolatility is not none %}
+                                            {{ "%.2f"|format(strike_data.call.impliedVolatility) }}%
+                                            {% else %}
+                                            <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        </tr>
+                                        {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            No options data available for this stock.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Covered Calls Tab -->
+                <div class="tab-pane fade" id="covered-calls" role="tabpanel" aria-labelledby="covered-calls-tab">
+                    <div class="mt-3">
+                        {% if covered_calls and covered_calls|length > 0 %}
+                        <div class="table-responsive">
+                            <table id="coveredCallsTable" class="table table-striped table-hover table-bordered">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Strike Price</th>
+                                        <th>Call Premium</th>
+                                        <th>Total Return Exercised</th>
+                                        <th>Total Return Not Exercised</th>
+                                        <th>Return Breakdown</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for cc in covered_calls %}
+                                    {# Check if this strike is closest to current price #}
+                                    {% set is_closest = false %}
+                                    {% set distance = none %}
+                                    {% set diff = none %}
+                                    {% if min_distance is not none and current_price and cc.strike %}
+                                    {% if cc.strike > current_price %}
+                                    {% set distance = cc.strike - current_price %}
+                                    {% else %}
+                                    {% set distance = current_price - cc.strike %}
+                                    {% endif %}
+                                    {# Compare with small epsilon to handle floating point precision #}
+                                    {# Check if distance equals min_distance (within 0.01 tolerance) #}
+                                    {% set diff = distance - min_distance %}
+                                    {% if diff < 0 %} {% set diff=-diff %} {% endif %} {% if diff <=0.01 %} {% set
+                                        is_closest=true %} {% endif %} {% endif %} <tr{% if is_closest %}
+                                        class="table-warning" {% endif %}>
+                                        <td class="fw-bold">${{ "%.2f"|format(cc.strike) }}</td>
+                                        <td>${{ "%.2f"|format(cc.callPremium) }}</td>
+                                        <td>
+                                            {% if cc.totalReturnExercised > 0 %}
+                                            <span class="text-success">${{ "%.2f"|format(cc.totalReturnExercised)
+                                                }}</span>
+                                            {% elif cc.totalReturnExercised < 0 %} <span class="text-danger">${{
+                                                "%.2f"|format(cc.totalReturnExercised) }}</span>
+                                                {% else %}
+                                                ${{ "%.2f"|format(cc.totalReturnExercised) }}
+                                                {% endif %}
+                                                <span class="text-muted"> (</span>
+                                                {% if cc.totalReturnPctExercised > 0 %}
+                                                <span class="text-success">{{ "%.2f"|format(cc.totalReturnPctExercised)
+                                                    }}%</span>
+                                                {% elif cc.totalReturnPctExercised < 0 %} <span class="text-danger">{{
+                                                    "%.2f"|format(cc.totalReturnPctExercised) }}%</span>
+                                                    {% else %}
+                                                    <span>{{ "%.2f"|format(cc.totalReturnPctExercised) }}%</span>
+                                                    {% endif %}
+                                                    <span class="text-muted">)</span>
+                                        </td>
+                                        <td>
+                                            {% if cc.totalReturnNotExercised > 0 %}
+                                            <span class="text-success">${{ "%.2f"|format(cc.totalReturnNotExercised)
+                                                }}</span>
+                                            {% elif cc.totalReturnNotExercised < 0 %} <span class="text-danger">${{
+                                                "%.2f"|format(cc.totalReturnNotExercised) }}</span>
+                                                {% else %}
+                                                ${{ "%.2f"|format(cc.totalReturnNotExercised) }}
+                                                {% endif %}
+                                                <span class="text-muted"> (</span>
+                                                {% if cc.totalReturnPctNotExercised > 0 %}
+                                                <span class="text-success">{{
+                                                    "%.2f"|format(cc.totalReturnPctNotExercised) }}%</span>
+                                                {% elif cc.totalReturnPctNotExercised < 0 %} <span class="text-danger">
+                                                    {{ "%.2f"|format(cc.totalReturnPctNotExercised) }}%</span>
+                                                    {% else %}
+                                                    <span>{{ "%.2f"|format(cc.totalReturnPctNotExercised) }}%</span>
+                                                    {% endif %}
+                                                    <span class="text-muted">)</span>
+                                        </td>
+                                        <td>
+                                            {# Progress bar showing return breakdown #}
+                                            {% set stock_app_pct = cc.stockAppreciationPct %}
+                                            {% set call_prem_pct = cc.callPremiumPct %}
+                                            {% set total_pct = cc.totalReturnPctExercised %}
+
+                                            {# Progress bar showing return breakdown for exercised scenario #}
+                                            {% if stock_app_pct < 0 %} {# Negative stock appreciation (ITM calls) - show
+                                                red for negative portion #} {% set abs_stock=-stock_app_pct %} {% set
+                                                abs_total=abs_stock + call_prem_pct %} {% if abs_total> 0 %}
+                                                {% set stock_width = (abs_stock / abs_total) * 100 %}
+                                                {% set call_width = (call_prem_pct / abs_total) * 100 %}
+
+                                                <div class="progress" style="height: 30px;">
+                                                    <div class="progress-bar bg-danger" role="progressbar"
+                                                        style="width: {{ stock_width|round(1) }}%;"
+                                                        title="Stock Appreciation: {{ " %.2f"|format(stock_app_pct)
+                                                        }}%">
+                                                        <span style="color: white; font-weight: bold;">{{
+                                                            "%.2f"|format(stock_app_pct) }}%</span>
+                                                    </div>
+                                                    <div class="progress-bar bg-success" role="progressbar"
+                                                        style="width: {{ call_width|round(1) }}%;"
+                                                        title="Call Premium: {{ " %.2f"|format(call_prem_pct) }}%">
+                                                        <span style="color: white; font-weight: bold;">{{
+                                                            "%.2f"|format(call_prem_pct) }}%</span>
+                                                    </div>
+                                                </div>
+                                                {% else %}
+                                                <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                                {% else %}
+                                                {# Positive stock appreciation - show proportional breakdown #}
+                                                {% if total_pct > 0 %}
+                                                {% set stock_width = (stock_app_pct / total_pct) * 100 %}
+                                                {% set call_width = (call_prem_pct / total_pct) * 100 %}
+
+                                                {# Ensure widths are valid percentages #}
+                                                {% if stock_width < 0 %} {% set stock_width=0 %} {% endif %} {% if
+                                                    call_width < 0 %} {% set call_width=0 %} {% endif %} {% if
+                                                    stock_width> 100 %}
+                                                    {% set stock_width = 100 %}
+                                                    {% endif %}
+                                                    {% if call_width > 100 %}
+                                                    {% set call_width = 100 %}
+                                                    {% endif %}
+
+                                                    <div class="progress" style="height: 30px;">
+                                                        {% if stock_width > 0 %}
+                                                        <div class="progress-bar bg-info" role="progressbar"
+                                                            style="width: {{ stock_width|round(1) }}%;"
+                                                            title="Stock Appreciation: {{ " %.2f"|format(stock_app_pct)
+                                                            }}%">
+                                                            <span style="color: white; font-weight: bold;">{{
+                                                                "%.2f"|format(stock_app_pct) }}%</span>
+                                                        </div>
+                                                        {% endif %}
+                                                        {% if call_width > 0 %}
+                                                        <div class="progress-bar bg-success" role="progressbar"
+                                                            style="width: {{ call_width|round(1) }}%;"
+                                                            title="Call Premium: {{ " %.2f"|format(call_prem_pct) }}%">
+                                                            <span style="color: white; font-weight: bold;">{{
+                                                                "%.2f"|format(call_prem_pct) }}%</span>
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                    {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                    {% endif %}
+                                                    {% endif %}
+                                        </td>
+                                        </tr>
+                                        {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-info">
+                            No covered call data available. Call options are required for covered call strategy.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Risk Reversal Tab -->
+                <div class="tab-pane fade" id="risk-reversal" role="tabpanel" aria-labelledby="risk-reversal-tab">
+                    <div class="mt-3">
+                        {% if risk_reversals and risk_reversals|length > 0 %}
+                        <!-- Type Filter Buttons -->
+                        <div class="mb-3">
+                            <label class="me-2"><strong>Filter by Type:</strong></label>
+                            <div class="btn-group" role="group" aria-label="Risk Reversal type filter">
+                                <input type="radio" class="btn-check" name="rrTypeFilter" id="rrFilter1_1" value="1:1"
+                                    checked>
+                                <label class="btn btn-outline-primary" for="rrFilter1_1">1:1</label>
+
+                                <input type="radio" class="btn-check" name="rrTypeFilter" id="rrFilter1_2" value="1:2">
+                                <label class="btn btn-outline-primary" for="rrFilter1_2">1:2</label>
+
+                                <input type="radio" class="btn-check" name="rrTypeFilter" id="rrFilterCollar"
+                                    value="Collar">
+                                <label class="btn btn-outline-primary" for="rrFilterCollar">Collar</label>
+
+                                <input type="radio" class="btn-check" name="rrTypeFilter" id="rrFilterAll" value="all">
+                                <label class="btn btn-outline-primary" for="rrFilterAll">All</label>
+                            </div>
+                        </div>
+                        {% for expiration, strategies in risk_reversals.items() %}
+                        <div class="mb-4">
+                            <h5 class="mb-3">Expiration: {{ expiration }}</h5>
+                            <div>
+                                <table id="riskReversalTable_{{ expiration|replace('-', '_') }}"
+                                    class="table table-striped table-hover table-bordered risk-reversal-table">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th>Type</th>
+                                            <th>Put Strike</th>
+                                            <th>Put Premium / BE</th>
+                                            <th>Call Strike</th>
+                                            <th>Call Premium / BE</th>
+                                            <th>Strike Spread</th>
+                                            <th>Net Cost ($)</th>
+                                            <th>Net Cost (%)</th>
+                                            <th>Days to Exp</th>
+                                            <th>Put Risk</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for strategy in strategies %}
+                                        <tr class="{% if strategy.highlight %}table-warning{% endif %}">
+                                            <td>
+                                                <strong>{{ strategy.ratio }}</strong>
+                                                {% if strategy.ratio == 'Collar' %}
+                                                <br><small class="text-muted">({{ strategy.collar_type }})</small>
+                                                {% endif %}
+                                            </td>
+                                            <td><strong>${{ "%.2f"|format(strategy.put_strike) }}</strong></td>
+                                            <td>
+                                                ${{ "%.2f"|format(strategy.put_bid) }}<br>
+                                                <small class="text-muted">BE: ${{ "%.2f"|format(strategy.put_breakeven)
+                                                    }}</small>
+                                            </td>
+                                            <td>
+                                                <strong>${{ "%.2f"|format(strategy.call_strike) }}</strong>
+                                                {% if strategy.ratio == 'Collar' %}
+                                                <br><small class="text-muted">Sold: ${{
+                                                    "%.2f"|format(strategy.sold_call_strike) }}</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if strategy.ratio == '1:2' or (strategy.ratio == 'Collar' and
+                                                strategy.collar_type == '1:2') %}
+                                                ${{ "%.2f"|format(strategy.call_ask) }} × 2<br>
+                                                {% else %}
+                                                ${{ "%.2f"|format(strategy.call_ask) }}<br>
+                                                {% endif %}
+                                                <small class="text-muted">BE: ${{ "%.2f"|format(strategy.call_breakeven)
+                                                    }}</small>
+                                                {% if strategy.ratio == 'Collar' %}
+                                                <br><small class="text-muted">Max: ${{
+                                                    "%.2f"|format(strategy.max_profit_strike) }}</small>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if strategy.strike_spread > 0 %}
+                                                ${{ "%.2f"|format(strategy.strike_spread) }}
+                                                {% else %}
+                                                <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>${{ "%.2f"|format(strategy.cost) }}</td>
+                                            <td>{{ "%.2f"|format(strategy.cost_pct) }}%</td>
+                                            <td><strong>{{ strategy.days_to_expiration }}</strong></td>
+                                            <td>${{ strategy.put_risk_formatted }}</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary save-rr-btn"
+                                                    data-ticker="{{ ticker }}" data-expiration="{{ expiration }}"
+                                                    data-put-strike="{{ strategy.put_strike }}"
+                                                    data-call-strike="{{ strategy.call_strike }}"
+                                                    data-ratio="{{ strategy.ratio }}"
+                                                    data-current-price="{{ current_price }}" {% if
+                                                    strategy.ratio=='Collar' %}
+                                                    data-sold-call-strike="{{ strategy.sold_call_strike }}"
+                                                    data-collar-type="{{ strategy.collar_type }}" {% endif %}>
+                                                    Save
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% else %}
+                        <div class="alert alert-info">
+                            No risk reversal strategies found. Risk reversal strategies require LEAPS options (Jan of
+                            next year or later) with put strikes within 10% below to 30% above current price and net
+                            cost within ±3% of current stock price.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
     {% include 'partials/datatables_scripts.html' %}
     <script src="/static/js/datatables_init.js"></script>
     <!-- Bootstrap 5 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+        crossorigin="anonymous"></script>
+
     <script>
         // Prepare chart data
         const candlestickData = {{ chart_data.candlestick_data | tojson }};
         const sma50Data = {{ chart_data.sma_50 | tojson }};
         const sma200Data = {{ chart_data.sma_200 | tojson }};
         const stdBands = {{ chart_data.std_bands | tojson }};
-        
+
         // Extract STD band data for area charts
         const std3Upper = stdBands.std_3_upper.map(d => d.y);
         const std3Lower = stdBands.std_3_lower.map(d => d.y);
@@ -783,7 +817,7 @@
         const std2Lower = stdBands.std_2_lower.map(d => d.y);
         const std1Upper = stdBands.std_1_upper.map(d => d.y);
         const std1Lower = stdBands.std_1_lower.map(d => d.y);
-        
+
         // Create SMA 200 trace (background line)
         const sma200Trace = {
             x: sma200Data.map(d => d.x),
@@ -796,7 +830,7 @@
                 width: 2
             }
         };
-        
+
         // Create SMA 50 trace (foreground line)
         const sma50Trace = {
             x: sma50Data.map(d => d.x),
@@ -809,7 +843,7 @@
                 width: 2
             }
         };
-        
+
         // Create candlestick trace (foreground)
         const candlestickTrace = {
             x: candlestickData.map(d => d.x),
@@ -819,15 +853,15 @@
             close: candlestickData.map(d => d.close),
             type: 'candlestick',
             name: 'Price',
-            increasing: {line: {color: '#26a69a'}},
-            decreasing: {line: {color: '#ef5350'}}
+            increasing: { line: { color: '#26a69a' } },
+            decreasing: { line: { color: '#ef5350' } }
         };
-        
+
         // Order matters: background layers first, then foreground
         // We need to create proper area fills by pairing upper and lower bounds
         // For Plotly area charts, we need to combine upper and lower in a single trace
         const dates = stdBands.std_2_upper.map(d => d.x);
-        
+
         // +2 SD to +3 SD band area (darker red - extreme overbought/rich)
         const stdPos3AreaTrace = {
             x: dates.concat(dates.slice().reverse()),
@@ -837,11 +871,11 @@
             name: '+2 to +3 STD',
             fill: 'toself',
             fillcolor: 'rgba(220, 20, 60, 0.3)',
-            line: {color: 'transparent'},
+            line: { color: 'transparent' },
             showlegend: false,
             hoverinfo: 'skip'
         };
-        
+
         // -2 SD to -3 SD band area (light green - extreme oversold/cheap)
         const stdNeg3AreaTrace = {
             x: dates.concat(dates.slice().reverse()),
@@ -851,11 +885,11 @@
             name: '-2 to -3 STD',
             fill: 'toself',
             fillcolor: 'rgba(144, 238, 144, 0.3)',
-            line: {color: 'transparent'},
+            line: { color: 'transparent' },
             showlegend: false,
             hoverinfo: 'skip'
         };
-        
+
         // +1 SD to +2 SD band area (light red/pink - moderate overbought/rich)
         const stdPosAreaTrace = {
             x: dates.concat(dates.slice().reverse()),
@@ -865,11 +899,11 @@
             name: '+1 to +2 STD',
             fill: 'toself',
             fillcolor: 'rgba(255, 182, 193, 0.3)',
-            line: {color: 'transparent'},
+            line: { color: 'transparent' },
             showlegend: false,
             hoverinfo: 'skip'
         };
-        
+
         // -1 SD to -2 SD band area (slightly darker green - moderate oversold/cheap)
         const stdNegAreaTrace = {
             x: dates.concat(dates.slice().reverse()),
@@ -879,11 +913,11 @@
             name: '-1 to -2 STD',
             fill: 'toself',
             fillcolor: 'rgba(60, 179, 113, 0.3)',
-            line: {color: 'transparent'},
+            line: { color: 'transparent' },
             showlegend: false,
             hoverinfo: 'skip'
         };
-        
+
         // -1 SD to +1 SD band area (gray - neutral zone)
         const std1AreaTrace = {
             x: dates.concat(dates.slice().reverse()),
@@ -893,13 +927,13 @@
             name: '±1 STD',
             fill: 'toself',
             fillcolor: 'rgba(150, 150, 150, 0.15)',
-            line: {color: 'transparent'},
+            line: { color: 'transparent' },
             showlegend: false,
             hoverinfo: 'skip'
         };
-        
+
         const data = [stdPos3AreaTrace, stdNeg3AreaTrace, stdPosAreaTrace, stdNegAreaTrace, std1AreaTrace, sma200Trace, sma50Trace, candlestickTrace];
-        
+
         const layout = {
             title: {
                 text: '{{ ticker }} - Stock Price Chart',
@@ -931,17 +965,17 @@
             plot_bgcolor: 'white',
             paper_bgcolor: 'white'
         };
-        
+
         const config = {
             responsive: true,
             displayModeBar: true,
             displaylogo: false
         };
-        
+
         Plotly.newPlot('stockChart', data, layout, config);
-        
+
         // Initialize DataTables for options tables
-        $(document).ready(function() {
+        $(document).ready(function () {
             // Initialize Options Data Table
             if ($('#optionsDataTable').length) {
                 initDataTable('optionsDataTable', {
@@ -949,20 +983,20 @@
                     responsive: false
                 });
             }
-            
+
             // Initialize Covered Calls Table
             if ($('#coveredCallsTable').length) {
                 initDataTable('coveredCallsTable', {
                     order: [[0, 'asc']] // Sort by strike price
                 });
             }
-            
+
             // Initialize Risk Reversal Tables with type filtering
             window.rrTables = window.rrTables || {};
             window.rrSearchFunctions = window.rrSearchFunctions || {};
-            
+
             if ($('#risk-reversal').length) {
-                $('.risk-reversal-table').each(function() {
+                $('.risk-reversal-table').each(function () {
                     const tableId = $(this).attr('id');
                     if (tableId) {
                         const table = initDataTable(tableId, {
@@ -978,7 +1012,7 @@
                                 {
                                     targets: 6, // Net Cost $ column
                                     type: 'num',
-                                    render: function(data, type, row) {
+                                    render: function (data, type, row) {
                                         if (type === 'sort' || type === 'type') {
                                             var text = '';
                                             if (typeof data === 'string' && data.trim().startsWith('<')) {
@@ -1000,9 +1034,9 @@
                                 }
                             ]
                         });
-                        
+
                         window.rrTables[tableId] = table;
-                        
+
                         // Apply initial filter (1:1 selected by default)
                         if (table) {
                             table.column(0).search('^1\\:1', true, false);
@@ -1011,19 +1045,19 @@
                     }
                 });
             }
-            
+
             // Handle Risk Reversal type filter changes
-            $(document).on('change', 'input[name="rrTypeFilter"]', function() {
+            $(document).on('change', 'input[name="rrTypeFilter"]', function () {
                 const selectedType = $(this).val();
-                
-                $('.risk-reversal-table').each(function() {
+
+                $('.risk-reversal-table').each(function () {
                     const tableElement = this;
                     const currentTableId = $(tableElement).attr('id');
                     if (!currentTableId) return;
-                    
+
                     let currentTable = window.rrTables && window.rrTables[currentTableId];
                     if (!currentTable) return;
-                    
+
                     // Remove any existing custom search function for this table
                     if (window.rrSearchFunctions[currentTableId]) {
                         const existingFunction = window.rrSearchFunctions[currentTableId];
@@ -1033,19 +1067,19 @@
                         }
                         delete window.rrSearchFunctions[currentTableId];
                     }
-                    
+
                     // Clear any existing column search
                     currentTable.column(0).search('');
-                    
+
                     if (selectedType === 'all') {
                         currentTable.draw();
                     } else {
                         // Create a custom search function for this specific table
-                        const searchFunction = function(settings, data, dataIndex) {
+                        const searchFunction = function (settings, data, dataIndex) {
                             if (settings.nTable.id !== currentTableId) {
                                 return true;
                             }
-                            
+
                             const typeValue = data[0];
                             let typeText = '';
                             if (typeof typeValue === 'string') {
@@ -1059,30 +1093,30 @@
                             } else {
                                 typeText = String(typeValue || '').trim();
                             }
-                            
+
                             // Match the selected type (handle Collar with sub-type)
                             if (selectedType === 'Collar') {
                                 return typeText.startsWith('Collar');
                             }
                             return typeText.startsWith(selectedType);
                         };
-                        
+
                         window.rrSearchFunctions[currentTableId] = searchFunction;
                         $.fn.dataTable.ext.search.push(searchFunction);
                         currentTable.draw();
                     }
-                    
+
                     currentTable.order([[6, 'asc']]).draw();
                 });
             });
-            
+
             // Handle Save RR button clicks
-            $(document).on('click', '.save-rr-btn', function() {
+            $(document).on('click', '.save-rr-btn', function () {
                 const btn = $(this);
                 const originalText = btn.text();
-                
+
                 btn.prop('disabled', true).text('Saving...');
-                
+
                 const data = {
                     ticker: btn.data('ticker'),
                     expiration: btn.data('expiration'),
@@ -1091,22 +1125,22 @@
                     ratio: btn.data('ratio'),
                     current_price: btn.data('current-price')
                 };
-                
+
                 // Add collar-specific data if present
                 if (btn.data('sold-call-strike')) {
                     data.sold_call_strike = btn.data('sold-call-strike');
                     data.collar_type = btn.data('collar-type');
                 }
-                
+
                 $.ajax({
                     url: '/api/rr-watchlist/save',
                     method: 'POST',
                     contentType: 'application/json',
                     data: JSON.stringify(data),
-                    success: function(response) {
+                    success: function (response) {
                         if (response.success) {
                             btn.removeClass('btn-primary').addClass('btn-success').text('Saved!');
-                            setTimeout(function() {
+                            setTimeout(function () {
                                 btn.prop('disabled', false).removeClass('btn-success').addClass('btn-primary').text(originalText);
                             }, 2000);
                         } else {
@@ -1114,7 +1148,7 @@
                             btn.prop('disabled', false).text(originalText);
                         }
                     },
-                    error: function(xhr, status, error) {
+                    error: function (xhr, status, error) {
                         alert('Error saving Risk Reversal: ' + error);
                         btn.prop('disabled', false).text(originalText);
                     }
@@ -1123,5 +1157,5 @@
         });
     </script>
 </body>
-</html>
 
+</html>

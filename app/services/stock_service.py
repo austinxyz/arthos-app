@@ -371,7 +371,7 @@ def get_multiple_stock_metrics(tickers: list) -> list:
         List of dictionaries containing metrics for each ticker.
         Failed tickers will have an 'error' field instead of metrics.
     """
-    from app.services.stock_price_service import get_stock_metrics_from_db
+    from app.services.stock_price_service import get_stock_metrics_from_db, fetch_and_save_stock_prices
     
     results = []
     for ticker in tickers:
@@ -382,8 +382,24 @@ def get_multiple_stock_metrics(tickers: list) -> list:
         try:
             metrics = get_stock_metrics_from_db(ticker)
             results.append(metrics)
+        except ValueError:
+            # Data not found in DB, try to fetch it
+            try:
+                # Fetch data (this will also calculate/save IV and update attributes)
+                fetch_and_save_stock_prices(ticker)
+                # Try getting metrics again
+                metrics = get_stock_metrics_from_db(ticker)
+                results.append(metrics)
+            except Exception as e:
+                # Failed to fetch or calculate metrics
+                logger.error(f"Error fetching/calculating metrics for {ticker}: {e}")
+                results.append({
+                    "ticker": ticker,
+                    "error": str(e)
+                })
         except Exception as e:
-            # Add error entry for failed ticker
+            # Other unexpected errors
+            logger.error(f"Error getting metrics for {ticker}: {e}")
             results.append({
                 "ticker": ticker,
                 "error": str(e)
@@ -648,7 +664,12 @@ def get_leaps_expirations(ticker: str) -> List[str]:
         List of expiration date strings (YYYY-MM-DD format) for LEAPS
     """
     try:
-        provider = ProviderFactory.get_default_provider()
+        # Use options provider (MarketData if available, else yfinance)
+        if hasattr(ProviderFactory, 'get_options_provider'):
+            provider = ProviderFactory.get_options_provider()
+        else:
+            provider = ProviderFactory.get_default_provider()
+            
         try:
             expirations = provider.fetch_options_expirations(ticker)
         except DataNotAvailableError:
@@ -707,7 +728,12 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
     strategies_by_expiration = {}
     
     try:
-        provider = ProviderFactory.get_default_provider()
+        # Use options provider (MarketData if available, else yfinance)
+        if hasattr(ProviderFactory, 'get_options_provider'):
+            provider = ProviderFactory.get_options_provider()
+        else:
+            provider = ProviderFactory.get_default_provider()
+            
         leaps_expirations = get_leaps_expirations(ticker)
         
         logger.info(f"Risk Reversal for {ticker}: Found {len(leaps_expirations)} LEAPS expirations: {leaps_expirations}")

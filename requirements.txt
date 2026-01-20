@@ -77,3 +77,5 @@ websockets==15.0.1
 yfinance==0.2.66
 psycopg2-binary==2.9.9
 playwright==1.48.0
+Authlib==1.4.0
+itsdangerous==2.2.0
