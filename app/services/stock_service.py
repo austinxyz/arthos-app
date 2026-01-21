@@ -60,7 +60,7 @@ def fetch_stock_data(ticker: str) -> pd.DataFrame:
         
         hist_data = provider.fetch_historical_prices(ticker, start_date, end_date)
         
-        if not hist_data:
+        if hist_data is None or len(hist_data) == 0:
             raise ValueError(f"No data found for ticker: {ticker}")
         
         # Convert to DataFrame
