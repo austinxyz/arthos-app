@@ -183,4 +183,33 @@ Before deploying changes to stock data fetching:
 
 ---
 
+## 8. Test Coverage Requirements
+
+### Why Tests Didn't Catch This Bug
+
+1. **Tests used live yfinance data** - Real data rarely has duplicate date indices
+2. **No mocking for edge cases** - No tests simulated the problematic scenarios
+3. **No pre-push enforcement** - Changes were pushed without running Docker tests
+
+### Mandatory Pre-Push Testing
+
+Before pushing to main, you MUST run:
+```bash
+docker-compose -f docker-compose.test.yml up test-runner --abort-on-container-exit
+```
+
+See: `.agent/workflows/pre-push.md`
+
+### Edge Case Tests Required
+
+New code that handles pandas DataFrames should have tests for:
+- Empty DataFrames
+- DataFrames with duplicate indices
+- `df.loc[]` returning Series vs scalar
+- None vs empty list checks
+
+See: `tests/test_pandas_edge_cases.py`
+
+---
+
 *Last updated: January 20, 2026*
