@@ -312,93 +312,156 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
     ticker_upper = ticker.upper()
     today = datetime.now(ET_TIMEZONE).date()
     
+    logger.info(f"="*60)
+    logger.info(f"FETCH_AND_SAVE_STOCK_PRICES: Starting for {ticker_upper}")
+    logger.info(f"  Today (ET): {today}")
+    logger.info(f"="*60)
+    
     # Get data provider
     provider = ProviderFactory.get_default_provider()
+    logger.debug(f"  Provider: {type(provider).__name__}")
     
     # Check stock attributes to determine if we have existing data
     attributes = get_stock_attributes(ticker_upper)
+    logger.info(f"  Stock attributes: {attributes}")
+    if attributes:
+        logger.info(f"    - earliest_date: {attributes.earliest_date}")
+        logger.info(f"    - latest_date: {attributes.latest_date}")
+        logger.info(f"    - gap_days: {(today - attributes.latest_date).days}")
     
     all_price_data = []
     
     # ========================================================================
     # STEP 1: Fetch historical data if there's a gap
     # ========================================================================
+    logger.info(f"--- STEP 1: Historical Data Fetch ---")
     
     if attributes is None:
         # New stock - fetch 2 years of historical data
-        logger.info(f"New stock {ticker_upper} - fetching 2 years of historical data")
         start_date = today - timedelta(days=730)
         end_date = today + timedelta(days=1)  # +1 because yfinance end is exclusive
+        logger.info(f"  New stock - fetching 2 years of historical data")
+        logger.info(f"  Date range: {start_date} to {end_date} (end is exclusive)")
         
         try:
+            logger.debug(f"  Calling provider.fetch_historical_prices({ticker_upper}, {start_date}, {end_date})...")
             hist_data = provider.fetch_historical_prices(ticker_upper, start_date, end_date)
+            logger.info(f"  Provider returned: {type(hist_data)}, len={len(hist_data) if hist_data else 0}")
+            
             if hist_data is not None and len(hist_data) > 0:
+                # Log first and last records
+                logger.info(f"  First record date: {hist_data[0].date}")
+                logger.info(f"  Last record date: {hist_data[-1].date}")
                 all_price_data.extend(hist_data)
-                logger.info(f"Fetched {len(hist_data)} historical records for {ticker_upper}")
+                logger.info(f"  ✓ Added {len(hist_data)} historical records to all_price_data")
+            else:
+                logger.warning(f"  ✗ No historical data returned (hist_data is None or empty)")
         except (TickerNotFoundError, DataNotAvailableError) as e:
-            logger.info(f"No historical data available for {ticker_upper}: {e}")
+            logger.warning(f"  ✗ Exception fetching historical data: {type(e).__name__}: {e}")
+        except Exception as e:
+            logger.error(f"  ✗ Unexpected exception fetching historical data: {type(e).__name__}: {e}")
+            import traceback
+            logger.error(f"  Traceback: {traceback.format_exc()}")
     
     elif (today - attributes.latest_date).days > 1:
         # Gap exists - fetch from latest_date + 1 to today
         gap_days = (today - attributes.latest_date).days
-        logger.info(f"Gap of {gap_days} days detected for {ticker_upper} (latest_date: {attributes.latest_date})")
+        logger.info(f"  Gap of {gap_days} days detected (latest_date: {attributes.latest_date})")
         
         start_date = attributes.latest_date + timedelta(days=1)
+        logger.debug(f"  Initial start_date: {start_date} (weekday: {start_date.weekday()})")
         
         # Skip weekends: if start_date is Saturday (5) or Sunday (6), move to Monday
         while start_date.weekday() >= 5:
+            logger.debug(f"  Skipping weekend day {start_date}")
             start_date += timedelta(days=1)
+        logger.info(f"  After weekend skip, start_date: {start_date}")
         
         # Only fetch if start_date <= today
         if start_date <= today:
             end_date = today + timedelta(days=1)  # +1 because yfinance end is exclusive
-            logger.info(f"Fetching historical data for {ticker_upper} from {start_date} to {today}")
+            logger.info(f"  Date range: {start_date} to {end_date} (end is exclusive)")
             
             try:
+                logger.debug(f"  Calling provider.fetch_historical_prices({ticker_upper}, {start_date}, {end_date})...")
                 hist_data = provider.fetch_historical_prices(ticker_upper, start_date, end_date)
+                logger.info(f"  Provider returned: {type(hist_data)}, len={len(hist_data) if hist_data else 0}")
+                
                 if hist_data is not None and len(hist_data) > 0:
+                    logger.info(f"  First record date: {hist_data[0].date}")
+                    logger.info(f"  Last record date: {hist_data[-1].date}")
                     all_price_data.extend(hist_data)
-                    logger.info(f"Fetched {len(hist_data)} historical records for {ticker_upper}")
+                    logger.info(f"  ✓ Added {len(hist_data)} historical records to all_price_data")
                 else:
-                    logger.info(f"No historical data returned for {ticker_upper} from {start_date} to {today} (holidays/weekends)")
-            except DataNotAvailableError:
-                # No data in this range (holidays, etc.) - that's OK
-                logger.info(f"No historical data available for {ticker_upper} from {start_date} to {today} (market may be closed)")
+                    logger.warning(f"  ✗ No historical data returned (holidays/weekends)")
+            except DataNotAvailableError as e:
+                logger.warning(f"  ✗ DataNotAvailableError: {e}")
+            except Exception as e:
+                logger.error(f"  ✗ Unexpected exception: {type(e).__name__}: {e}")
+                import traceback
+                logger.error(f"  Traceback: {traceback.format_exc()}")
         else:
-            logger.info(f"Start date {start_date} is in the future, skipping historical fetch for {ticker_upper}")
+            logger.info(f"  Start date {start_date} > today {today}, skipping historical fetch")
     
     else:
         # No gap (latest_date is yesterday or today) - skip historical fetch
-        logger.info(f"No gap detected for {ticker_upper} (latest_date: {attributes.latest_date}), skipping historical fetch")
+        logger.info(f"  No gap detected (latest_date: {attributes.latest_date}), skipping historical fetch")
     
     # ========================================================================
     # STEP 2: Always fetch intraday data for today
     # ========================================================================
+    logger.info(f"--- STEP 2: Intraday Data Fetch ---")
+    logger.info(f"  Fetching intraday data for today ({today})")
     
-    logger.info(f"Fetching intraday data for {ticker_upper} for today ({today})")
-    intraday_data = provider.fetch_intraday_prices(ticker_upper, today)
-    
-    if intraday_data is not None and len(intraday_data) > 0:
-        # Aggregate intraday data into daily OHLC
-        daily_today = aggregate_intraday_to_daily(intraday_data)
-        all_price_data.append(daily_today)
-        logger.info(f"Fetched and aggregated intraday data for {ticker_upper} for {today}")
-    else:
-        logger.info(f"No intraday data available for {ticker_upper} for {today} (market may be closed)")
+    try:
+        logger.debug(f"  Calling provider.fetch_intraday_prices({ticker_upper}, {today})...")
+        intraday_data = provider.fetch_intraday_prices(ticker_upper, today)
+        logger.info(f"  Provider returned: {type(intraday_data)}, len={len(intraday_data) if intraday_data else 0}")
+        
+        if intraday_data is not None and len(intraday_data) > 0:
+            logger.info(f"  First intraday record: date={intraday_data[0].date}")
+            logger.info(f"  Last intraday record: date={intraday_data[-1].date}")
+            
+            # Aggregate intraday data into daily OHLC
+            logger.debug(f"  Aggregating intraday data to daily OHLC...")
+            daily_today = aggregate_intraday_to_daily(intraday_data)
+            logger.info(f"  Aggregated: date={daily_today.date}, open={daily_today.open}, close={daily_today.close}")
+            
+            all_price_data.append(daily_today)
+            logger.info(f"  ✓ Added aggregated intraday data to all_price_data")
+        else:
+            logger.warning(f"  ✗ No intraday data available (market may be closed)")
+    except Exception as e:
+        logger.error(f"  ✗ Exception fetching intraday data: {type(e).__name__}: {e}")
+        import traceback
+        logger.error(f"  Traceback: {traceback.format_exc()}")
     
     # ========================================================================
     # Combine and save data
     # ========================================================================
+    logger.info(f"--- STEP 3: Combine and Save ---")
+    logger.info(f"  all_price_data length: {len(all_price_data)}")
+    
+    if all_price_data:
+        for i, pd_item in enumerate(all_price_data[:5]):  # Log first 5 items
+            logger.debug(f"  all_price_data[{i}]: date={pd_item.date}, close={pd_item.close}")
+        if len(all_price_data) > 5:
+            logger.debug(f"  ... and {len(all_price_data) - 5} more items")
     
     if not all_price_data:
-        logger.info(f"No new price data available for {ticker_upper}")
+        logger.warning(f"  ✗ No price data to save for {ticker_upper}")
         # Even if no new data, ensure stock_attributes exists (for first-time entries)
         if attributes is None:
+            logger.info(f"  Creating minimal stock_attributes entry")
             update_stock_attributes(ticker_upper, today, today)
         return pd.DataFrame(), 0
     
     # Convert to DataFrame
+    logger.debug(f"  Converting to DataFrame...")
     price_data = stock_price_data_to_dataframe(all_price_data)
+    logger.info(f"  DataFrame shape: {price_data.shape}")
+    logger.info(f"  DataFrame index (dates): {list(price_data.index[:5])}...")
+    logger.info(f"  DataFrame columns: {list(price_data.columns)}")
     
     # Calculate IV for today's date (if we have price data for today)
     iv_data = {}
