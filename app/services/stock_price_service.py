@@ -332,7 +332,7 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
         
         try:
             hist_data = provider.fetch_historical_prices(ticker_upper, start_date, end_date)
-            if hist_data:
+            if hist_data is not None and len(hist_data) > 0:
                 all_price_data.extend(hist_data)
                 logger.info(f"Fetched {len(hist_data)} historical records for {ticker_upper}")
         except (TickerNotFoundError, DataNotAvailableError) as e:
@@ -378,7 +378,7 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
     logger.info(f"Fetching intraday data for {ticker_upper} for today ({today})")
     intraday_data = provider.fetch_intraday_prices(ticker_upper, today)
     
-    if intraday_data and len(intraday_data) > 0:
+    if intraday_data is not None and len(intraday_data) > 0:
         # Aggregate intraday data into daily OHLC
         daily_today = aggregate_intraday_to_daily(intraday_data)
         all_price_data.append(daily_today)
