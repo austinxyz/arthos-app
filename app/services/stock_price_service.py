@@ -356,7 +356,7 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
             
             try:
                 hist_data = provider.fetch_historical_prices(ticker_upper, start_date, end_date)
-                if hist_data:
+                if hist_data is not None and len(hist_data) > 0:
                     all_price_data.extend(hist_data)
                     logger.info(f"Fetched {len(hist_data)} historical records for {ticker_upper}")
                 else:
