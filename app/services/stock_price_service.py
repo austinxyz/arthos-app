@@ -244,8 +244,14 @@ def save_stock_prices(ticker: str, price_data: pd.DataFrame, iv_data: Optional[D
                 dma_50 = None
                 dma_200 = None
                 if not ma_df.empty and price_date in ma_df.index:
+                    # Use iloc[0] to handle potential duplicate dates and ensure we get a scalar
                     dma_50_val = ma_df.loc[price_date, 'dma_50']
                     dma_200_val = ma_df.loc[price_date, 'dma_200']
+                    # Handle case where loc returns a Series (duplicates) vs scalar
+                    if isinstance(dma_50_val, pd.Series):
+                        dma_50_val = dma_50_val.iloc[-1]  # Take the last (most recent) value
+                    if isinstance(dma_200_val, pd.Series):
+                        dma_200_val = dma_200_val.iloc[-1]  # Take the last (most recent) value
                     if pd.notna(dma_50_val):
                         dma_50 = Decimal(str(dma_50_val)).quantize(Decimal('0.0001'))
                     if pd.notna(dma_200_val):
