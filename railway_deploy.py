@@ -25,6 +25,21 @@ MIGRATIONS_DIR.mkdir(parents=True, exist_ok=True)
 BACKFILL_ENTRY_PRICES_FLAG = MIGRATIONS_DIR / "backfill_entry_prices_done"
 
 
+def unwrap_result(obj):
+    """Unwrap SQLAlchemy Row object if needed."""
+    if not obj:
+        return obj
+    
+    # If it has no close_price/ticker attribute but is indexable, try getting first item
+    # checking for _mapping is a good way to identify SQLAlchemy Rows
+    if hasattr(obj, "_mapping") and hasattr(obj, "__getitem__"):
+        try:
+            return obj[0]
+        except (IndexError, TypeError):
+            return obj
+    return obj
+
+
 def backfill_entry_prices():
     """Backfill entry_price for existing watchlist stocks."""
     print("=" * 60)
@@ -48,17 +63,8 @@ def backfill_entry_prices():
             print(f"Debug: First item repr: {stocks_without_price[0]}")
         
         for stock in stocks_without_price:
-            # Handle potential SQLAlchemy Row object (wraps the model)
-            # This happens if session.exec returns rows instead of scalars
-            stock_obj = stock
-            if not hasattr(stock, "ticker"):
-                try:
-                    # Try accessing as tuple/row
-                    if hasattr(stock, "__getitem__") and len(stock) > 0:
-                        stock_obj = stock[0]
-                except Exception:
-                    # If indexing fails, assume it's the object itself or broken
-                    pass
+            # Unwrap stock object
+            stock_obj = unwrap_result(stock)
             
             # Additional check to ensure we have the model instance
             if not hasattr(stock_obj, "ticker"):
@@ -73,7 +79,7 @@ def backfill_entry_prices():
                 StockPrice.ticker == ticker,
                 StockPrice.price_date == date_added
             )
-            price_record = session.exec(price_statement).first()
+            price_record = unwrap_result(session.exec(price_statement).first())
             
             if not price_record:
                 # Fallback: get the closest price before or on that date
@@ -81,14 +87,14 @@ def backfill_entry_prices():
                     StockPrice.ticker == ticker,
                     StockPrice.price_date <= date_added
                 ).order_by(StockPrice.price_date.desc())
-                price_record = session.exec(price_statement).first()
+                price_record = unwrap_result(session.exec(price_statement).first())
             
             if not price_record:
                 # Last fallback: get the earliest available price
                 price_statement = select(StockPrice).where(
                     StockPrice.ticker == ticker
                 ).order_by(StockPrice.price_date.asc())
-                price_record = session.exec(price_statement).first()
+                price_record = unwrap_result(session.exec(price_statement).first())
             
             if price_record and price_record.close_price:
                 # Update the entry_price
