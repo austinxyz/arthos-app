@@ -107,7 +107,14 @@
     <div style="margin-bottom: 20px;">
         <a href="/watchlists" class="text-decoration-none"
             style="color: #4285f4; font-size: 14px; margin-right: 20px;">View My WatchLists</a>
+        <a href="/public-watchlists" class="text-decoration-none"
+            style="color: #4285f4; font-size: 14px; margin-right: 20px;">Public WatchLists</a>
         <a href="/rr-list" class="text-decoration-none" style="color: #4285f4; font-size: 14px;">RR List</a>
+    </div>
+    {% else %}
+    <div style="margin-bottom: 20px;">
+        <a href="/public-watchlists" class="text-decoration-none" style="color: #4285f4; font-size: 14px;">Browse Public
+            WatchLists</a>
     </div>
     {% endif %}
 

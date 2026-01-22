@@ -132,6 +132,19 @@ async def watchlists_page(request: Request):
     return templates.TemplateResponse("watchlists.html", {"request": request, "watchlists": watchlists})
 
 
+@app.get("/public-watchlists", response_class=HTMLResponse)
+async def public_watchlists_page(request: Request):
+    """
+    Display list of all public watchlists (no auth required).
+    
+    Returns:
+        HTML page with list of public watchlists
+    """
+    from app.services import watchlist_service
+    watchlists = watchlist_service.get_all_public_watchlists()
+    return templates.TemplateResponse("public_watchlists.html", {"request": request, "watchlists": watchlists})
+
+
 @app.get("/create-watchlist")
 async def create_watchlist_page(request: Request):
     """
@@ -400,7 +413,37 @@ async def watchlist_details_page(request: Request, watchlist_id: UUID):
     return templates.TemplateResponse("watchlist_details.html", {
         "request": request, 
         "watchlist": watchlist, 
-        "metrics": metrics
+        "metrics": metrics,
+        "is_owner": True  # Owner viewing their own watchlist
+    })
+
+
+@app.get("/public-watchlist/{watchlist_id}", response_class=HTMLResponse)
+async def public_watchlist_details_page(request: Request, watchlist_id: UUID):
+    """
+    Display public watchlist details page (read-only, no auth required).
+    
+    Args:
+        watchlist_id: UUID of the watchlist
+        
+    Returns:
+        HTML page with public watchlist details and stocks
+    """
+    from app.services import watchlist_service
+    
+    try:
+        watchlist = watchlist_service.get_public_watchlist(watchlist_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Public watchlist not found")
+    
+    # Get metrics (using None for account_id since this is public access)
+    metrics = watchlist_service.get_watchlist_stocks_with_metrics(watchlist_id, account_id=None)
+    return templates.TemplateResponse("watchlist_details.html", {
+        "request": request, 
+        "watchlist": watchlist, 
+        "metrics": metrics,
+        "is_owner": False,  # Viewing a public watchlist
+        "is_public_view": True  # Flag for template to hide edit controls
     })
 
 
@@ -935,6 +978,46 @@ async def update_watchlist(request: Request, watchlist_id: UUID = FPath(...), wa
             "watchlist_name": updated_watchlist.watchlist_name,
             "description": updated_watchlist.description,
             "date_added": updated_watchlist.date_added.isoformat(),
+            "date_modified": updated_watchlist.date_modified.isoformat()
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class WatchListVisibilityUpdate(BaseModel):
+    is_public: bool
+
+
+@app.put("/v1/watchlist/{watchlist_id}/visibility")
+async def update_watchlist_visibility_api(request: Request, watchlist_id: UUID = FPath(...), visibility: WatchListVisibilityUpdate = None):
+    """
+    Update watchlist visibility (public/private).
+    
+    Args:
+        request: Request object
+        watchlist_id: UUID of the watchlist
+        visibility: Visibility update request with is_public boolean
+        
+    Returns:
+        JSON response with updated watchlist
+    """
+    from app.services.watchlist_service import update_watchlist_visibility
+    
+    account_id_str = request.session.get('account_id')
+    account_id = UUID(account_id_str) if account_id_str else None
+    
+    if not account_id:
+        raise HTTPException(status_code=401, detail="User must be logged in to update watchlist visibility")
+
+    if visibility is None:
+        raise HTTPException(status_code=400, detail="Visibility setting is required")
+    
+    try:
+        updated_watchlist = update_watchlist_visibility(watchlist_id, visibility.is_public, account_id)
+        return {
+            "watchlist_id": str(updated_watchlist.watchlist_id),
+            "watchlist_name": updated_watchlist.watchlist_name,
+            "is_public": updated_watchlist.is_public,
             "date_modified": updated_watchlist.date_modified.isoformat()
         }
     except ValueError as e:

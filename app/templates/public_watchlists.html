@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WatchLists - Arthos</title>
+    <title>Public WatchLists - Arthos</title>
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
     <!-- Bootstrap 5 CSS -->
@@ -29,18 +29,21 @@
         <div class="header mb-4">
             <a href="/" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Home</a>
             <div class="d-flex justify-content-between align-items-center">
-                <h1>My WatchLists</h1>
-                <a href="/create-watchlist" class="btn btn-primary">Create New WatchList</a>
+                <h1>Public WatchLists</h1>
             </div>
+            <p class="text-muted">Browse watchlists shared by other users</p>
         </div>
 
+        {% if watchlists and watchlists|length > 0 %}
         <div class="table-responsive">
-            <table id="watchlistsTable" class="table table-striped table-hover table-bordered">
+            <table id="publicWatchlistsTable" class="table table-striped table-hover table-bordered">
                 <thead class="table-dark">
                     <tr>
                         <th>WatchList Name</th>
                         <th>Description</th>
-                        <th>Date Added</th>
+                        <th>Owner</th>
+                        <th>Stocks</th>
+                        <th>Date Created</th>
                         <th>Last Modified</th>
                         <th data-orderable="false">Actions</th>
                     </tr>
@@ -49,7 +52,7 @@
                     {% for watchlist in watchlists %}
                     <tr>
                         <td>
-                            <a href="/watchlist/{{ watchlist.watchlist_id }}" class="text-decoration-none">
+                            <a href="/public-watchlist/{{ watchlist.watchlist_id }}" class="text-decoration-none">
                                 <strong>{{ watchlist.watchlist_name }}</strong>
                             </a>
                         </td>
@@ -60,26 +63,31 @@
                             <span class="text-muted fst-italic">-</span>
                             {% endif %}
                         </td>
+                        <td>
+                            {% if watchlist.account and (watchlist.account.full_name or watchlist.account.email) %}
+                            <span class="text-muted">{{ watchlist.account.full_name or watchlist.account.email }}</span>
+                            {% else %}
+                            <span class="text-muted fst-italic">Unknown</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ watchlist.stocks|length }}</td>
                         <td>{{ watchlist.date_added.strftime('%Y-%m-%d') }}</td>
                         <td>{{ watchlist.date_modified.strftime('%Y-%m-%d') }}</td>
                         <td>
-                            <button class="btn btn-sm btn-danger"
-                                onclick="deleteWatchlist('{{ watchlist.watchlist_id }}', '{{ watchlist.watchlist_name }}')"
-                                title="Delete watchlist">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
-                                    class="bi bi-trash" viewBox="0 0 16 16">
-                                    <path
-                                        d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
-                                    <path fill-rule="evenodd"
-                                        d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
-                                </svg>
-                            </button>
+                            <a href="/public-watchlist/{{ watchlist.watchlist_id }}" class="btn btn-sm btn-primary">
+                                View
+                            </a>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% else %}
+        <div class="alert alert-info">
+            No public watchlists available yet. Users can share their watchlists by making them public.
+        </div>
+        {% endif %}
     </div>
 
     {% include 'partials/datatables_scripts.html' %}
@@ -91,37 +99,14 @@
 
     <script>
         $(document).ready(function () {
-            initDataTable('watchlistsTable', {
+            initDataTable('publicWatchlistsTable', {
                 pageLength: 25,
-                order: [[3, "desc"]], // Sort by last modified descending (column index changed due to new columns)
+                order: [[5, "desc"]], // Sort by last modified descending (column index 5)
                 columnDefs: [
-                    { orderable: false, targets: [4] } // Actions column is not sortable
+                    { orderable: false, targets: [6] } // Actions column is not sortable (column index 6)
                 ]
             });
         });
-
-        async function deleteWatchlist(watchlistId, watchlistName) {
-            if (!confirm(`Are you sure you want to delete "${watchlistName}"? This action cannot be undone and will remove all stocks in this watchlist.`)) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`/v1/watchlist/${watchlistId}`, {
-                    method: 'DELETE'
-                });
-
-                if (!response.ok) {
-                    const data = await response.json();
-                    throw new Error(data.detail || 'Failed to delete watchlist');
-                }
-
-                // Show success message and reload page
-                alert(`Watchlist "${watchlistName}" has been deleted successfully.`);
-                window.location.reload();
-            } catch (error) {
-                alert('Error: ' + error.message);
-            }
-        }
     </script>
 </body>
 

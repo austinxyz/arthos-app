@@ -3,6 +3,7 @@ from sqlmodel import SQLModel, Field, Relationship
 from datetime import datetime
 from uuid import UUID, uuid4
 from typing import Optional, List, TYPE_CHECKING
+from decimal import Decimal
 
 if TYPE_CHECKING:
     from app.models.account import Account
@@ -34,6 +35,10 @@ class WatchList(SQLModel, table=True):
         max_length=265,
         description="Optional brief description of the watchlist (max 265 characters)"
     )
+    is_public: bool = Field(
+        default=False,
+        description="Whether this watchlist is publicly visible to all users"
+    )
     
     
     # Relationships
@@ -60,6 +65,12 @@ class WatchListStock(SQLModel, table=True):
     date_added: datetime = Field(
         default_factory=datetime.now,
         description="When the stock was added to the watchlist"
+    )
+    entry_price: Optional[Decimal] = Field(
+        default=None,
+        max_digits=12,
+        decimal_places=4,
+        description="Price when the stock was added to the watchlist"
     )
     
     # Relationship to watchlist

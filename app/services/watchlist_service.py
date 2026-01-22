@@ -352,11 +352,31 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str], account_id: 
             existing = session.exec(statement).first()
             
             if not existing:
-                # Add new stock
+                # Get current price as entry price
+                entry_price = None
+                try:
+                    from app.services.stock_price_service import get_stock_attributes
+                    from app.models.stock_price import StockPrice
+                    from decimal import Decimal
+                    
+                    # Try to get latest close price from database
+                    price_statement = select(StockPrice).where(
+                        StockPrice.ticker == ticker.upper()
+                    ).order_by(StockPrice.price_date.desc())
+                    latest_price = session.exec(price_statement).first()
+                    
+                    if latest_price and latest_price.close_price:
+                        entry_price = latest_price.close_price
+                        logger.debug(f"Captured entry price {entry_price} for {ticker}")
+                except Exception as e:
+                    logger.warning(f"Could not capture entry price for {ticker}: {e}")
+                
+                # Add new stock with entry price
                 watchlist_stock = WatchListStock(
                     watchlist_id=watchlist_id,
                     ticker=ticker,
-                    date_added=datetime.now()
+                    date_added=datetime.now(),
+                    entry_price=entry_price
                 )
                 session.add(watchlist_stock)
                 added_stocks.append(watchlist_stock)
@@ -421,23 +441,21 @@ def remove_stock_from_watchlist(watchlist_id: UUID, ticker: str, account_id: Opt
         return True
 
 
-def get_watchlist_stocks(watchlist_id: UUID, account_id: Optional[UUID] = None) -> List[WatchListStock]:
+def get_watchlist_stocks(watchlist_id: UUID, account_id: Optional[UUID] = None, skip_auth: bool = False) -> List[WatchListStock]:
     """
     Get all stocks in a watchlist.
     
+    NOTE: Auth is enforced at the watchlist level, not here. 
+    The caller is responsible for verifying access to the watchlist before calling this function.
+    
     Args:
         watchlist_id: WatchList UUID
-        account_id: Optional ID of the requesting account to verify ownership
+        account_id: Deprecated - not used (kept for backward compatibility)
+        skip_auth: Deprecated - not used (kept for backward compatibility)
         
     Returns:
         List of WatchListStock objects
-        
-    Raises:
-        ValueError: If watchlist not found or access denied
     """
-    # Verify watchlist exists and ownership
-    get_watchlist(watchlist_id, account_id)
-    
     with Session(engine) as session:
         statement = select(WatchListStock).where(
             WatchListStock.watchlist_id == watchlist_id
@@ -446,14 +464,19 @@ def get_watchlist_stocks(watchlist_id: UUID, account_id: Optional[UUID] = None) 
         return list(stocks)
 
 
-def get_watchlist_stocks_with_metrics(watchlist_id: UUID, account_id: UUID = None) -> List[Dict[str, Any]]:
+def get_watchlist_stocks_with_metrics(watchlist_id: UUID, account_id: UUID = None, skip_auth: bool = False) -> List[Dict[str, Any]]:
     """
     Get all stocks in a watchlist with their current metrics.
     Reads from stock_attributes table and current day's stock_price table (not from data provider cache).
     Uses get_stock_metrics_from_db to calculate devstep, signal, and 5-day movement.
     
+    NOTE: Auth is enforced at the watchlist level, not here.
+    The caller is responsible for verifying access to the watchlist before calling this function.
+    
     Args:
         watchlist_id: WatchList UUID
+        account_id: Deprecated - not used (kept for backward compatibility)
+        skip_auth: Deprecated - not used (kept for backward compatibility)
         
     Returns:
         List of dictionaries containing stock metrics with all columns from stock_attributes
@@ -462,7 +485,7 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID, account_id: UUID = Non
     from app.models.stock_price import StockPrice
     from datetime import date
     
-    stocks = get_watchlist_stocks(watchlist_id, account_id)
+    stocks = get_watchlist_stocks(watchlist_id)
     
     if not stocks:
         return []
@@ -519,9 +542,24 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID, account_id: UUID = Non
                 }
             
             # Build metrics dictionary with all data from stock_attributes, current day's stock_price, and calculated metrics
+            current_price = float(current_price_record.close_price)
+            
+            # Get entry price from the WatchListStock record
+            entry_price = float(stock.entry_price) if stock.entry_price else None
+            
+            # Calculate change and percent change from entry price
+            change = None
+            percent_change = None
+            if entry_price and entry_price > 0:
+                change = current_price - entry_price
+                percent_change = ((current_price - entry_price) / entry_price) * 100
+            
             metric = {
                 "ticker": ticker.upper(),
-                "current_price": float(current_price_record.close_price),
+                "current_price": current_price,
+                "entry_price": entry_price,
+                "change": change,
+                "percent_change": percent_change,
                 "sma_50": float(current_price_record.dma_50) if current_price_record.dma_50 else None,
                 "sma_200": float(current_price_record.dma_200) if current_price_record.dma_200 else None,
                 "dividend_amt": float(attributes.dividend_amt) if attributes.dividend_amt else None,
@@ -554,6 +592,26 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID, account_id: UUID = Non
                     metric['dividend_yield_formatted'] = "N/A"
             else:
                 metric['dividend_yield_formatted'] = "N/A"
+            
+            # Format entry price, change, and percent change
+            metric['entry_price_formatted'] = f"${metric['entry_price']:.2f}" if metric['entry_price'] else "N/A"
+            
+            if metric['change'] is not None:
+                # Format with + sign for positive values
+                sign = "+" if metric['change'] >= 0 else ""
+                metric['change_formatted'] = f"{sign}${metric['change']:.2f}"
+                metric['is_change_positive'] = metric['change'] >= 0
+            else:
+                metric['change_formatted'] = "N/A"
+                metric['is_change_positive'] = None
+            
+            if metric['percent_change'] is not None:
+                sign = "+" if metric['percent_change'] >= 0 else ""
+                metric['percent_change_formatted'] = f"{sign}{metric['percent_change']:.2f}%"
+                metric['is_percent_positive'] = metric['percent_change'] >= 0
+            else:
+                metric['percent_change_formatted'] = "N/A"
+                metric['is_percent_positive'] = None
             
             # Format earnings date for display (yyyy-MM-dd format for proper text sorting)
             if metric.get('next_earnings_date'):
@@ -592,4 +650,114 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID, account_id: UUID = Non
             })
     
     return metrics_list
+
+
+def get_all_public_watchlists() -> List[WatchList]:
+    """
+    Get all public watchlists with account and stocks eagerly loaded.
+    
+    Returns:
+        List of WatchList objects where is_public=True
+    """
+    from sqlalchemy.orm import selectinload
+    
+    with Session(engine) as session:
+        statement = (
+            select(WatchList)
+            .where(WatchList.is_public == True)
+            .options(selectinload(WatchList.account), selectinload(WatchList.stocks))
+            .order_by(WatchList.date_modified.desc())
+        )
+        watchlists = session.exec(statement).all()
+        return watchlists
+
+
+def get_public_watchlist(watchlist_id: UUID) -> WatchList:
+    """
+    Get a public watchlist by ID. Does not require authentication.
+    
+    Args:
+        watchlist_id: WatchList UUID
+        
+    Returns:
+        WatchList object
+        
+    Raises:
+        ValueError: If watchlist not found or is not public
+    """
+    from sqlalchemy.orm import selectinload
+    
+    with Session(engine) as session:
+        statement = (
+            select(WatchList)
+            .where(
+                WatchList.watchlist_id == watchlist_id,
+                WatchList.is_public == True
+            )
+            .options(selectinload(WatchList.account))
+        )
+        watchlist = session.exec(statement).first()
+        
+        if not watchlist:
+            raise ValueError(f"Public watchlist not found: {watchlist_id}")
+        
+        return watchlist
+
+
+def update_watchlist_visibility(watchlist_id: UUID, is_public: bool, account_id: UUID) -> WatchList:
+    """
+    Update a watchlist's public/private visibility.
+    
+    Args:
+        watchlist_id: UUID of the watchlist
+        is_public: True to make public, False for private
+        account_id: ID of the requesting account to verify ownership
+        
+    Returns:
+        Updated WatchList object
+        
+    Raises:
+        ValueError: If watchlist not found or access denied
+    """
+    # Verify ownership
+    watchlist = get_watchlist(watchlist_id, account_id)
+    
+    with Session(engine) as session:
+        # Re-fetch within session
+        db_watchlist = session.get(WatchList, watchlist_id)
+        if not db_watchlist:
+            raise ValueError(f"Watchlist not found: {watchlist_id}")
+        
+        db_watchlist.is_public = is_public
+        db_watchlist.date_modified = datetime.now()
+        session.add(db_watchlist)
+        session.commit()
+        session.refresh(db_watchlist)
+        
+        return db_watchlist
+
+
+def get_public_watchlist_stocks(watchlist_id: UUID) -> List[WatchListStock]:
+    """
+    Get all stocks in a PUBLIC watchlist (no auth required).
+    
+    Args:
+        watchlist_id: WatchList UUID
+        
+    Returns:
+        List of WatchListStock objects
+        
+    Raises:
+        ValueError: If watchlist not found or is not public
+    """
+    # Verify it's a public watchlist
+    watchlist = get_public_watchlist(watchlist_id)
+    
+    with Session(engine) as session:
+        statement = select(WatchListStock).where(
+            WatchListStock.watchlist_id == watchlist_id
+        )
+        stocks = session.exec(statement).all()
+        return stocks
+
 

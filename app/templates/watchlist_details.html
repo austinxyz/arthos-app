@@ -103,14 +103,20 @@
 </head>
 
 <body>
-    <div class="container">
+    <div class="container-fluid px-4">
         {% include 'partials/auth_header.html' %}
         <div class="header mb-4">
+            {% if is_public_view %}
+            <a href="/public-watchlists" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Public
+                WatchLists</a>
+            {% else %}
             <a href="/watchlists" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to WatchLists</a>
+            {% endif %}
             <div class="d-flex justify-content-between align-items-center">
                 <div>
                     <span class="watchlist-name-display" id="watchlistNameDisplay">
                         <h1 class="d-inline">{{ watchlist.watchlist_name }}</h1>
+                        {% if is_owner and not is_public_view %}
                         <button class="btn btn-sm btn-outline-secondary ms-2" onclick="editWatchListName()">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
                                 class="bi bi-pencil" viewBox="0 0 16 16">
@@ -118,7 +124,12 @@
                                     d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
                             </svg>
                         </button>
+                        {% endif %}
+                        {% if watchlist.is_public %}
+                        <span class="badge bg-success ms-2">Public</span>
+                        {% endif %}
                     </span>
+                    {% if is_owner and not is_public_view %}
                     <span class="watchlist-name-edit" id="watchlistNameEdit">
                         <input type="text" class="form-control d-inline-block" id="watchlistNameInput"
                             value="{{ watchlist.watchlist_name }}" maxlength="128" style="width: 300px;">
@@ -126,25 +137,38 @@
                         <button class="btn btn-sm btn-secondary ms-2"
                             onclick="cancelEditWatchListName()">Cancel</button>
                     </span>
+                    {% endif %}
                 </div>
+                {% if is_owner and not is_public_view %}
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch" id="visibilityToggle" {% if
+                        watchlist.is_public %}checked{% endif %} onchange="toggleVisibility()">
+                    <label class="form-check-label" for="visibilityToggle">
+                        <span id="visibilityLabel">{{ 'Public' if watchlist.is_public else 'Private' }}</span>
+                    </label>
+                </div>
+                {% endif %}
             </div>
+            <hr>
             {# Description Section #}
             <div class="mt-3">
-                <span class="watchlist-description-display" id="watchlistDescriptionDisplay">
+                <span class="watchlist-description-display d-flex align-items-center" id="watchlistDescriptionDisplay">
                     {% if watchlist.description %}
-                    <p class="text-muted mb-0">{{ watchlist.description }}</p>
+                    <span class="text-muted">{{ watchlist.description }}</span>
                     {% else %}
-                    <p class="text-muted mb-0 fst-italic">No description</p>
+                    <span class="text-muted fst-italic">No description</span>
                     {% endif %}
-                    <button class="btn btn-sm btn-outline-secondary mt-1" onclick="editWatchListDescription()">
+                    {% if is_owner and not is_public_view %}
+                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="editWatchListDescription()">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
                             class="bi bi-pencil" viewBox="0 0 16 16">
                             <path
                                 d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" />
                         </svg>
-                        Edit
                     </button>
+                    {% endif %}
                 </span>
+                {% if is_owner and not is_public_view %}
                 <span class="watchlist-description-edit" id="watchlistDescriptionEdit" style="display: none;">
                     <textarea class="form-control" id="watchlistDescriptionInput" maxlength="265" rows="3"
                         style="width: 100%; max-width: 600px;">{{ watchlist.description or '' }}</textarea>
@@ -157,8 +181,17 @@
                             onclick="cancelEditWatchListDescription()">Cancel</button>
                     </div>
                 </span>
+                {% endif %}
             </div>
+            {% if is_public_view and watchlist.account %}
+            <div class="mt-2">
+                <small class="text-muted">Shared by: {{ watchlist.account.full_name or watchlist.account.email
+                    }}</small>
+            </div>
+            {% endif %}
         </div>
+
+        {% if is_owner and not is_public_view %}
 
         <div class="card mb-4">
             <div class="card-body">
@@ -176,6 +209,7 @@
                 </form>
             </div>
         </div>
+        {% endif %}
 
         <div class="table-responsive">
             {% if metrics and metrics|length > 0 %}
@@ -184,6 +218,9 @@
                     <tr>
                         <th>Ticker</th>
                         <th>Current Price</th>
+                        <th data-column="entry-price">Entry Price</th>
+                        <th data-column="change">Change</th>
+                        <th data-column="percent-change">% Change</th>
                         <th>SMA 50</th>
                         <th>SMA 200</th>
                         <th>Dividend Yield</th>
@@ -191,7 +228,9 @@
                         <th>Next Earnings</th>
                         <th data-column="signal">Signal</th>
                         <th data-column="trading-range" data-orderable="false">Trading Range</th>
+                        {% if is_owner and not is_public_view %}
                         <th data-column="actions" data-orderable="false">Actions</th>
+                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -221,6 +260,15 @@
                         </td>
                         {% else %}
                         <td>{{ metric.current_price_formatted }}</td>
+                        <td>{{ metric.entry_price_formatted }}</td>
+                        <td data-sort="{{ metric.change if metric.change else 0 }}"
+                            class="{% if metric.is_change_positive == true %}text-success{% elif metric.is_change_positive == false %}text-danger{% endif %}">
+                            {{ metric.change_formatted }}
+                        </td>
+                        <td data-sort="{{ metric.percent_change if metric.percent_change else 0 }}"
+                            class="{% if metric.is_percent_positive == true %}text-success{% elif metric.is_percent_positive == false %}text-danger{% endif %}">
+                            {{ metric.percent_change_formatted }}
+                        </td>
                         <td>{{ metric.sma_50_formatted }}</td>
                         <td>{{ metric.sma_200_formatted }}</td>
                         <td>{{ metric.dividend_yield_formatted }}</td>
@@ -298,6 +346,7 @@
                                         </div>
         </div>
         </td>
+        {% if is_owner and not is_public_view %}
         <td>
             <button class="btn btn-sm btn-danger" onclick="removeStock('{{ metric.ticker }}')">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash"
@@ -309,6 +358,7 @@
                 </svg>
             </button>
         </td>
+        {% endif %}
         {% endif %}
         </tr>
         {% endfor %}
@@ -337,6 +387,38 @@
             if (!trimmed) return false;
             const pattern = /^[A-Z0-9]{1,5}(\.[A-Z0-9]{1,5})?$/;
             return pattern.test(trimmed);
+        }
+
+        // Toggle watchlist visibility (public/private)
+        async function toggleVisibility() {
+            const toggle = document.getElementById('visibilityToggle');
+            const label = document.getElementById('visibilityLabel');
+            const isPublic = toggle.checked;
+
+            try {
+                const response = await fetch(`/v1/watchlist/${watchlistId}/visibility`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        is_public: isPublic
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.detail || 'Failed to update visibility');
+                }
+
+                // Update label
+                label.textContent = isPublic ? 'Public' : 'Private';
+            } catch (error) {
+                alert('Error: ' + error.message);
+                // Revert toggle on error
+                toggle.checked = !isPublic;
+            }
         }
 
         async function handleAddStocks(event) {

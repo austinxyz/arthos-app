@@ -58,6 +58,10 @@ def create_db_and_tables():
     _migrate_rr_watchlist_account_column()
     _migrate_data_ownership_to_default_account()
     
+    # Public Watchlist Feature Migrations
+    _migrate_watchlist_is_public_column()
+    _migrate_watchlist_stocks_entry_price_column()
+    
 
 
 def _migrate_stock_price_dma_columns():
@@ -905,4 +909,69 @@ def _migrate_data_ownership_to_default_account():
 
     except Exception as e:
         print(f"Warning: Could not migrate data ownership: {e}")
+
+
+def _migrate_watchlist_is_public_column():
+    """Add is_public column to watchlist table if it doesn't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            if is_sqlite:
+                result = session.exec(text("PRAGMA table_info(watchlist)")).all()
+                column_exists = any(row[1] == 'is_public' for row in result)
+
+                if not column_exists:
+                    session.exec(text(
+                        "ALTER TABLE watchlist ADD COLUMN is_public BOOLEAN DEFAULT 0"
+                    ))
+                    session.commit()
+                    print("Added is_public column to watchlist table")
+            else:
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'watchlist' AND column_name = 'is_public'"
+                )).first()
+
+                if not result:
+                    session.exec(text(
+                        "ALTER TABLE watchlist ADD COLUMN is_public BOOLEAN DEFAULT FALSE"
+                    ))
+                    session.commit()
+                    print("Added is_public column to watchlist table")
+    except Exception as e:
+        print(f"Warning: Could not migrate watchlist is_public column: {e}")
+
+
+def _migrate_watchlist_stocks_entry_price_column():
+    """Add entry_price column to watchlist_stocks table if it doesn't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            if is_sqlite:
+                result = session.exec(text("PRAGMA table_info(watchlist_stocks)")).all()
+                column_exists = any(row[1] == 'entry_price' for row in result)
+
+                if not column_exists:
+                    session.exec(text(
+                        "ALTER TABLE watchlist_stocks ADD COLUMN entry_price NUMERIC(12, 4)"
+                    ))
+                    session.commit()
+                    print("Added entry_price column to watchlist_stocks table")
+            else:
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'watchlist_stocks' AND column_name = 'entry_price'"
+                )).first()
+
+                if not result:
+                    session.exec(text(
+                        "ALTER TABLE watchlist_stocks ADD COLUMN entry_price NUMERIC(12, 4)"
+                    ))
+                    session.commit()
+                    print("Added entry_price column to watchlist_stocks table")
+    except Exception as e:
+        print(f"Warning: Could not migrate watchlist_stocks entry_price column: {e}")
+
 
