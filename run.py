@@ -4,7 +4,7 @@ import logging
 
 # Configure logging to see DEBUG level logs from scheduler
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(levelname)s:     %(name)s - %(message)s'
 )
 
