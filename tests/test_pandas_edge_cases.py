@@ -49,8 +49,8 @@ class TestPandasBooleanChecks:
         
         # This would raise error: if series:
         # Correct patterns:
-        assert series.any() is True
-        assert series.all() is False
+        assert bool(series.any()) is True
+        assert bool(series.all()) is False
         assert len(series) > 0
         assert not series.empty
     
@@ -120,8 +120,8 @@ class TestDuplicateDateHandling:
         # if pd.notna(series):  # This would raise error
         
         # Correct patterns:
-        assert result.all() is False  # Not all values are notna
-        assert result.any() is True   # Some values are notna
+        assert bool(result.all()) is False  # Not all values are notna
+        assert bool(result.any()) is True   # Some values are notna
 
 
 class TestSaveStockPricesEdgeCases:

@@ -128,7 +128,7 @@ def get_watchlist(watchlist_id: UUID, account_id: Optional[UUID] = None) -> Watc
         
         # Verify ownership if watchlist has an owner
         if watchlist.account_id:
-            if not account_id or watchlist.account_id != account_id:
+            if not account_id or str(watchlist.account_id) != str(account_id):
                  raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
         return watchlist
 

@@ -86,47 +86,12 @@ def live_server_url():
 @pytest.mark.e2e
 class TestE2EUserFlows:
     """End-to-end tests for complete user workflows."""
-    
-    def login_as_test_user(self, page: Page, live_server_url):
-        """Helper to inject session cookie for a test user."""
-        from uuid import uuid4
-        from itsdangerous import URLSafeTimedSerializer
-        import json
-        
-        # Create a dummy user ID (we assume the DB has it or permits it)
-        # For E2E running against live server, we might need a real user in DB.
-        # But for now, let's assume the session is enough to pass auth check.
-        user_id = str(uuid4())
-        
-        # Generate signed session cookie
-        # NOTE: This assumes default SECRET_KEY="secret". 
-        # In production/CI, this must match the server's key.
-        serializer = URLSafeTimedSerializer("secret", salt="cookie-session", serializer=None)
-        
-        session_data = {
-            "account_id": user_id,
-            "user_info": {"name": "E2E Test User", "email": "e2e@example.com", "picture": ""}
-        }
-        
-        # Serialize and sign
-        cookie_value = serializer.dumps(session_data)
-        
-        # Inject cookie
-        domain = live_server_url.split("://")[1].split(":")[0]
-        page.context.add_cookies([{
-            "name": "session",
-            "value": cookie_value,
-            "domain": domain,
-            "path": "/"
-        }])
-        
-        return user_id
 
     @pytest.mark.e2e
-    def test_complete_user_workflow(self, page: Page, live_server_url):
+    def test_complete_user_workflow(self, page: Page, live_server_url, authenticated_session):
         """
         Test complete user workflow:
-        1. Login (simulated)
+        1. Login (simulated via authenticated_session fixture)
         2. Load home page
         3. Create a new WatchList
         4. Add stocks to watchlist and see table populate
@@ -134,10 +99,7 @@ class TestE2EUserFlows:
         6. Verify Options Data displays correctly
         7. Verify Covered Calls table shows correctly
         """
-        # Step 0: Login
-        self.login_as_test_user(page, live_server_url)
-
-        # Step 1: Load home page
+        # Step 1: Load home page (already authenticated via fixture)
         page.goto(f"{live_server_url}/")
         expect(page).to_have_title("Arthos - Investment Analysis")
         
@@ -218,7 +180,10 @@ class TestE2EUserFlows:
         expect(chart_container).to_be_visible(timeout=10000)
         
         # Verify metrics card exists
-        metrics_card = page.locator(".metrics-card")
+        if page.locator(".metrics-card").count() > 1:
+            metrics_card = page.locator(".metrics-card").first
+        else:
+            metrics_card = page.locator(".metrics-card")
         expect(metrics_card).to_be_visible()
         
         # Extract SMA values from metrics table
@@ -237,7 +202,9 @@ class TestE2EUserFlows:
         sma_200_metrics = float(sma_200_value_text.replace("$", "").replace(",", ""))
         
         # Get current price for later validation
-        current_price_text = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value").inner_text().strip()
+        # Get current price for later validation
+        # Current Price uses metric-value-large class
+        current_price_text = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large").inner_text().strip()
         current_price = float(current_price_text.replace("$", "").replace(",", ""))
         
         # Verify chart data contains SMA values
@@ -374,7 +341,7 @@ class TestE2EUserFlows:
                             continue
     
     @pytest.mark.e2e
-    def test_home_page_loads_and_navigation(self, page: Page, live_server_url):
+    def test_home_page_loads_and_navigation(self, page: Page, live_server_url, authenticated_session):
         """Test that home page loads correctly and navigation works."""
         page.goto(f"{live_server_url}/")
         
@@ -397,7 +364,7 @@ class TestE2EUserFlows:
         expect(page).to_have_title("WatchLists - Arthos")
     
     @pytest.mark.e2e
-    def test_watchlist_creation_and_stock_addition_flow(self, page: Page, live_server_url):
+    def test_watchlist_creation_and_stock_addition_flow(self, page: Page, live_server_url, authenticated_session):
         """Test creating a watchlist and adding stocks, verifying table populates."""
         # Navigate to watchlists page
         page.goto(f"{live_server_url}/watchlists")
@@ -437,7 +404,7 @@ class TestE2EUserFlows:
         assert table_rows.count() >= len(test_stocks), "Table should have at least as many rows as stocks added"
     
     @pytest.mark.e2e
-    def test_stock_details_chart_and_metrics_consistency(self, page: Page, live_server_url):
+    def test_stock_details_chart_and_metrics_consistency(self, page: Page, live_server_url, authenticated_session):
         """Test that stock details page shows chart and metrics, and SMA values are consistent."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
@@ -450,7 +417,10 @@ class TestE2EUserFlows:
         expect(page.locator("#stockChart")).to_be_visible(timeout=10000)
         
         # Verify metrics exist
-        expect(page.locator(".metrics-card")).to_be_visible()
+        if page.locator(".metrics-card").count() > 1:
+            expect(page.locator(".metrics-card").first).to_be_visible()
+        else:
+            expect(page.locator(".metrics-card")).to_be_visible()
         expect(page.locator(".metric-label:has-text('SMA 50')")).to_be_visible()
         expect(page.locator(".metric-label:has-text('SMA 200')")).to_be_visible()
         
@@ -472,7 +442,7 @@ class TestE2EUserFlows:
         # but we've verified the values are displayed correctly in metrics
     
     @pytest.mark.e2e
-    def test_options_data_strike_prices_within_range(self, page: Page, live_server_url):
+    def test_options_data_strike_prices_within_range(self, page: Page, live_server_url, authenticated_session):
         """Test that options data shows strike prices within 10% of current price."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
@@ -482,7 +452,8 @@ class TestE2EUserFlows:
         page.wait_for_timeout(2000)
         
         # Get current price
-        current_price_text = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value").inner_text().strip()
+        # Current Price uses metric-value-large class
+        current_price_text = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large").inner_text().strip()
         current_price = float(current_price_text.replace("$", "").replace(",", ""))
         
         # Switch to Option Data tab
@@ -525,7 +496,7 @@ class TestE2EUserFlows:
                         assert len(strikes_found) > 0, "Should find at least one strike price"
     
     @pytest.mark.e2e
-    def test_covered_calls_math_correctness(self, page: Page, live_server_url):
+    def test_covered_calls_math_correctness(self, page: Page, live_server_url, authenticated_session):
         """Test that Covered Calls table shows correct calculations."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
@@ -535,7 +506,8 @@ class TestE2EUserFlows:
         page.wait_for_timeout(2000)
         
         # Get current price
-        current_price_text = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value").inner_text().strip()
+        # Current Price uses metric-value-large class
+        current_price_text = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large").inner_text().strip()
         current_price = float(current_price_text.replace("$", "").replace(",", ""))
         
         # Switch to Covered Calls tab

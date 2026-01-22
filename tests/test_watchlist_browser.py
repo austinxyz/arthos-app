@@ -105,7 +105,7 @@ def live_server_url():
 class TestWatchListBrowser:
     """Browser tests for watchlist pages."""
     
-    def test_create_portfolio_page_loads(self, page: Page, live_server_url):
+    def test_create_portfolio_page_loads(self, page: Page, live_server_url, authenticated_session):
         """Test that the create watchlist page loads correctly."""
         page.goto(f"{live_server_url}/create-watchlist")
         
@@ -117,7 +117,7 @@ class TestWatchListBrowser:
         expect(page.locator("button[type='submit']")).to_be_visible()
         expect(page.locator("text=Create WatchList")).to_be_visible()
     
-    def test_create_portfolio_success(self, page: Page, live_server_url):
+    def test_create_portfolio_success(self, page: Page, live_server_url, authenticated_session):
         """Test creating a watchlist through the UI."""
         page.goto(f"{live_server_url}/create-watchlist")
         
@@ -133,7 +133,7 @@ class TestWatchListBrowser:
         # Check that watchlist name is displayed
         expect(page.locator("h1")).to_contain_text("My Test WatchList")
     
-    def test_create_portfolio_invalid_name(self, page: Page, live_server_url):
+    def test_create_portfolio_invalid_name(self, page: Page, live_server_url, authenticated_session):
         """Test creating watchlist with invalid name."""
         page.goto(f"{live_server_url}/create-watchlist")
         
@@ -145,11 +145,11 @@ class TestWatchListBrowser:
         expect(page.locator("#errorMessage")).to_be_visible()
         expect(page.locator("#errorMessage")).to_contain_text("alphanumeric")
     
-    def test_list_portfolios_page(self, page: Page, live_server_url):
+    def test_list_portfolios_page(self, page: Page, live_server_url, authenticated_session):
         """Test the portfolios list page."""
         # Create some portfolios
-        watchlist1 = create_watchlist("WatchList 1")
-        watchlist2 = create_watchlist("WatchList 2")
+        watchlist1 = create_watchlist("WatchList 1", account_id=authenticated_session)
+        watchlist2 = create_watchlist("WatchList 2", account_id=authenticated_session)
         
         page.goto(f"{live_server_url}/watchlists")
         
@@ -165,9 +165,9 @@ class TestWatchListBrowser:
         expect(portfolio_link).to_be_visible()
         expect(portfolio_link).to_contain_text("WatchList 1")
     
-    def test_portfolio_details_page(self, page: Page, live_server_url):
+    def test_portfolio_details_page(self, page: Page, live_server_url, authenticated_session):
         """Test the watchlist details page."""
-        watchlist = create_watchlist("Test WatchList")
+        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
@@ -181,9 +181,9 @@ class TestWatchListBrowser:
         expect(page.locator("#tickersInput")).to_be_visible()
         expect(page.locator("text=Add Stocks to WatchList")).to_be_visible()
     
-    def test_add_stocks_to_portfolio(self, page: Page, live_server_url):
+    def test_add_stocks_to_portfolio(self, page: Page, live_server_url, authenticated_session):
         """Test adding stocks to a watchlist through the UI."""
-        watchlist = create_watchlist("Test WatchList")
+        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
@@ -199,9 +199,9 @@ class TestWatchListBrowser:
         # In a real scenario, we might need to wait for API calls
         expect(page.locator("text=AAPL")).to_be_visible(timeout=10000)
     
-    def test_add_stocks_invalid_ticker(self, page: Page, live_server_url):
+    def test_add_stocks_invalid_ticker(self, page: Page, live_server_url, authenticated_session):
         """Test adding invalid ticker format to watchlist - should be caught by frontend validation."""
-        watchlist = create_watchlist("Test WatchList")
+        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
@@ -234,11 +234,11 @@ class TestWatchListBrowser:
                         f"INVALID12345 should not be in the table, but found in first cell: {first_cell_text}"
         # If stock_count is 0, that's expected - the table is empty, so INVALID12345 is definitely not there
     
-    def test_add_stocks_sdsk_invalid_ticker(self, page: Page, live_server_url):
+    def test_add_stocks_sdsk_invalid_ticker(self, page: Page, live_server_url, authenticated_session):
         """Test adding INV1 (valid format but doesn't exist in yfinance) - should be rejected."""
         # Use unique ticker (4 chars, valid format) to avoid conflicts with other tests
         invalid_ticker = "INV1"
-        watchlist = create_watchlist("Test WatchList")
+        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
@@ -263,9 +263,9 @@ class TestWatchListBrowser:
             row_text = stocks_table.nth(i).inner_text()
             assert invalid_ticker not in row_text, f"{invalid_ticker} should not be in the table, but found in row: {row_text}"
     
-    def test_add_stocks_mixed_valid_invalid(self, page: Page, live_server_url):
+    def test_add_stocks_mixed_valid_invalid(self, page: Page, live_server_url, authenticated_session):
         """Test adding mix of valid and invalid format tickers - format validation should catch invalid ones."""
-        watchlist = create_watchlist("Test WatchList")
+        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
@@ -286,11 +286,11 @@ class TestWatchListBrowser:
         # The table should be empty (or only have pre-existing stocks)
         # We can't verify AAPL/MSFT were added because the form submission was blocked
     
-    def test_add_stocks_mixed_valid_sdsk(self, page: Page, live_server_url):
+    def test_add_stocks_mixed_valid_sdsk(self, page: Page, live_server_url, authenticated_session):
         """Test adding mix of valid ticker and INV2 - only valid one should be added."""
         # Use unique ticker (4 chars, valid format) to avoid conflicts with other tests
         invalid_ticker = "INV2"
-        watchlist = create_watchlist("Test WatchList")
+        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
@@ -317,11 +317,11 @@ class TestWatchListBrowser:
             row_text = stocks_table.nth(i).inner_text()
             assert invalid_ticker not in row_text, f"{invalid_ticker} should not be in the table, but found in row: {row_text}"
     
-    def test_delete_button_visible_for_error_rows(self, page: Page, live_server_url):
+    def test_delete_button_visible_for_error_rows(self, page: Page, live_server_url, authenticated_session):
         """Test that delete button is visible and actionable for error rows."""
         # Use unique ticker (4 chars, valid format) to avoid conflicts with other tests
         invalid_ticker = "INV3"
-        watchlist = create_watchlist("Test WatchList")
+        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
         # Add a stock that will fail to fetch (using a non-existent ticker)
         # We'll manually add it to the database to simulate an existing invalid ticker
         from app.models.watchlist import WatchListStock
@@ -375,9 +375,9 @@ class TestWatchListBrowser:
         # Verify the error row is removed (INV3 should not be visible)
         expect(page.locator(f"td:first-child strong:has-text('{invalid_ticker}')")).not_to_be_visible(timeout=5000)
     
-    def test_edit_watchlist_name(self, page: Page, live_server_url):
+    def test_edit_watchlist_name(self, page: Page, live_server_url, authenticated_session):
         """Test editing watchlist name."""
-        watchlist = create_watchlist("Old Name")
+        watchlist = create_watchlist("Old Name", account_id=authenticated_session)
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
@@ -397,9 +397,9 @@ class TestWatchListBrowser:
         # Check that name is updated
         expect(page.locator("h1")).to_contain_text("New Name")
     
-    def test_remove_stock_from_portfolio(self, page: Page, live_server_url):
+    def test_remove_stock_from_portfolio(self, page: Page, live_server_url, authenticated_session):
         """Test removing a stock from watchlist."""
-        watchlist = create_watchlist("Test WatchList")
+        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
         
         # Manually add stocks to watchlist (bypass yfinance validation in CI)
         from app.models.watchlist import WatchListStock
@@ -448,9 +448,9 @@ class TestWatchListBrowser:
         # Check that MSFT is still visible
         expect(page.locator("#stocksTable tbody tr").filter(has_text="MSFT")).to_be_visible(timeout=5000)
     
-    def test_watchlist_name_link_navigation(self, page: Page, live_server_url):
+    def test_watchlist_name_link_navigation(self, page: Page, live_server_url, authenticated_session):
         """Test that clicking watchlist name navigates to details page."""
-        watchlist = create_watchlist("Test WatchList")
+        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
         
         page.goto(f"{live_server_url}/watchlists")
         
@@ -461,7 +461,7 @@ class TestWatchListBrowser:
         page.wait_for_url(f"**/watchlist/{watchlist.watchlist_id}", timeout=5000)
         expect(page.locator("h1")).to_contain_text("Test WatchList")
     
-    def test_homepage_watchlist_link(self, page: Page, live_server_url):
+    def test_homepage_watchlist_link(self, page: Page, live_server_url, authenticated_session):
         """Test that homepage has link to watchlists."""
         page.goto(f"{live_server_url}/")
         
@@ -477,10 +477,10 @@ class TestWatchListBrowser:
         page.wait_for_url("**/watchlists", timeout=5000)
         expect(page).to_have_title("WatchLists - Arthos")
     
-    def test_dividend_yield_display_in_portfolio(self, page: Page, live_server_url):
+    def test_dividend_yield_display_in_portfolio(self, page: Page, live_server_url, authenticated_session):
         """Test that dividend yield is displayed correctly in watchlist table."""
-        watchlist = create_watchlist("Test WatchList")
-        added, _ = add_stocks_to_watchlist(watchlist.watchlist_id, ["HD", "AAPL"])
+        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
+        added, _ = add_stocks_to_watchlist(watchlist.watchlist_id, ["HD", "AAPL"], account_id=authenticated_session)
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
@@ -512,7 +512,7 @@ class TestWatchListBrowser:
             if cell_text != "N/A":
                 float(cell_text.replace("%", ""))
     
-    def test_dividend_yield_display_in_stock_detail(self, page: Page, live_server_url):
+    def test_dividend_yield_display_in_stock_detail(self, page: Page, live_server_url, authenticated_session):
         """Test that dividend yield is displayed correctly on stock detail page."""
         # Test with HD stock (should have dividend yield around 2.66%)
         response = page.goto(f"{live_server_url}/stock/HD", wait_until="networkidle", timeout=30000)
@@ -559,11 +559,12 @@ class TestWatchListBrowser:
         assert dividend_yield_found, "Dividend Yield metric not found on stock detail page"
     
     @pytest.mark.browser
-    def test_earnings_date_display_in_watchlist(self, page: Page, live_server_url):
+    def test_earnings_date_display_in_watchlist(self, page: Page, live_server_url, authenticated_session):
         """Test that earnings date is displayed in the watchlist table."""
         # Use JPM as it's a fresh stock that should have earnings data
-        watchlist = create_watchlist("Test Earnings WatchList")
-        added, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["JPM"])
+        watchlist = create_watchlist("Test Earnings WatchList", account_id=authenticated_session)
+        # Pass account_id as positional argument (3rd arg) to ensure it's passed correctly
+        added, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["JPM"], authenticated_session)
         
         # Verify stock was added
         assert len(added) > 0, "JPM should have been added to watchlist"
@@ -574,17 +575,16 @@ class TestWatchListBrowser:
         attributes = get_stock_attributes("JPM")
         assert attributes is not None, "JPM attributes should exist after adding to watchlist"
         assert attributes.next_earnings_date is not None, f"JPM should have earnings date, but got: {attributes.next_earnings_date}"
-        print(f"\nDEBUG: JPM earnings date in DB: {attributes.next_earnings_date}")
         
         # Verify metrics function returns earnings data
         from app.services.watchlist_service import get_watchlist_stocks_with_metrics
-        metrics = get_watchlist_stocks_with_metrics(watchlist.watchlist_id)
+        # Pass account_id to verify ownership
+        metrics = get_watchlist_stocks_with_metrics(watchlist.watchlist_id, account_id=authenticated_session)
         assert len(metrics) > 0, "Should have metrics for JPM"
         jpm_metric = next((m for m in metrics if m.get("ticker") == "JPM"), None)
         assert jpm_metric is not None, "Should have metric for JPM"
         assert jpm_metric.get("next_earnings_date") is not None, f"JPM metric should have earnings date: {jpm_metric}"
         assert jpm_metric.get("next_earnings_date_formatted") is not None, f"JPM metric should have formatted earnings date: {jpm_metric}"
-        print(f"\nDEBUG: JPM metric earnings_date_formatted: {jpm_metric.get('next_earnings_date_formatted')}")
         
         # Navigate to watchlist details page
         response = page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}", wait_until="networkidle", timeout=30000)
@@ -595,7 +595,6 @@ class TestWatchListBrowser:
         
         # Check that page loaded
         page_title = page.title()
-        print(f"\nDEBUG: Page title: {page_title}")
         
         # Check that table exists
         table = page.locator("#stocksTable")
@@ -632,7 +631,7 @@ class TestWatchListBrowser:
             f"Earnings date should be in YYYY-MM-DD format. Got: '{earnings_text}'"
     
     @pytest.mark.browser
-    def test_earnings_date_display_in_stock_detail(self, page: Page, live_server_url):
+    def test_earnings_date_display_in_stock_detail(self, page: Page, live_server_url, authenticated_session):
         """Test that earnings date is displayed on stock detail page."""
         # Test with AAPL stock
         response = page.goto(f"{live_server_url}/stock/AAPL", wait_until="networkidle", timeout=30000)

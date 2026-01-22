@@ -207,7 +207,8 @@
                 order: [[5, "desc"]], // Sort by Signal column descending (Extreme Oversold=5 first)
                 columnDefs: [
                     {
-                        type: "dom-data-sort",
+                        orderDataType: "dom-data-sort",
+                        type: 'num',
                         targets: [5] // Signal column (0-indexed)
                     },
                     {

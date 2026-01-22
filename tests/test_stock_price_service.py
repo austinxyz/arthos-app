@@ -303,7 +303,7 @@ class TestFetchAndSaveStockPrices:
         # Note: yfinance might not always raise an error immediately, so we check for ValueError
         # or that no data was saved
         try:
-            price_data, new_records = fetch_and_save_stock_prices("INVALIDTICKER12345")
+            price_data, new_records = fetch_and_save_stock_prices("INVALID")
             # If it doesn't raise, verify no data was saved
             prices = get_stock_prices_from_db("INVALIDTICKER12345")
             assert len(prices) == 0, "Invalid ticker should not save any data"

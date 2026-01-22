@@ -25,13 +25,13 @@ def live_server_url():
 
 
 @pytest.mark.browser
-def test_watchlist_table_column_count(page: Page, live_server_url):
+def test_watchlist_table_column_count(page: Page, live_server_url, authenticated_session):
     """Test that watchlist details table has correct column count for DataTables."""
     # Create a watchlist
-    watchlist = create_watchlist("Test WatchList")
+    watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
     
     # Add stocks to watchlist
-    add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"])
+    add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"], account_id=authenticated_session)
     
     # Navigate to watchlist details page
     page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
@@ -66,14 +66,14 @@ def test_watchlist_table_column_count(page: Page, live_server_url):
 
 
 @pytest.mark.browser
-def test_watchlist_table_with_error_row(page: Page, live_server_url):
+def test_watchlist_table_with_error_row(page: Page, live_server_url, authenticated_session):
     """Test that error rows have correct column count."""
     # Create a watchlist
-    watchlist = create_watchlist("Test WatchList")
+    watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
     
     # Add a valid stock and an invalid one
     # The invalid one should show an error row
-    add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "INVALIDTICKER123"])
+    add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "INVALIDTICKER123"], account_id=authenticated_session)
     
     # Navigate to watchlist details page
     page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
@@ -87,7 +87,7 @@ def test_watchlist_table_with_error_row(page: Page, live_server_url):
     header_count = header_cells.count()
     
     # Find error row (should have class table-danger)
-    error_row = page.locator("#stocksTable tbody tr.table-danger").first()
+    error_row = page.locator("#stocksTable tbody tr.table-danger").first
     
     if error_row.count() > 0:
         # Count columns in error row

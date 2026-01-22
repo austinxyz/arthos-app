@@ -51,7 +51,7 @@ def live_server_url():
 class TestStockDetailBrowser:
     """Browser tests for stock detail page."""
     
-    def test_stock_detail_page_loads_with_all_sections(self, page: Page, live_server_url):
+    def test_stock_detail_page_loads_with_all_sections(self, page: Page, live_server_url, authenticated_session):
         """Test that the stock detail page loads with all expected sections."""
         # Test with a well-known stock that should have options data
         ticker = "AAPL"
@@ -69,15 +69,16 @@ class TestStockDetailBrowser:
         # Check chart container exists
         expect(page.locator("#stockChart")).to_be_visible(timeout=10000)
         
-        # Check metrics card exists
-        expect(page.locator(".metrics-card")).to_be_visible()
+        # Check basic metrics
+        # Use first() to avoid strict mode violation as there are multiple metrics cards
+        expect(page.locator(".metrics-card").first).to_be_visible()
         
         # Check all metric labels exist
         expect(page.locator(".metric-label:has-text('Current Price')")).to_be_visible()
         
         # Check that current price timestamp is displayed (if available)
         current_price_item = page.locator(".metric-item").filter(has_text="Current Price")
-        expect(current_price_item).to_be_visible()
+        expect(current_price_item).to_be_visible(timeout=10000)
         # Check for timestamp above current price (could be date or date+time format)
         timestamp_element = current_price_item.locator(".text-muted.small")
         if timestamp_element.count() > 0:
@@ -89,7 +90,7 @@ class TestStockDetailBrowser:
                 f"Timestamp format should be YYYY-MM-DD or YYYY-MM-DD HH:MM:SS, got: {timestamp_text}"
         
         # Verify that current price value is displayed
-        current_price_value = current_price_item.locator(".metric-value")
+        current_price_value = current_price_item.locator(".metric-value-large")
         expect(current_price_value).to_be_visible()
         price_text = current_price_value.inner_text().strip()
         assert price_text.startswith("$"), f"Current price should start with $, got: {price_text}"
@@ -173,7 +174,7 @@ class TestStockDetailBrowser:
         if console_errors:
             pytest.fail(f"Console errors found: {console_errors}")
     
-    def test_closest_strike_highlighted_in_options_table(self, page: Page, live_server_url):
+    def test_closest_strike_highlighted_in_options_table(self, page: Page, live_server_url, authenticated_session):
         """Test that the closest strike price row is highlighted in Options Data table."""
         tickers = ["AAPL", "TSLA", "SHOP"]
         
@@ -194,7 +195,7 @@ class TestStockDetailBrowser:
                 continue
             
             # Get current price from metrics
-            current_price_elem = page.locator(".metric-value").filter(has_text="$")
+            current_price_elem = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large")
             if current_price_elem.count() == 0:
                 continue
             
@@ -264,7 +265,7 @@ class TestStockDetailBrowser:
                 f"Highlighted strikes {highlighted_strikes} don't match closest strikes {closest_strikes} for {ticker}. " \
                 f"Current price: {current_price}, Min distance: {min_distance}"
     
-    def test_closest_strike_highlighted_in_covered_calls_table(self, page: Page, live_server_url):
+    def test_closest_strike_highlighted_in_covered_calls_table(self, page: Page, live_server_url, authenticated_session):
         """Test that the closest strike price row is highlighted in Covered Calls table."""
         tickers = ["AAPL", "TSLA", "SHOP"]
         
@@ -287,7 +288,7 @@ class TestStockDetailBrowser:
                 continue
             
             # Get current price from metrics
-            current_price_elem = page.locator(".metric-value").filter(has_text="$")
+            current_price_elem = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large")
             if current_price_elem.count() == 0:
                 continue
             
@@ -369,14 +370,14 @@ class TestStockDetailBrowser:
                 f"Highlighted strikes {highlighted_strikes} don't match closest strikes {closest_strikes} for {ticker}. " \
                 f"Current price: {current_price}, Min distance: {min_distance}"
     
-    def test_equidistant_strikes_both_highlighted(self, page: Page, live_server_url):
+    def test_equidistant_strikes_both_highlighted(self, page: Page, live_server_url, authenticated_session):
         """Test that if two strikes are equidistant from current price, both are highlighted."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
         page.wait_for_load_state("networkidle", timeout=30000)
         
         # Get current price
-        current_price_elem = page.locator(".metric-value").filter(has_text="$")
+        current_price_elem = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large")
         if current_price_elem.count() == 0:
             pytest.skip("Could not find current price")
         
@@ -430,7 +431,7 @@ class TestStockDetailBrowser:
             assert highlighted_rows.count() >= closest_count, \
                 f"Expected at least {closest_count} highlighted rows for {closest_count} equidistant strikes, but found {highlighted_rows.count()}"
     
-    def test_tabs_functionality(self, page: Page, live_server_url):
+    def test_tabs_functionality(self, page: Page, live_server_url, authenticated_session):
         """Test that Bootstrap tabs work correctly for Option Data and Covered Calls."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
@@ -496,7 +497,7 @@ class TestStockDetailBrowser:
         has_both = "show" in classes and "active" in classes
         assert not has_both, f"Covered Calls should not be active after switching back, but has classes: {classes}"
     
-    def test_tab_content_visibility(self, page: Page, live_server_url):
+    def test_tab_content_visibility(self, page: Page, live_server_url, authenticated_session):
         """Test that tab content is only visible when the tab is active."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
@@ -532,7 +533,7 @@ class TestStockDetailBrowser:
         if covered_calls_table.count() > 0:
             expect(covered_calls_table.first).to_be_visible()
     
-    def test_current_price_timestamp_displayed(self, page: Page, live_server_url):
+    def test_current_price_timestamp_displayed(self, page: Page, live_server_url, authenticated_session):
         """Test that the timestamp of current stock price data is displayed above Current Price."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
@@ -557,12 +558,12 @@ class TestStockDetailBrowser:
                 f"Timestamp format should be YYYY-MM-DD or YYYY-MM-DD HH:MM:SS, got: {timestamp_text}"
             
             # Verify current price is displayed below timestamp
-            current_price_value = current_price_item.locator(".metric-value")
+            current_price_value = current_price_item.locator(".metric-value-large")
             expect(current_price_value).to_be_visible()
             price_text = current_price_value.inner_text().strip()
             assert price_text.startswith("$"), f"Current price should start with $, got: {price_text}"
     
-    def test_todays_candle_displayed_on_chart(self, page: Page, live_server_url):
+    def test_todays_candle_displayed_on_chart(self, page: Page, live_server_url, authenticated_session):
         """Test that today's aggregated candle (from intraday data) is displayed on the chart."""
         from datetime import datetime
         ticker = "AAPL"
@@ -588,7 +589,7 @@ class TestStockDetailBrowser:
                 assert f'"x":"{today}"' in script_content or f'"x": "{today}"' in script_content, \
                     f"Today's date {today} should be in chart candlestick data"
     
-    def test_options_tables_have_datatables(self, page: Page, live_server_url):
+    def test_options_tables_have_datatables(self, page: Page, live_server_url, authenticated_session):
         """Test that all options tables are initialized with DataTables and have search functionality."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
@@ -719,7 +720,7 @@ class TestStockDetailBrowser:
                         assert rows_after_1_1_again == initial_rows, \
                             f"After switching back to 1:1, should have same row count. Got {rows_after_1_1_again}, expected {initial_rows}"
     
-    def test_options_table_column_count_fixed(self, page: Page, live_server_url):
+    def test_options_table_column_count_fixed(self, page: Page, live_server_url, authenticated_session):
         """Test that options table has consistent column count for all rows (fixes HD stock issue)."""
         # Test with HD stock which was reported to have the issue
         ticker = "HD"
@@ -759,7 +760,7 @@ class TestStockDetailBrowser:
         assert len(datatables_errors) == 0, \
             f"DataTables column count errors found: {datatables_errors}"
     
-    def test_datatables_search_functionality(self, page: Page, live_server_url):
+    def test_datatables_search_functionality(self, page: Page, live_server_url, authenticated_session):
         """Test that DataTables search works correctly on options tables."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
@@ -805,7 +806,7 @@ class TestStockDetailBrowser:
                     search_input.fill("")
                     page.wait_for_timeout(500)
     
-    def test_risk_reversal_filter_functionality(self, page: Page, live_server_url):
+    def test_risk_reversal_filter_functionality(self, page: Page, live_server_url, authenticated_session):
         """Test that Risk Reversal ratio filter buttons work correctly."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
@@ -901,7 +902,7 @@ class TestStockDetailBrowser:
         assert visible_1_1_rows == rows_after_1_1_again, \
             f"All visible rows should be 1:1. Found {rows_after_1_1_again} rows, {visible_1_1_rows} with 1:1"
     
-    def test_risk_reversal_filter_functionality_msft(self, page: Page, live_server_url):
+    def test_risk_reversal_filter_functionality_msft(self, page: Page, live_server_url, authenticated_session):
         """Test that Risk Reversal ratio filter buttons work correctly with MSFT stock - comprehensive test."""
         ticker = "MSFT"
         page.goto(f"{live_server_url}/stock/{ticker}")

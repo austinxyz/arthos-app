@@ -8,6 +8,9 @@ from sqlmodel import Session, delete, select
 from app.database import engine, create_db_and_tables
 from app.models.stock_price import StockPrice, StockAttributes
 
+# Import centralized auth fixtures to make them available to all tests
+from tests.fixtures.auth_fixtures import test_account, authenticated_session, unauthenticated_session
+
 
 @pytest.fixture
 def client():
@@ -65,6 +68,16 @@ def setup_database():
             session.delete(account)
 
         session.commit()
+
+    import os
+    import requests
+    test_server_url = os.getenv("TEST_SERVER_URL")
+    if test_server_url:
+        try:
+            requests.post(f"{test_server_url}/_test/clear-cache", timeout=5)
+        except Exception as e:
+            # print(f"Warning: Failed to clear-cache on test server: {e}")
+            pass
 
     yield
 
@@ -220,9 +233,8 @@ def auth_client(test_user):
     @main_app.get(test_endpoint_path)
     async def setup_test_session(user_id: str, request: Request):
         """Test-only endpoint to set up session."""
-        # Find the user by ID
         from app.models.account import Account
-        from sqlmodel import Session, select
+        from sqlmodel import Session
         from app.database import engine
         from uuid import UUID
 

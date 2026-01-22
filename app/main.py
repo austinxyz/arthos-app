@@ -475,13 +475,19 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
                 
                 # Calculate minimum distance from current price to closest strike
                 if metrics['current_price'] and metrics['current_price'] > 0:
+                    current_price_float = float(metrics['current_price'])
                     for strike in sorted_strikes:
-                        if strike > metrics['current_price']:
-                            distance = strike - metrics['current_price']
-                        else:
-                            distance = metrics['current_price'] - strike
-                        if min_distance is None or distance < min_distance:
-                            min_distance = distance
+                        try:
+                            strike_float = float(strike)
+                            if strike_float > current_price_float:
+                                distance = strike_float - current_price_float
+                            else:
+                                distance = current_price_float - strike_float
+                            
+                            if min_distance is None or distance < min_distance:
+                                min_distance = distance
+                        except (ValueError, TypeError):
+                            continue
                 
                 # Calculate covered call returns
                 try:
@@ -1517,4 +1523,36 @@ async def trigger_scheduler_manual(bypass_market_hours: bool = Query(True, descr
         raise HTTPException(status_code=500, detail=f"Error triggering scheduler: {str(e)}")
 
 
+
+# TEST ONLY: Endpoint to facilitate browser test authentication
+# This endpoint allows setting the session cookie via a direct request,
+# bypassing the need for manual cookie injection which is brittle across processes.
+# if os.getenv("ARTHOS_TEST_MODE") == "true":
+@app.get("/_test/login/{user_id}")
+async def test_login_endpoint(user_id: UUID, request: Request):
+        from app.models.account import Account
+        from sqlmodel import Session as SQLSession
+        from app.database import engine
+        
+        with SQLSession(engine) as session:
+            account = session.get(Account, user_id)
+            if not account:
+                return {"error": "User not found"}
+            
+            # Set session data exactly as the app expects
+            request.session["account_id"] = str(account.id)
+            request.session["user"] = {
+                "name": account.full_name,
+                "email": account.email,
+                "picture": account.picture_url
+            }
+            return {"status": "ok", "account_id": str(account.id)}
+
+
+@app.post("/_test/clear-cache")
+async def clear_cache_endpoint():
+    """Test-only endpoint to clear options cache."""
+    from app.services.options_cache_service import clear_options_cache
+    clear_options_cache()
+    return {"status": "cache_cleared"}
 
