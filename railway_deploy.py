@@ -42,9 +42,31 @@ def backfill_entry_prices():
         
         print(f"Found {len(stocks_without_price)} stocks without entry_price")
         
+        # Debug type of first item if exists
+        if stocks_without_price:
+            print(f"Debug: Type of first item: {type(stocks_without_price[0])}")
+            print(f"Debug: First item repr: {stocks_without_price[0]}")
+        
         for stock in stocks_without_price:
-            ticker = stock.ticker.upper()
-            date_added = stock.date_added.date() if hasattr(stock.date_added, 'date') else stock.date_added
+            # Handle potential SQLAlchemy Row object (wraps the model)
+            # This happens if session.exec returns rows instead of scalars
+            stock_obj = stock
+            if not hasattr(stock, "ticker"):
+                try:
+                    # Try accessing as tuple/row
+                    if hasattr(stock, "__getitem__") and len(stock) > 0:
+                        stock_obj = stock[0]
+                except Exception:
+                    # If indexing fails, assume it's the object itself or broken
+                    pass
+            
+            # Additional check to ensure we have the model instance
+            if not hasattr(stock_obj, "ticker"):
+                print(f"  ⚠ Skipping item: Cannot access 'ticker' on {type(stock_obj)}")
+                continue
+                
+            ticker = stock_obj.ticker.upper()
+            date_added = stock_obj.date_added.date() if hasattr(stock_obj.date_added, 'date') else stock_obj.date_added
             
             # Try to get closing price on the date added
             price_statement = select(StockPrice).where(
@@ -71,7 +93,7 @@ def backfill_entry_prices():
             if price_record and price_record.close_price:
                 # Update the entry_price
                 # Need to refetch stock in current session to update
-                db_stock = session.get(WatchListStock, (stock.watchlist_id, stock.ticker))
+                db_stock = session.get(WatchListStock, (stock_obj.watchlist_id, stock_obj.ticker))
                 if db_stock:
                     db_stock.entry_price = price_record.close_price
                     session.add(db_stock)
