@@ -662,7 +662,7 @@ async def save_rr_to_watchlist_api(request: Request):
 
 
 @app.delete("/api/rr-watchlist/delete/{rr_uuid}")
-async def delete_rr_watchlist_api(rr_uuid: UUID = FPath(...)):
+async def delete_rr_watchlist_api(request: Request, rr_uuid: UUID = FPath(...)):
     """Delete a Risk Reversal watchlist entry and all associated history."""
     from app.services.rr_watchlist_service import delete_rr_watchlist_entry
     
