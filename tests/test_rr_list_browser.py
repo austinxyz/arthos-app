@@ -202,8 +202,39 @@ class TestRRListBrowser:
             result = session.exec(statement).first()
             assert result is not None, "Entry should still exist in database"
 
+    def test_delete_entry_success(self, page: Page, live_server_url, authenticated_session):
+        """Test that confirming delete actually removes the entry from UI and database."""
+        # Create test entry with authenticated account
+        entry = create_test_rr_entry("NVDA", account_id=str(authenticated_session))
+        entry_id = entry.id
+        
+        page.goto(f"{live_server_url}/rr-list")
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(2000)
+        
+        # Verify entry is visible
+        expect(page.locator("#rrTable tbody")).to_contain_text("NVDA")
+        
+        # Find delete button
+        delete_btn = page.locator(f".delete-rr-btn[data-rr-id='{entry_id}']")
+        expect(delete_btn).to_be_visible()
+        
+        # Set up dialog handler to ACCEPT (confirm) the deletion
+        page.once("dialog", lambda dialog: dialog.accept())
+        
+        # Click delete button
+        delete_btn.click()
+        
+        # Wait for AJAX request to complete and row to be removed
+        page.wait_for_timeout(2000)
+        
+        # Verify entry is no longer visible in the table
+        expect(page.locator("#rrTable tbody")).not_to_contain_text("NVDA")
+        
+        # Verify entry is removed from database
+        with Session(engine) as session:
+            from sqlmodel import select
+            statement = select(RRWatchlist).where(RRWatchlist.id == entry_id)
+            result = session.exec(statement).first()
+            assert result is None, "Entry should be deleted from database"
 
-# Note: Tests for actual delete functionality (deleting entries, delete removes history)
-# are covered in tests/test_rr_watchlist_collar.py at the service layer.
-# Browser tests focus on UI elements since delete API requires authentication
-# which is complex to simulate in browser tests.
