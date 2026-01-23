@@ -140,9 +140,9 @@
                         </td>
                         <td>
                             {% if entry.change_pct is not none %}
-                            {% if entry.change > 0 %}
+                            {% if entry.change_pct > 0 %}
                             <span class="text-success">{{ "%.2f"|format(entry.change_pct) }}%</span>
-                            {% elif entry.change < 0 %} <span class="text-danger">{{ "%.2f"|format(entry.change_pct)
+                            {% elif entry.change_pct < 0 %} <span class="text-danger">{{ "%.2f"|format(entry.change_pct)
                                 }}%</span>
                                 {% else %}
                                 {{ "%.2f"|format(entry.change_pct) }}%

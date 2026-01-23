@@ -207,7 +207,7 @@ async def rr_list_page(request: Request):
         entry_price = float(entry.entry_price)
         if current_price is not None:
             change = current_price - entry_price
-            change_pct = (change / entry_price * 100) if entry_price != 0 else None
+            change_pct = (change / abs(entry_price) * 100) if entry_price != 0 else None
         else:
             change = None
             change_pct = None
