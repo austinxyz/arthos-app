@@ -212,12 +212,36 @@ async def rr_list_page(request: Request):
             change = None
             change_pct = None
         
+        # Get current stock price from the database
+        from app.models.stock_price import StockPrice
+        from sqlmodel import Session, select
+        from app.database import engine
+        
+        current_stock_price = None
+        stock_price_change = None
+        stock_price_change_pct = None
+        
+        with Session(engine) as session:
+            statement = select(StockPrice).where(
+                StockPrice.ticker == entry.ticker
+            ).order_by(StockPrice.price_date.desc()).limit(1)
+            latest_stock_price = session.exec(statement).first()
+            if latest_stock_price:
+                current_stock_price = float(latest_stock_price.close_price)
+                entry_stock_price = float(entry.stock_price)
+                stock_price_change = current_stock_price - entry_stock_price
+                if entry_stock_price != 0:
+                    stock_price_change_pct = (stock_price_change / entry_stock_price) * 100
+        
         formatted_entries.append({
             'id': entry.id,
             'ticker': entry.ticker,
             'legs': legs,
             'ratio': entry.ratio,
             'stock_price': float(entry.stock_price),
+            'current_stock_price': current_stock_price,
+            'stock_price_change': stock_price_change,
+            'stock_price_change_pct': stock_price_change_pct,
             'date_added': entry.date_added,
             'entry_price': entry_price,
             'current_price': current_price,
@@ -337,6 +361,27 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
         if entry_price != 0:
             value_change_pct = (value_change / abs(entry_price)) * 100
     
+    # Get current stock price and calculate stock price change
+    from app.models.stock_price import StockPrice
+    from sqlmodel import Session, select
+    from app.database import engine
+    
+    current_stock_price = None
+    stock_price_change = None
+    stock_price_change_pct = None
+    entry_stock_price = float(entry.stock_price)
+    
+    with Session(engine) as session:
+        statement = select(StockPrice).where(
+            StockPrice.ticker == entry.ticker
+        ).order_by(StockPrice.price_date.desc()).limit(1)
+        latest_stock_price = session.exec(statement).first()
+        if latest_stock_price:
+            current_stock_price = float(latest_stock_price.close_price)
+            stock_price_change = current_stock_price - entry_stock_price
+            if entry_stock_price != 0:
+                stock_price_change_pct = (stock_price_change / entry_stock_price) * 100
+    
     # Build entry dict with collar fields if applicable
     entry_dict = {
         'id': entry.id,
@@ -362,7 +407,11 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
         # Summary values
         'current_value': current_value,
         'value_change': value_change,
-        'value_change_pct': value_change_pct
+        'value_change_pct': value_change_pct,
+        # Current stock price
+        'current_stock_price': current_stock_price,
+        'stock_price_change': stock_price_change,
+        'stock_price_change_pct': stock_price_change_pct
     }
     
     # Add collar-specific fields

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +8,8 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
     <!-- Bootstrap 5 CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
     {% include 'partials/datatables_includes.html' %}
     <!-- Highcharts -->
     <script src="https://code.highcharts.com/highcharts.js"></script>
@@ -16,58 +18,71 @@
             background-color: #f5f5f5;
             padding: 20px 0;
         }
+
         .header h1 a {
             color: #4285f4;
             text-decoration: none;
         }
+
         .header h1 a:hover {
             text-decoration: underline;
         }
+
         .chart-container {
             background-color: white;
             border-radius: 8px;
             padding: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
+
         .position-short {
             color: #dc3545;
             font-weight: 600;
         }
+
         .position-long {
             color: #198754;
             font-weight: 600;
         }
+
         .legs-table th {
             background-color: #f8f9fa;
             font-weight: 600;
         }
+
         /* Compact tables - columns size to content */
         .legs-table {
             width: auto !important;
         }
+
         .legs-table th,
         .legs-table td {
             white-space: nowrap;
             padding: 0.5rem 0.75rem;
         }
+
         #historyTable {
             width: 100% !important;
         }
+
         #historyTable th,
         #historyTable td {
             white-space: nowrap;
             vertical-align: middle;
         }
+
         .summary-table {
             width: auto !important;
         }
+
         .summary-table td {
             white-space: nowrap;
             padding: 0.5rem 0.75rem;
         }
     </style>
 </head>
+
 <body>
     <div class="container-fluid px-4">
         <div class="header mb-4">
@@ -75,15 +90,15 @@
             <div class="d-flex align-items-center gap-3">
                 <h1 class="mb-0"><a href="/stock/{{ entry.ticker }}">{{ entry.ticker }}</a></h1>
                 {% if entry.ratio == 'Collar' %}
-                    <span class="badge bg-info fs-6">Collar</span>
+                <span class="badge bg-info fs-6">Collar</span>
                 {% elif entry.ratio == '1:2' %}
-                    <span class="badge bg-warning text-dark fs-6">1:2</span>
+                <span class="badge bg-warning text-dark fs-6">1:2</span>
                 {% else %}
-                    <span class="badge bg-primary fs-6">1:1</span>
+                <span class="badge bg-primary fs-6">1:1</span>
                 {% endif %}
             </div>
         </div>
-        
+
         <div class="row mb-4">
             <!-- Legs Table -->
             <div class="col-auto mb-3">
@@ -113,18 +128,19 @@
                                     <td>${{ "%.2f"|format(entry.put_option_quote) }}</td>
                                     <td>
                                         {% if entry.current_put_price is not none %}
-                                            ${{ "%.2f"|format(entry.current_put_price) }}
+                                        ${{ "%.2f"|format(entry.current_put_price) }}
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                        <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if entry.put_change_pct is not none %}
-                                            <span class="{% if entry.put_change_pct > 0 %}text-danger{% elif entry.put_change_pct < 0 %}text-success{% endif %}">
-                                                {{ "%.2f"|format(entry.put_change_pct) }}%
-                                            </span>
+                                        <span
+                                            class="{% if entry.put_change_pct > 0 %}text-danger{% elif entry.put_change_pct < 0 %}text-success{% endif %}">
+                                            {{ "%.2f"|format(entry.put_change_pct) }}%
+                                        </span>
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                        <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -136,18 +152,19 @@
                                     <td>${{ "%.2f"|format(entry.call_option_quote) }}</td>
                                     <td>
                                         {% if entry.current_call_price is not none %}
-                                            ${{ "%.2f"|format(entry.current_call_price) }}
+                                        ${{ "%.2f"|format(entry.current_call_price) }}
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                        <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if entry.call_change_pct is not none %}
-                                            <span class="{% if entry.call_change_pct > 0 %}text-success{% elif entry.call_change_pct < 0 %}text-danger{% endif %}">
-                                                {{ "%.2f"|format(entry.call_change_pct) }}%
-                                            </span>
+                                        <span
+                                            class="{% if entry.call_change_pct > 0 %}text-success{% elif entry.call_change_pct < 0 %}text-danger{% endif %}">
+                                            {{ "%.2f"|format(entry.call_change_pct) }}%
+                                        </span>
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                        <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -160,18 +177,19 @@
                                     <td>${{ "%.2f"|format(entry.short_call_option_quote) }}</td>
                                     <td>
                                         {% if entry.current_short_call_price is not none %}
-                                            ${{ "%.2f"|format(entry.current_short_call_price) }}
+                                        ${{ "%.2f"|format(entry.current_short_call_price) }}
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                        <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                     <td>
                                         {% if entry.short_call_change_pct is not none %}
-                                            <span class="{% if entry.short_call_change_pct > 0 %}text-danger{% elif entry.short_call_change_pct < 0 %}text-success{% endif %}">
-                                                {{ "%.2f"|format(entry.short_call_change_pct) }}%
-                                            </span>
+                                        <span
+                                            class="{% if entry.short_call_change_pct > 0 %}text-danger{% elif entry.short_call_change_pct < 0 %}text-success{% endif %}">
+                                            {{ "%.2f"|format(entry.short_call_change_pct) }}%
+                                        </span>
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                        <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -181,7 +199,7 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Summary -->
             <div class="col-auto mb-3">
                 <div class="card h-100">
@@ -203,9 +221,9 @@
                                     <td class="text-muted">Current Value</td>
                                     <td class="text-end fw-semibold">
                                         {% if entry.current_value is not none %}
-                                            ${{ "%.2f"|format(entry.current_value) }}
+                                        ${{ "%.2f"|format(entry.current_value) }}
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                        <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -213,14 +231,15 @@
                                     <td class="text-muted">Change</td>
                                     <td class="text-end fw-semibold">
                                         {% if entry.value_change is not none %}
-                                            <span class="{% if entry.value_change > 0 %}text-success{% elif entry.value_change < 0 %}text-danger{% endif %}">
-                                                ${{ "%.2f"|format(entry.value_change) }}
-                                                {% if entry.value_change_pct is not none %}
-                                                    ({{ "%.2f"|format(entry.value_change_pct) }}%)
-                                                {% endif %}
-                                            </span>
+                                        <span
+                                            class="{% if entry.value_change > 0 %}text-success{% elif entry.value_change < 0 %}text-danger{% endif %}">
+                                            ${{ "%.2f"|format(entry.value_change) }}
+                                            {% if entry.value_change_pct is not none %}
+                                            ({{ "%.2f"|format(entry.value_change_pct) }}%)
+                                            {% endif %}
+                                        </span>
                                         {% else %}
-                                            <span class="text-muted">N/A</span>
+                                        <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -229,8 +248,35 @@
                                     <td class="text-end fw-semibold">${{ "%.2f"|format(entry.stock_price) }}</td>
                                 </tr>
                                 <tr>
+                                    <td class="text-muted">Current Stock Price</td>
+                                    <td class="text-end fw-semibold">
+                                        {% if entry.current_stock_price is not none %}
+                                        ${{ "%.2f"|format(entry.current_stock_price) }}
+                                        {% else %}
+                                        <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-muted">Stock Price Change</td>
+                                    <td class="text-end fw-semibold">
+                                        {% if entry.stock_price_change is not none %}
+                                        <span
+                                            class="{% if entry.stock_price_change > 0 %}text-success{% elif entry.stock_price_change < 0 %}text-danger{% endif %}">
+                                            ${{ "%.2f"|format(entry.stock_price_change) }}
+                                            {% if entry.stock_price_change_pct is not none %}
+                                            ({{ "%.2f"|format(entry.stock_price_change_pct) }}%)
+                                            {% endif %}
+                                        </span>
+                                        {% else %}
+                                        <span class="text-muted">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
                                     <td class="text-muted">Date Added</td>
-                                    <td class="text-end fw-semibold">{{ entry.date_added.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td class="text-end fw-semibold">{{ entry.date_added.strftime('%Y-%m-%d %H:%M') }}
+                                    </td>
                                 </tr>
                                 {% if is_collar %}
                                 <tr>
@@ -244,12 +290,12 @@
                 </div>
             </div>
         </div>
-        
+
         <div class="chart-container">
             <h5 class="mb-3">Current Value Over Time</h5>
             <div id="netCostChart" style="height: 400px;"></div>
         </div>
-        
+
         <div class="card">
             <div class="card-header">
                 <strong>Price History</strong>
@@ -272,10 +318,13 @@
                             {% for row in table_data %}
                             <tr>
                                 <td>{{ row.history_date.strftime('%Y-%m-%d') }}</td>
-                                <td>{% if row.call_price is not none %}${{ "%.2f"|format(row.call_price) }}{% else %}-{% endif %}</td>
-                                <td>{% if row.put_price is not none %}${{ "%.2f"|format(row.put_price) }}{% else %}-{% endif %}</td>
+                                <td>{% if row.call_price is not none %}${{ "%.2f"|format(row.call_price) }}{% else %}-{%
+                                    endif %}</td>
+                                <td>{% if row.put_price is not none %}${{ "%.2f"|format(row.put_price) }}{% else %}-{%
+                                    endif %}</td>
                                 {% if is_collar %}
-                                <td>{% if row.short_call_price is not none %}${{ "%.2f"|format(row.short_call_price) }}{% else %}-{% endif %}</td>
+                                <td>{% if row.short_call_price is not none %}${{ "%.2f"|format(row.short_call_price)
+                                    }}{% else %}-{% endif %}</td>
                                 {% endif %}
                                 <td><strong>${{ "%.2f"|format(row.curr_value) }}</strong></td>
                             </tr>
@@ -290,62 +339,66 @@
     {% include 'partials/datatables_scripts.html' %}
     <script src="/static/js/datatables_init.js"></script>
     <!-- Bootstrap 5 JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+        crossorigin="anonymous"></script>
+
     <script>
-        $(document).ready(function() {
+        $(document).ready(function () {
             // Initialize chart
-            const chartData = {{ chart_data | tojson }};
-            
-            Highcharts.chart('netCostChart', {
+            const chartData = {{ chart_data | tojson
+        }};
+
+        Highcharts.chart('netCostChart', {
+            title: {
+                text: null
+            },
+            xAxis: {
+                type: 'datetime',
                 title: {
-                    text: null
-                },
-                xAxis: {
-                    type: 'datetime',
-                    title: {
-                        text: 'Date'
-                    }
-                },
-                yAxis: {
-                    title: {
-                        text: 'Current Value ($)'
-                    },
-                    plotLines: [{
-                        value: 0,
-                        color: '#666',
-                        width: 1,
-                        zIndex: 5
-                    }]
-                },
-                series: [{
-                    name: 'Current Value',
-                    data: chartData.map(function(point) {
-                        return [new Date(point.x).getTime(), point.y];
-                    }),
-                    color: '#4285f4',
-                    lineWidth: 2
-                }],
-                tooltip: {
-                    formatter: function() {
-                        return '<b>' + Highcharts.dateFormat('%Y-%m-%d', this.x) + '</b><br/>' +
-                               'Current Value: $' + this.y.toFixed(2);
-                    }
-                },
-                legend: {
-                    enabled: false
+                    text: 'Date'
                 }
-            });
-            
-            // Initialize DataTable
-            initDataTable('historyTable', {
-                pageLength: 50,
-                order: [[0, "desc"]], // Sort by date descending
-                columnDefs: [
-                    { orderable: true, targets: "_all" }
-                ]
-            });
+            },
+            yAxis: {
+                title: {
+                    text: 'Current Value ($)'
+                },
+                plotLines: [{
+                    value: 0,
+                    color: '#666',
+                    width: 1,
+                    zIndex: 5
+                }]
+            },
+            series: [{
+                name: 'Current Value',
+                data: chartData.map(function (point) {
+                    return [new Date(point.x).getTime(), point.y];
+                }),
+                color: '#4285f4',
+                lineWidth: 2
+            }],
+            tooltip: {
+                formatter: function () {
+                    return '<b>' + Highcharts.dateFormat('%Y-%m-%d', this.x) + '</b><br/>' +
+                        'Current Value: $' + this.y.toFixed(2);
+                }
+            },
+            legend: {
+                enabled: false
+            }
+        });
+
+        // Initialize DataTable
+        initDataTable('historyTable', {
+            pageLength: 50,
+            order: [[0, "desc"]], // Sort by date descending
+            columnDefs: [
+                { orderable: true, targets: "_all" }
+            ]
+        });
         });
     </script>
 </body>
+
 </html>
