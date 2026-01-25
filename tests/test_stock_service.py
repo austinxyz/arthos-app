@@ -8,7 +8,8 @@ from app.services.stock_service import (
     calculate_sma,
     calculate_devstep,
     calculate_signal,
-    calculate_5day_price_movement
+    calculate_5day_price_movement,
+    calculate_covered_call_returns_v2
 )
 
 
@@ -190,3 +191,414 @@ class TestCalculate5DayPriceMovement:
         import numpy as np
         assert not (pd.isna(movement) or np.isinf(movement))
 
+
+class TestCalculateCoveredCallReturnsV2:
+    """Tests for enhanced covered call returns calculation (v2)."""
+
+    def test_basic_calculation_with_otm_call(self):
+        """Test basic covered call calculation with Out-of-The-Money call."""
+        # Current stock price: $100
+        current_price = 100.0
+
+        # Mock options data: One expiration, one strike
+        # Expiration: 30 days from now
+        expiration_date = (datetime.now().date() + timedelta(days=30)).strftime('%Y-%m-%d')
+
+        options_data = [
+            (expiration_date, {
+                105.0: {  # Strike at $105 (OTM - above current price)
+                    'call': {
+                        'bid': 2.0,
+                        'ask': 2.2,
+                        'lastPrice': 2.1
+                    }
+                }
+            })
+        ]
+
+        result = calculate_covered_call_returns_v2(options_data, current_price)
+
+        # Should return one covered call opportunity
+        assert len(result) == 1
+        cc = result[0]
+
+        # Verify structure
+        assert cc['expirationDate'] == expiration_date
+        assert cc['strike'] == 105.0
+        assert cc['callPremium'] == 2.1  # Average of bid and ask
+
+        # Verify return calculations
+        # If exercised: (105 + 2.1 - 100) = 7.1
+        assert cc['returnExercised'] == 7.1
+        assert cc['returnPctExercised'] == pytest.approx(7.1, rel=0.01)  # 7.1%
+
+        # Annualized return exercised: (7.1 * 365) / 30 = 86.42%
+        assert cc['annualizedReturnExercised'] == pytest.approx(86.42, rel=0.01)
+
+        # If not exercised: 2.1
+        assert cc['returnNotExercised'] == 2.1
+        assert cc['returnPctNotExercised'] == pytest.approx(2.1, rel=0.01)
+
+        # Annualized return not exercised: (2.1 * 365) / 30 = 25.55%
+        assert cc['annualizedReturnNotExercised'] == pytest.approx(25.55, rel=0.01)
+
+        # Stock appreciation: (105 - 100) / 100 = 5%
+        assert cc['stockAppreciationPct'] == pytest.approx(5.0, rel=0.01)
+
+        # Call premium: 2.1 / 100 = 2.1%
+        assert cc['callPremiumPct'] == pytest.approx(2.1, rel=0.01)
+
+    def test_filter_itm_calls(self):
+        """Test that In-The-Money calls (strike < current price) are filtered out."""
+        current_price = 100.0
+
+        # Expiration: 45 days from now
+        expiration_date = (datetime.now().date() + timedelta(days=45)).strftime('%Y-%m-%d')
+
+        options_data = [
+            (expiration_date, {
+                95.0: {  # Strike at $95 (ITM - below current price - should be filtered out)
+                    'call': {
+                        'bid': 6.0,
+                        'ask': 6.4,
+                        'lastPrice': 6.2
+                    }
+                },
+                100.0: {  # Strike at $100 (ATM - at current price - should be included)
+                    'call': {
+                        'bid': 3.0,
+                        'ask': 3.2,
+                        'lastPrice': 3.1
+                    }
+                },
+                105.0: {  # Strike at $105 (OTM - above current price - should be included)
+                    'call': {
+                        'bid': 2.0,
+                        'ask': 2.2,
+                        'lastPrice': 2.1
+                    }
+                }
+            })
+        ]
+
+        result = calculate_covered_call_returns_v2(options_data, current_price)
+
+        # Should only include ATM (100) and OTM (105) calls, not ITM (95)
+        assert len(result) == 2
+
+        strikes_in_result = [r['strike'] for r in result]
+        assert 95.0 not in strikes_in_result, "ITM call (strike < current price) should be filtered out"
+        assert 100.0 in strikes_in_result, "ATM call (strike = current price) should be included"
+        assert 105.0 in strikes_in_result, "OTM call (strike > current price) should be included"
+
+    def test_filter_premium_threshold(self):
+        """Test that options with premium <= 1% are filtered out, only premium > 1% included."""
+        current_price = 100.0
+        expiration_date = (datetime.now().date() + timedelta(days=30)).strftime('%Y-%m-%d')
+
+        options_data = [
+            (expiration_date, {
+                105.0: {  # Premium = 0.5 (0.5% - should be filtered out)
+                    'call': {
+                        'bid': 0.4,
+                        'ask': 0.6,
+                        'lastPrice': 0.5
+                    }
+                },
+                107.5: {  # Premium = 1.0 (exactly 1.0% - should be filtered out)
+                    'call': {
+                        'bid': 1.0,
+                        'ask': 1.0,
+                        'lastPrice': 1.0
+                    }
+                },
+                110.0: {  # Premium = 1.5 (1.5% - should be included)
+                    'call': {
+                        'bid': 1.4,
+                        'ask': 1.6,
+                        'lastPrice': 1.5
+                    }
+                },
+                112.0: {  # Premium = 1.01 (1.01% - should be included)
+                    'call': {
+                        'bid': 1.01,
+                        'ask': 1.01,
+                        'lastPrice': 1.01
+                    }
+                }
+            })
+        ]
+
+        result = calculate_covered_call_returns_v2(options_data, current_price)
+
+        # Should only include strikes with premium > 1% (110 and 112, not 105 or 107.5)
+        assert len(result) == 2
+        assert result[0]['strike'] in [110.0, 112.0]
+        assert result[1]['strike'] in [110.0, 112.0]
+
+        # Verify exactly 1% is filtered out
+        strikes_in_result = [r['strike'] for r in result]
+        assert 105.0 not in strikes_in_result, "0.5% premium should be filtered out"
+        assert 107.5 not in strikes_in_result, "Exactly 1.0% premium should be filtered out"
+        assert 110.0 in strikes_in_result, "1.5% premium should be included"
+        assert 112.0 in strikes_in_result, "1.01% premium should be included"
+
+    def test_filter_strike_price_and_premium_combined(self):
+        """Test that both strike price (>= current) and premium (> 1%) filters work together."""
+        current_price = 100.0
+        expiration_date = (datetime.now().date() + timedelta(days=30)).strftime('%Y-%m-%d')
+
+        options_data = [
+            (expiration_date, {
+                90.0: {  # ITM, good premium (7%) - should be filtered (ITM)
+                    'call': {
+                        'bid': 7.0,
+                        'ask': 7.0,
+                        'lastPrice': 7.0
+                    }
+                },
+                95.0: {  # ITM, good premium (5%) - should be filtered (ITM)
+                    'call': {
+                        'bid': 5.0,
+                        'ask': 5.0,
+                        'lastPrice': 5.0
+                    }
+                },
+                99.0: {  # ITM, good premium (3%) - should be filtered (ITM)
+                    'call': {
+                        'bid': 3.0,
+                        'ask': 3.0,
+                        'lastPrice': 3.0
+                    }
+                },
+                100.0: {  # ATM, bad premium (0.5%) - should be filtered (low premium)
+                    'call': {
+                        'bid': 0.5,
+                        'ask': 0.5,
+                        'lastPrice': 0.5
+                    }
+                },
+                102.0: {  # OTM, good premium (2%) - should be INCLUDED
+                    'call': {
+                        'bid': 2.0,
+                        'ask': 2.0,
+                        'lastPrice': 2.0
+                    }
+                },
+                105.0: {  # OTM, bad premium (0.8%) - should be filtered (low premium)
+                    'call': {
+                        'bid': 0.8,
+                        'ask': 0.8,
+                        'lastPrice': 0.8
+                    }
+                },
+                110.0: {  # OTM, good premium (3%) - should be INCLUDED
+                    'call': {
+                        'bid': 3.0,
+                        'ask': 3.0,
+                        'lastPrice': 3.0
+                    }
+                }
+            })
+        ]
+
+        result = calculate_covered_call_returns_v2(options_data, current_price)
+
+        # Should only include OTM calls with premium > 1%: 102 and 110
+        assert len(result) == 2
+
+        strikes_in_result = [r['strike'] for r in result]
+
+        # ITM calls should be filtered out (even with good premiums)
+        assert 90.0 not in strikes_in_result, "ITM call should be filtered (strike < current)"
+        assert 95.0 not in strikes_in_result, "ITM call should be filtered (strike < current)"
+        assert 99.0 not in strikes_in_result, "ITM call should be filtered (strike < current)"
+
+        # ATM/OTM calls with low premium should be filtered out
+        assert 100.0 not in strikes_in_result, "ATM call with low premium should be filtered"
+        assert 105.0 not in strikes_in_result, "OTM call with low premium should be filtered"
+
+        # Only ATM/OTM calls with good premium should be included
+        assert 102.0 in strikes_in_result, "OTM call with good premium should be included"
+        assert 110.0 in strikes_in_result, "OTM call with good premium should be included"
+
+    def test_ranking_similar_returns(self):
+        """Test that ranking prioritizes options where exercised and not-exercised returns are similar."""
+        current_price = 100.0
+        expiration_date = (datetime.now().date() + timedelta(days=30)).strftime('%Y-%m-%d')
+
+        options_data = [
+            (expiration_date, {
+                105.0: {  # Returns: exercised=7%, not-exercised=2% (diff=5%)
+                    'call': {
+                        'bid': 2.0,
+                        'ask': 2.0,
+                        'lastPrice': 2.0
+                    }
+                },
+                103.0: {  # Returns: exercised=4.5%, not-exercised=1.5% (diff=3%)
+                    'call': {
+                        'bid': 1.5,
+                        'ask': 1.5,
+                        'lastPrice': 1.5
+                    }
+                },
+                102.0: {  # Returns: exercised=3.2%, not-exercised=1.2% (diff=2%)
+                    'call': {
+                        'bid': 1.2,
+                        'ask': 1.2,
+                        'lastPrice': 1.2
+                    }
+                }
+            })
+        ]
+
+        result = calculate_covered_call_returns_v2(options_data, current_price)
+
+        assert len(result) == 3
+
+        # The first result should have the smallest return difference
+        assert result[0]['strike'] == 102.0  # Smallest difference
+        assert result[1]['strike'] == 103.0  # Medium difference
+        assert result[2]['strike'] == 105.0  # Largest difference
+
+    def test_multiple_expirations(self):
+        """Test handling of multiple expiration dates."""
+        current_price = 100.0
+
+        exp1 = (datetime.now().date() + timedelta(days=15)).strftime('%Y-%m-%d')
+        exp2 = (datetime.now().date() + timedelta(days=30)).strftime('%Y-%m-%d')
+        exp3 = (datetime.now().date() + timedelta(days=60)).strftime('%Y-%m-%d')
+
+        options_data = [
+            (exp1, {
+                105.0: {
+                    'call': {'bid': 1.5, 'ask': 1.5, 'lastPrice': 1.5}
+                }
+            }),
+            (exp2, {
+                105.0: {
+                    'call': {'bid': 2.0, 'ask': 2.0, 'lastPrice': 2.0}
+                }
+            }),
+            (exp3, {
+                105.0: {
+                    'call': {'bid': 3.0, 'ask': 3.0, 'lastPrice': 3.0}
+                }
+            })
+        ]
+
+        result = calculate_covered_call_returns_v2(options_data, current_price)
+
+        # Should return all three (same strike, different expirations)
+        assert len(result) == 3
+
+        # Verify that annualized returns are higher for shorter durations
+        # (same absolute return but fewer days means higher annualized return)
+        exp1_result = [cc for cc in result if cc['expirationDate'] == exp1][0]
+        exp3_result = [cc for cc in result if cc['expirationDate'] == exp3][0]
+
+        # Shorter expiration should have higher annualized return
+        assert exp1_result['annualizedReturnNotExercised'] > exp3_result['annualizedReturnNotExercised']
+
+    def test_filter_beyond_three_months(self):
+        """Test that expirations beyond 90 days are filtered out."""
+        current_price = 100.0
+
+        exp_within = (datetime.now().date() + timedelta(days=89)).strftime('%Y-%m-%d')
+        exp_beyond = (datetime.now().date() + timedelta(days=91)).strftime('%Y-%m-%d')
+
+        options_data = [
+            (exp_within, {
+                105.0: {
+                    'call': {'bid': 2.0, 'ask': 2.0, 'lastPrice': 2.0}
+                }
+            }),
+            (exp_beyond, {
+                105.0: {
+                    'call': {'bid': 3.0, 'ask': 3.0, 'lastPrice': 3.0}
+                }
+            })
+        ]
+
+        result = calculate_covered_call_returns_v2(options_data, current_price)
+
+        # Should only include expiration within 90 days
+        assert len(result) == 1
+        assert result[0]['expirationDate'] == exp_within
+
+    def test_empty_input(self):
+        """Test handling of empty input."""
+        result = calculate_covered_call_returns_v2([], 100.0)
+        assert result == []
+
+        result = calculate_covered_call_returns_v2(None, 100.0)
+        assert result == []
+
+    def test_invalid_current_price(self):
+        """Test handling of invalid current price."""
+        expiration_date = (datetime.now().date() + timedelta(days=30)).strftime('%Y-%m-%d')
+        options_data = [
+            (expiration_date, {
+                105.0: {
+                    'call': {'bid': 2.0, 'ask': 2.0, 'lastPrice': 2.0}
+                }
+            })
+        ]
+
+        # Zero price
+        result = calculate_covered_call_returns_v2(options_data, 0)
+        assert result == []
+
+        # None price
+        result = calculate_covered_call_returns_v2(options_data, None)
+        assert result == []
+
+        # Negative price
+        result = calculate_covered_call_returns_v2(options_data, -100)
+        assert result == []
+
+    def test_missing_bid_ask_uses_last_price(self):
+        """Test that when bid/ask are missing, last price is used."""
+        current_price = 100.0
+        expiration_date = (datetime.now().date() + timedelta(days=30)).strftime('%Y-%m-%d')
+
+        options_data = [
+            (expiration_date, {
+                105.0: {
+                    'call': {
+                        'bid': None,
+                        'ask': None,
+                        'lastPrice': 2.5
+                    }
+                }
+            })
+        ]
+
+        result = calculate_covered_call_returns_v2(options_data, current_price)
+
+        # Should use last price as premium
+        assert len(result) == 1
+        assert result[0]['callPremium'] == 2.5
+
+    def test_no_call_data_skipped(self):
+        """Test that strikes without call data are skipped."""
+        current_price = 100.0
+        expiration_date = (datetime.now().date() + timedelta(days=30)).strftime('%Y-%m-%d')
+
+        options_data = [
+            (expiration_date, {
+                105.0: {
+                    'call': None  # No call data
+                },
+                110.0: {
+                    'call': {'bid': 2.0, 'ask': 2.0, 'lastPrice': 2.0}
+                }
+            })
+        ]
+
+        result = calculate_covered_call_returns_v2(options_data, current_price)
+
+        # Should only include 110 strike
+        assert len(result) == 1
+        assert result[0]['strike'] == 110.0

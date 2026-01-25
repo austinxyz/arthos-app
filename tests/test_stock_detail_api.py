@@ -86,12 +86,12 @@ class TestStockDetailAPI:
         
         # Check for Bootstrap tabs structure
         assert 'nav-tabs' in response.text
-        assert 'option-data-tab' in response.text
         assert 'covered-calls-tab' in response.text
+        assert 'risk-reversal-tab' in response.text
         assert 'tab-pane' in response.text
         assert 'data-bs-toggle="tab"' in response.text
-        
-        # Check for Option Data tab content
+
+        # Check for Covered Calls tab content
         assert "Option Data" in response.text or "No options data available" in response.text
         
         # Check for Covered Calls tab content

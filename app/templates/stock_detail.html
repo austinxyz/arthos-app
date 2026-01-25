@@ -86,43 +86,17 @@
         }
 
         /* Spread out columns when there are few columns */
-        #coveredCallsTable,
-        #optionsDataTable {
+        #coveredCallsTable {
             table-layout: auto;
         }
 
-        #coveredCallsTable th,
-        #optionsDataTable th {
+        #coveredCallsTable th {
             white-space: nowrap;
             padding: 12px 15px;
         }
 
-        #coveredCallsTable td,
-        #optionsDataTable td {
+        #coveredCallsTable td {
             padding: 12px 15px;
-        }
-
-        /* Options table styling */
-        #optionsDataTable {
-            width: 100% !important;
-            font-size: 0.9rem;
-        }
-
-        #optionsDataTable th {
-            padding: 10px 8px !important;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        #optionsDataTable td {
-            padding: 10px 8px !important;
-            white-space: nowrap;
-        }
-
-        #optionsDataTable .table-secondary {
-            background-color: #f8f9fa !important;
-            font-weight: 700;
-            font-size: 0.95rem;
         }
 
         .trading-range-container {
@@ -339,19 +313,14 @@
         </div>
     </div>
 
-    <!-- Options and Covered Calls Section with Tabs -->
+    <!-- Options Section with Tabs -->
     <div class="row mt-5">
         <div class="col-12">
             <ul class="nav nav-tabs" id="optionsTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="option-data-tab" data-bs-toggle="tab"
-                        data-bs-target="#option-data" type="button" role="tab" aria-controls="option-data"
-                        aria-selected="true">Option Data</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="covered-calls-tab" data-bs-toggle="tab" data-bs-target="#covered-calls"
-                        type="button" role="tab" aria-controls="covered-calls" aria-selected="false">Covered
-                        Calls</button>
+                    <button class="nav-link active" id="covered-calls-tab" data-bs-toggle="tab"
+                        data-bs-target="#covered-calls" type="button" role="tab" aria-controls="covered-calls"
+                        aria-selected="true">Covered Calls</button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="risk-reversal-tab" data-bs-toggle="tab" data-bs-target="#risk-reversal"
@@ -359,313 +328,148 @@
                 </li>
             </ul>
             <div class="tab-content" id="optionsTabsContent">
-                <!-- Option Data Tab -->
-                <div class="tab-pane fade show active" id="option-data" role="tabpanel"
-                    aria-labelledby="option-data-tab">
-                    <div class="mt-3">
-                        {% if options_expiration and options_data and options_data|length > 0 %}
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <div>
-                                <span class="text-muted small">Expiration:</span>
-                                <strong class="ms-2">{{ options_expiration }}</strong>
-                            </div>
-                        </div>
-                        <div class="table-responsive">
-                            <table id="optionsDataTable" class="table table-striped table-hover table-bordered">
-                                <thead class="table-dark">
-                                    <tr>
-                                        <th>Put Last</th>
-                                        <th>Put Bid</th>
-                                        <th>Put Ask</th>
-                                        <th>Put Vol</th>
-                                        <th>Put OI</th>
-                                        <th>Put IV</th>
-                                        <th class="table-secondary">Strike</th>
-                                        <th>Call Last</th>
-                                        <th>Call Bid</th>
-                                        <th>Call Ask</th>
-                                        <th>Call Vol</th>
-                                        <th>Call OI</th>
-                                        <th>Call IV</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for strike in sorted_strikes %}
-                                    {% set strike_data = options_data[strike] %}
-                                    {# Check if this strike is closest to current price #}
-                                    {% set is_closest = false %}
-                                    {% set distance = none %}
-                                    {% set diff = none %}
-                                    {% if min_distance is not none and current_price and strike %}
-                                    {% if strike > current_price %}
-                                    {% set distance = strike - current_price %}
-                                    {% else %}
-                                    {% set distance = current_price - strike %}
-                                    {% endif %}
-                                    {# Compare with small epsilon to handle floating point precision #}
-                                    {# Check if distance equals min_distance (within 0.01 tolerance) #}
-                                    {% set diff = distance - min_distance %}
-                                    {% if diff < 0 %} {% set diff=-diff %} {% endif %} {% if diff <=0.01 %} {% set
-                                        is_closest=true %} {% endif %} {% endif %} <tr{% if is_closest %}
-                                        class="table-warning" {% endif %}>
-                                        {# Put columns - always 6 columns #}
-                                        <td>
-                                            {% if strike_data.put and strike_data.put.lastPrice is not none %}
-                                            ${{ "%.2f"|format(strike_data.put.lastPrice) }}
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if strike_data.put and strike_data.put.bid is not none %}
-                                            ${{ "%.2f"|format(strike_data.put.bid) }}
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if strike_data.put and strike_data.put.ask is not none %}
-                                            ${{ "%.2f"|format(strike_data.put.ask) }}
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if strike_data.put %}
-                                            {{ strike_data.put.volume }}
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if strike_data.put %}
-                                            {{ strike_data.put.openInterest }}
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if strike_data.put and strike_data.put.impliedVolatility is not none %}
-                                            {{ "%.2f"|format(strike_data.put.impliedVolatility) }}%
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-
-                                        {# Strike price (center) #}
-                                        <td class="text-center fw-bold table-secondary">${{ "%.2f"|format(strike) }}
-                                        </td>
-
-                                        {# Call columns - always 6 columns #}
-                                        <td>
-                                            {% if strike_data.call and strike_data.call.lastPrice is not none %}
-                                            ${{ "%.2f"|format(strike_data.call.lastPrice) }}
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if strike_data.call and strike_data.call.bid is not none %}
-                                            ${{ "%.2f"|format(strike_data.call.bid) }}
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if strike_data.call and strike_data.call.ask is not none %}
-                                            ${{ "%.2f"|format(strike_data.call.ask) }}
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if strike_data.call %}
-                                            {{ strike_data.call.volume }}
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if strike_data.call %}
-                                            {{ strike_data.call.openInterest }}
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if strike_data.call and strike_data.call.impliedVolatility is not none %}
-                                            {{ "%.2f"|format(strike_data.call.impliedVolatility) }}%
-                                            {% else %}
-                                            <span class="text-muted">-</span>
-                                            {% endif %}
-                                        </td>
-                                        </tr>
-                                        {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                        {% else %}
-                        <div class="alert alert-info">
-                            No options data available for this stock.
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-
                 <!-- Covered Calls Tab -->
-                <div class="tab-pane fade" id="covered-calls" role="tabpanel" aria-labelledby="covered-calls-tab">
+                <div class="tab-pane fade show active" id="covered-calls" role="tabpanel" aria-labelledby="covered-calls-tab">
                     <div class="mt-3">
                         {% if covered_calls and covered_calls|length > 0 %}
                         <div class="table-responsive">
                             <table id="coveredCallsTable" class="table table-striped table-hover table-bordered">
                                 <thead class="table-dark">
                                     <tr>
+                                        <th>Expiration Date</th>
                                         <th>Strike Price</th>
                                         <th>Call Premium</th>
-                                        <th>Total Return Exercised</th>
-                                        <th>Total Return Not Exercised</th>
-                                        <th>Return Breakdown</th>
+                                        <th>Return if Exercised</th>
+                                        <th>Return if Not Exercised</th>
+                                        <th>Return Visualization</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for cc in covered_calls %}
-                                    {# Check if this strike is closest to current price #}
-                                    {% set is_closest = false %}
-                                    {% set distance = none %}
-                                    {% set diff = none %}
-                                    {% if min_distance is not none and current_price and cc.strike %}
-                                    {% if cc.strike > current_price %}
-                                    {% set distance = cc.strike - current_price %}
-                                    {% else %}
-                                    {% set distance = current_price - cc.strike %}
-                                    {% endif %}
-                                    {# Compare with small epsilon to handle floating point precision #}
-                                    {# Check if distance equals min_distance (within 0.01 tolerance) #}
-                                    {% set diff = distance - min_distance %}
-                                    {% if diff < 0 %} {% set diff=-diff %} {% endif %} {% if diff <=0.01 %} {% set
-                                        is_closest=true %} {% endif %} {% endif %} <tr{% if is_closest %}
-                                        class="table-warning" {% endif %}>
+                                    <tr>
+                                        <td>{{ cc.expirationDate }}</td>
                                         <td class="fw-bold">${{ "%.2f"|format(cc.strike) }}</td>
                                         <td>${{ "%.2f"|format(cc.callPremium) }}</td>
                                         <td>
-                                            {% if cc.totalReturnExercised > 0 %}
-                                            <span class="text-success">${{ "%.2f"|format(cc.totalReturnExercised)
-                                                }}</span>
-                                            {% elif cc.totalReturnExercised < 0 %} <span class="text-danger">${{
-                                                "%.2f"|format(cc.totalReturnExercised) }}</span>
+                                            {# Return if exercised with % and annualized return #}
+                                            {% if cc.returnExercised > 0 %}
+                                            <span class="text-success">${{ "%.2f"|format(cc.returnExercised) }}</span>
+                                            {% elif cc.returnExercised < 0 %}
+                                            <span class="text-danger">${{ "%.2f"|format(cc.returnExercised) }}</span>
+                                            {% else %}
+                                            ${{ "%.2f"|format(cc.returnExercised) }}
+                                            {% endif %}
+                                            <span class="text-muted"> (</span>
+                                            {% if cc.returnPctExercised > 0 %}
+                                            <span class="text-success">{{ "%.2f"|format(cc.returnPctExercised) }}%</span>
+                                            {% elif cc.returnPctExercised < 0 %}
+                                            <span class="text-danger">{{ "%.2f"|format(cc.returnPctExercised) }}%</span>
+                                            {% else %}
+                                            {{ "%.2f"|format(cc.returnPctExercised) }}%
+                                            {% endif %}
+                                            <span class="text-muted">)</span>
+                                            <br>
+                                            <small class="text-muted">Ann:
+                                                {% if cc.annualizedReturnExercised > 0 %}
+                                                <span class="text-success fw-bold">{{ "%.2f"|format(cc.annualizedReturnExercised) }}%</span>
+                                                {% elif cc.annualizedReturnExercised < 0 %}
+                                                <span class="text-danger fw-bold">{{ "%.2f"|format(cc.annualizedReturnExercised) }}%</span>
                                                 {% else %}
-                                                ${{ "%.2f"|format(cc.totalReturnExercised) }}
+                                                <span class="fw-bold">{{ "%.2f"|format(cc.annualizedReturnExercised) }}%</span>
                                                 {% endif %}
-                                                <span class="text-muted"> (</span>
-                                                {% if cc.totalReturnPctExercised > 0 %}
-                                                <span class="text-success">{{ "%.2f"|format(cc.totalReturnPctExercised)
-                                                    }}%</span>
-                                                {% elif cc.totalReturnPctExercised < 0 %} <span class="text-danger">{{
-                                                    "%.2f"|format(cc.totalReturnPctExercised) }}%</span>
-                                                    {% else %}
-                                                    <span>{{ "%.2f"|format(cc.totalReturnPctExercised) }}%</span>
-                                                    {% endif %}
-                                                    <span class="text-muted">)</span>
+                                            </small>
                                         </td>
                                         <td>
-                                            {% if cc.totalReturnNotExercised > 0 %}
-                                            <span class="text-success">${{ "%.2f"|format(cc.totalReturnNotExercised)
-                                                }}</span>
-                                            {% elif cc.totalReturnNotExercised < 0 %} <span class="text-danger">${{
-                                                "%.2f"|format(cc.totalReturnNotExercised) }}</span>
+                                            {# Return if not exercised with % and annualized return #}
+                                            {% if cc.returnNotExercised > 0 %}
+                                            <span class="text-success">${{ "%.2f"|format(cc.returnNotExercised) }}</span>
+                                            {% elif cc.returnNotExercised < 0 %}
+                                            <span class="text-danger">${{ "%.2f"|format(cc.returnNotExercised) }}</span>
+                                            {% else %}
+                                            ${{ "%.2f"|format(cc.returnNotExercised) }}
+                                            {% endif %}
+                                            <span class="text-muted"> (</span>
+                                            {% if cc.returnPctNotExercised > 0 %}
+                                            <span class="text-success">{{ "%.2f"|format(cc.returnPctNotExercised) }}%</span>
+                                            {% elif cc.returnPctNotExercised < 0 %}
+                                            <span class="text-danger">{{ "%.2f"|format(cc.returnPctNotExercised) }}%</span>
+                                            {% else %}
+                                            {{ "%.2f"|format(cc.returnPctNotExercised) }}%
+                                            {% endif %}
+                                            <span class="text-muted">)</span>
+                                            <br>
+                                            <small class="text-muted">Ann:
+                                                {% if cc.annualizedReturnNotExercised > 0 %}
+                                                <span class="text-success fw-bold">{{ "%.2f"|format(cc.annualizedReturnNotExercised) }}%</span>
+                                                {% elif cc.annualizedReturnNotExercised < 0 %}
+                                                <span class="text-danger fw-bold">{{ "%.2f"|format(cc.annualizedReturnNotExercised) }}%</span>
                                                 {% else %}
-                                                ${{ "%.2f"|format(cc.totalReturnNotExercised) }}
+                                                <span class="fw-bold">{{ "%.2f"|format(cc.annualizedReturnNotExercised) }}%</span>
                                                 {% endif %}
-                                                <span class="text-muted"> (</span>
-                                                {% if cc.totalReturnPctNotExercised > 0 %}
-                                                <span class="text-success">{{
-                                                    "%.2f"|format(cc.totalReturnPctNotExercised) }}%</span>
-                                                {% elif cc.totalReturnPctNotExercised < 0 %} <span class="text-danger">
-                                                    {{ "%.2f"|format(cc.totalReturnPctNotExercised) }}%</span>
-                                                    {% else %}
-                                                    <span>{{ "%.2f"|format(cc.totalReturnPctNotExercised) }}%</span>
-                                                    {% endif %}
-                                                    <span class="text-muted">)</span>
+                                            </small>
                                         </td>
                                         <td>
-                                            {# Progress bar showing return breakdown #}
+                                            {# Return Visualization: Fixed width bar chart (250px) #}
                                             {% set stock_app_pct = cc.stockAppreciationPct %}
                                             {% set call_prem_pct = cc.callPremiumPct %}
-                                            {% set total_pct = cc.totalReturnPctExercised %}
 
-                                            {# Progress bar showing return breakdown for exercised scenario #}
-                                            {% if stock_app_pct < 0 %} {# Negative stock appreciation (ITM calls) - show
-                                                red for negative portion #} {% set abs_stock=-stock_app_pct %} {% set
-                                                abs_total=abs_stock + call_prem_pct %} {% if abs_total> 0 %}
-                                                {% set stock_width = (abs_stock / abs_total) * 100 %}
-                                                {% set call_width = (call_prem_pct / abs_total) * 100 %}
+                                            {# Calculate the maximum absolute value for scaling #}
+                                            {% set max_val = [stock_app_pct|abs, call_prem_pct|abs]|max %}
+                                            {% if max_val == 0 %}
+                                                {% set max_val = 1 %}
+                                            {% endif %}
 
-                                                <div class="progress" style="height: 30px;">
-                                                    <div class="progress-bar bg-danger" role="progressbar"
-                                                        style="width: {{ stock_width|round(1) }}%;"
-                                                        title="Stock Appreciation: {{ " %.2f"|format(stock_app_pct)
-                                                        }}%">
-                                                        <span style="color: white; font-weight: bold;">{{
-                                                            "%.2f"|format(stock_app_pct) }}%</span>
-                                                    </div>
-                                                    <div class="progress-bar bg-success" role="progressbar"
-                                                        style="width: {{ call_width|round(1) }}%;"
-                                                        title="Call Premium: {{ " %.2f"|format(call_prem_pct) }}%">
-                                                        <span style="color: white; font-weight: bold;">{{
-                                                            "%.2f"|format(call_prem_pct) }}%</span>
-                                                    </div>
-                                                </div>
-                                                {% else %}
-                                                <span class="text-muted">N/A</span>
-                                                {% endif %}
-                                                {% else %}
-                                                {# Positive stock appreciation - show proportional breakdown #}
-                                                {% if total_pct > 0 %}
-                                                {% set stock_width = (stock_app_pct / total_pct) * 100 %}
-                                                {% set call_width = (call_prem_pct / total_pct) * 100 %}
+                                            {# For ITM calls (strike < current price, negative stock appreciation) #}
+                                            {% if stock_app_pct < 0 %}
+                                                {% set abs_stock = -stock_app_pct %}
+                                                {% set total_abs = abs_stock + call_prem_pct %}
+                                                {% if total_abs > 0 %}
+                                                    {% set red_width = (abs_stock / total_abs) * 250 %}
+                                                    {% set green_width = (call_prem_pct / total_abs) * 250 %}
 
-                                                {# Ensure widths are valid percentages #}
-                                                {% if stock_width < 0 %} {% set stock_width=0 %} {% endif %} {% if
-                                                    call_width < 0 %} {% set call_width=0 %} {% endif %} {% if
-                                                    stock_width> 100 %}
-                                                    {% set stock_width = 100 %}
-                                                    {% endif %}
-                                                    {% if call_width > 100 %}
-                                                    {% set call_width = 100 %}
-                                                    {% endif %}
-
-                                                    <div class="progress" style="height: 30px;">
-                                                        {% if stock_width > 0 %}
-                                                        <div class="progress-bar bg-info" role="progressbar"
-                                                            style="width: {{ stock_width|round(1) }}%;"
-                                                            title="Stock Appreciation: {{ " %.2f"|format(stock_app_pct)
-                                                            }}%">
-                                                            <span style="color: white; font-weight: bold;">{{
-                                                                "%.2f"|format(stock_app_pct) }}%</span>
+                                                    <div style="display: flex; height: 25px; width: 250px; border: 1px solid #dee2e6;">
+                                                        <div style="background-color: #dc3545; width: {{ red_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
+                                                            <small style="color: white; font-weight: bold;">{{ "%.1f"|format(stock_app_pct) }}%</small>
                                                         </div>
-                                                        {% endif %}
-                                                        {% if call_width > 0 %}
-                                                        <div class="progress-bar bg-success" role="progressbar"
-                                                            style="width: {{ call_width|round(1) }}%;"
-                                                            title="Call Premium: {{ " %.2f"|format(call_prem_pct) }}%">
-                                                            <span style="color: white; font-weight: bold;">{{
-                                                                "%.2f"|format(call_prem_pct) }}%</span>
+                                                        <div style="background-color: #28a745; width: {{ green_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
+                                                            <small style="color: white; font-weight: bold;">{{ "%.1f"|format(call_prem_pct) }}%</small>
                                                         </div>
-                                                        {% endif %}
                                                     </div>
-                                                    {% else %}
+                                                {% else %}
                                                     <span class="text-muted">N/A</span>
-                                                    {% endif %}
-                                                    {% endif %}
+                                                {% endif %}
+                                            {% else %}
+                                                {# For OTM calls (strike >= current price, positive stock appreciation) #}
+                                                {% set total_pct = stock_app_pct + call_prem_pct %}
+                                                {% if total_pct > 0 %}
+                                                    {% set blue_width = (stock_app_pct / total_pct) * 250 %}
+                                                    {% set green_width = (call_prem_pct / total_pct) * 250 %}
+
+                                                    <div style="display: flex; height: 25px; width: 250px; border: 1px solid #dee2e6;">
+                                                        {% if blue_width > 0 %}
+                                                        <div style="background-color: #0d6efd; width: {{ blue_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
+                                                            <small style="color: white; font-weight: bold;">{{ "%.1f"|format(stock_app_pct) }}%</small>
+                                                        </div>
+                                                        {% endif %}
+                                                        {% if green_width > 0 %}
+                                                        <div style="background-color: #28a745; width: {{ green_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
+                                                            <small style="color: white; font-weight: bold;">{{ "%.1f"|format(call_prem_pct) }}%</small>
+                                                        </div>
+                                                        {% endif %}
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-muted">N/A</span>
+                                                {% endif %}
+                                            {% endif %}
                                         </td>
-                                        </tr>
-                                        {% endfor %}
+                                    </tr>
+                                    {% endfor %}
                                 </tbody>
                             </table>
                         </div>
                         {% else %}
                         <div class="alert alert-info">
-                            No covered call data available. Call options are required for covered call strategy.
+                            No enhanced covered call data available. This tab shows covered call opportunities with premiums > 1% of stock price and strike prices at or above current stock price (ATM/OTM calls only).
                         </div>
                         {% endif %}
                     </div>
@@ -976,18 +780,11 @@
 
         // Initialize DataTables for options tables
         $(document).ready(function () {
-            // Initialize Options Data Table
-            if ($('#optionsDataTable').length) {
-                initDataTable('optionsDataTable', {
-                    order: [[6, 'asc']], // Sort by strike price (column index 6)
-                    responsive: false
-                });
-            }
-
             // Initialize Covered Calls Table
             if ($('#coveredCallsTable').length) {
                 initDataTable('coveredCallsTable', {
-                    order: [[0, 'asc']] // Sort by strike price
+                    order: [[0, 'asc']], // Default sort by expiration date
+                    pageLength: 50 // Show more rows since we have multiple expirations
                 });
             }
 

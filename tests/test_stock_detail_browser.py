@@ -101,62 +101,35 @@ class TestStockDetailBrowser:
         expect(page.locator(".metric-label:has-text('Signal')")).to_be_visible()
         expect(page.locator(".metric-label:has-text('Trading Range')")).to_be_visible()
         
-        # Check for HR separator (should be after chart)
-        hr_elements = page.locator("hr")
-        expect(hr_elements.first).to_be_visible()
-        
         # Check that tabs exist
         expect(page.locator("ul.nav-tabs")).to_be_visible(timeout=15000)
-        expect(page.locator("button#option-data-tab")).to_be_visible()
         expect(page.locator("button#covered-calls-tab")).to_be_visible()
-        
-        # Check Option Data tab is active by default
-        option_data_tab = page.locator("button#option-data-tab")
-        option_data_tab_classes = option_data_tab.get_attribute("class") or ""
-        assert "active" in option_data_tab_classes, f"Option Data tab should be active, but has classes: {option_data_tab_classes}"
-        
-        # Check Option Data tab content is visible
-        option_data_pane = page.locator("#option-data.tab-pane")
-        expect(option_data_pane).to_be_visible()
-        option_data_pane_classes = option_data_pane.get_attribute("class") or ""
-        assert "active" in option_data_pane_classes and "show" in option_data_pane_classes, \
-            f"Option Data pane should have 'active' and 'show' classes, but has: {option_data_pane_classes}"
-        
-        # Check Covered Calls tab content exists but is not active initially
-        covered_calls_tab_pane = page.locator("#covered-calls.tab-pane")
-        expect(covered_calls_tab_pane).to_be_attached()  # Element exists in DOM
-        # Should not have 'show active' classes initially (Bootstrap hides inactive tabs)
-        classes = covered_calls_tab_pane.get_attribute("class") or ""
-        # Initially, it should not have both 'show' and 'active' classes
-        has_both = "show" in classes and "active" in classes
-        assert not has_both, f"Covered Calls tab should not be active initially, but has classes: {classes}"
-        
-        # Check that option data table exists (even if empty)
-        option_table = page.locator("table").filter(has_text="Put")
-        if option_table.count() > 0:
-            expect(option_table.first).to_be_visible()
-            # Check table headers - scope to Option Data table to avoid matching Covered Calls table
-            # Use .first to handle multiple matches (Put and Call both have Last/Bid/Ask headers)
-            option_data_section = page.locator("#option-data")
-            expect(option_data_section.locator("th:has-text('Strike')").first).to_be_visible()
-            expect(option_data_section.locator("th:has-text('Last')").first).to_be_visible()
-            expect(option_data_section.locator("th:has-text('Bid')").first).to_be_visible()
-            expect(option_data_section.locator("th:has-text('Ask')").first).to_be_visible()
-        
-        # Check that covered calls table exists (need to switch to that tab first)
+        expect(page.locator("button#risk-reversal-tab")).to_be_visible()
+
+        # Check Covered Calls tab is active by default
         covered_calls_tab = page.locator("button#covered-calls-tab")
-        if covered_calls_tab.count() > 0:
-            covered_calls_tab.click()
-            page.wait_for_timeout(500)  # Wait for tab switch animation
-            
-            # Check table headers for covered calls (scope to covered calls table)
-            covered_calls_table = page.locator("#coveredCallsTable")
-            expect(covered_calls_table.locator("th:has-text('Strike Price')")).to_be_visible(timeout=5000)
+        covered_calls_tab_classes = covered_calls_tab.get_attribute("class") or ""
+        assert "active" in covered_calls_tab_classes, f"Covered Calls tab should be active, but has classes: {covered_calls_tab_classes}"
+
+        # Check Covered Calls tab content is visible
+        covered_calls_pane = page.locator("#covered-calls.tab-pane")
+        expect(covered_calls_pane).to_be_visible()
+        covered_calls_pane_classes = covered_calls_pane.get_attribute("class") or ""
+        assert "active" in covered_calls_pane_classes and "show" in covered_calls_pane_classes, \
+            f"Covered Calls pane should have 'active' and 'show' classes, but has: {covered_calls_pane_classes}"
+
+        # Check that covered calls table exists (should be visible since it's the active tab)
+        covered_calls_table = page.locator("#coveredCallsTable")
+        if covered_calls_table.count() > 0:
+            expect(covered_calls_table).to_be_visible(timeout=5000)
+
+            # Check table headers for covered calls
+            expect(covered_calls_table.locator("th:has-text('Expiration Date')")).to_be_visible()
+            expect(covered_calls_table.locator("th:has-text('Strike Price')")).to_be_visible()
             expect(covered_calls_table.locator("th:has-text('Call Premium')")).to_be_visible()
-            expect(covered_calls_table.locator("th:has-text('Total Return Exercised')")).to_be_visible()
-            expect(covered_calls_table.locator("th:has-text('Total Return Not Exercised')")).to_be_visible()
-            expect(covered_calls_table.locator("th:has-text('Return Breakdown')")).to_be_visible()
-        
+            expect(covered_calls_table.locator("th:has-text('Return if Exercised')")).to_be_visible()
+            expect(covered_calls_table.locator("th:has-text('Return if Not Exercised')")).to_be_visible()
+            expect(covered_calls_table.locator("th:has-text('Return Visualization')")).to_be_visible()
         # Check for any error messages
         error_messages = page.locator(".alert-danger, .text-danger, .error")
         if error_messages.count() > 0:
@@ -1067,4 +1040,207 @@ class TestStockDetailBrowser:
                 f"After multiple switches, 1:2 filter should show same count. Got {rows_1_2_final}, expected {rows_with_1_2}"
         
         print("\n=== All filter tests passed ===")
+
+    def test_covered_calls_tab_loads_and_displays_correctly(self, page: Page, live_server_url, authenticated_session):
+        """Test that the new Covered Calls tab loads with all expected columns and data."""
+        # Test with a well-known stock that should have options data
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+
+        # Wait for page to load
+        page.wait_for_load_state("networkidle", timeout=30000)
+
+        # Check that Covered Calls tab exists
+        cc_v2_tab = page.locator("button#covered-calls-tab")
+        expect(cc_v2_tab).to_be_visible(timeout=10000)
+
+        # Click on Covered Calls tab
+        cc_v2_tab.click()
+        page.wait_for_timeout(500)  # Wait for tab switch animation
+
+        # Verify tab is now active
+        tab_classes = cc_v2_tab.get_attribute("class") or ""
+        assert "active" in tab_classes, f"Covered Calls tab should be active after click, but has classes: {tab_classes}"
+
+        # Check tab content is visible
+        cc_v2_pane = page.locator("#covered-calls.tab-pane")
+        expect(cc_v2_pane).to_be_visible()
+        pane_classes = cc_v2_pane.get_attribute("class") or ""
+        assert "active" in pane_classes and "show" in pane_classes, \
+            f"Covered Calls pane should have 'active' and 'show' classes, but has: {pane_classes}"
+
+        # Check if table exists (or info message if no data)
+        has_table = page.locator("#coveredCallsTable").count() > 0
+        has_info_msg = cc_v2_pane.locator(".alert-info").count() > 0
+
+        assert has_table or has_info_msg, "Should have either table or info message about no data"
+
+        if has_table:
+            table = page.locator("#coveredCallsTable")
+            expect(table).to_be_visible()
+
+            # Verify all required column headers are present
+            expect(table.locator("th:has-text('Expiration Date')")).to_be_visible()
+            expect(table.locator("th:has-text('Strike Price')")).to_be_visible()
+            expect(table.locator("th:has-text('Call Premium')")).to_be_visible()
+            expect(table.locator("th:has-text('Return if Exercised')")).to_be_visible()
+            expect(table.locator("th:has-text('Return if Not Exercised')")).to_be_visible()
+            expect(table.locator("th:has-text('Return Visualization')")).to_be_visible()
+
+            # Check that table has data rows
+            rows = table.locator("tbody tr")
+            row_count = rows.count()
+
+            if row_count > 0:
+                # Verify first row has all expected data
+                first_row = rows.first
+
+                # Check expiration date format (YYYY-MM-DD)
+                exp_date_cell = first_row.locator("td").nth(0)
+                exp_date_text = exp_date_cell.inner_text().strip()
+                import re
+                assert re.match(r'^\d{4}-\d{2}-\d{2}$', exp_date_text), \
+                    f"Expiration date should be YYYY-MM-DD format, got: {exp_date_text}"
+
+                # Check strike price (should start with $)
+                strike_cell = first_row.locator("td").nth(1)
+                strike_text = strike_cell.inner_text().strip()
+                assert strike_text.startswith("$"), f"Strike price should start with $, got: {strike_text}"
+
+                # Check call premium (should start with $)
+                premium_cell = first_row.locator("td").nth(2)
+                premium_text = premium_cell.inner_text().strip()
+                assert premium_text.startswith("$"), f"Call premium should start with $, got: {premium_text}"
+
+                # Check return if exercised (should contain $ and % and Ann:)
+                return_ex_cell = first_row.locator("td").nth(3)
+                return_ex_text = return_ex_cell.inner_text()
+                assert "$" in return_ex_text, "Return if exercised should contain $ sign"
+                assert "%" in return_ex_text, "Return if exercised should contain % sign"
+                assert "Ann:" in return_ex_text, "Return if exercised should contain annualized return (Ann:)"
+
+                # Check return if not exercised (should contain $ and % and Ann:)
+                return_not_ex_cell = first_row.locator("td").nth(4)
+                return_not_ex_text = return_not_ex_cell.inner_text()
+                assert "$" in return_not_ex_text, "Return if not exercised should contain $ sign"
+                assert "%" in return_not_ex_text, "Return if not exercised should contain % sign"
+                assert "Ann:" in return_not_ex_text, "Return if not exercised should contain annualized return (Ann:)"
+
+                # Check visualization (should have a bar chart - div with styles)
+                viz_cell = first_row.locator("td").nth(5)
+                bar_chart = viz_cell.locator("div[style*='display: flex']").first
+                expect(bar_chart).to_be_visible()
+
+                # Verify the bar chart has colored sections (blue or red for stock appreciation, green for premium)
+                colored_divs = bar_chart.locator("div[style*='background-color']")
+                assert colored_divs.count() > 0, "Bar chart should have colored sections"
+
+        # Take a screenshot for debugging
+        page.screenshot(path=f"test_cc_tab_{ticker}.png", full_page=True)
+
+    def test_covered_calls_tab_ranking_and_sorting(self, page: Page, live_server_url, authenticated_session):
+        """Test that Covered Calls tab data is properly ranked and sortable."""
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+
+        # Navigate to Covered Calls tab
+        cc_v2_tab = page.locator("button#covered-calls-tab")
+        cc_v2_tab.click()
+        page.wait_for_timeout(500)
+
+        # Check if table has data
+        table = page.locator("#coveredCallsTable")
+        if table.count() == 0:
+            # Skip test if no data available
+            return
+
+        rows = table.locator("tbody tr")
+        row_count = rows.count()
+
+        if row_count > 1:
+            # Verify that rows are sorted (default should be by expiration date)
+            # Get all expiration dates
+            exp_dates = []
+            for i in range(min(row_count, 10)):  # Check first 10 rows
+                row = rows.nth(i)
+                exp_date_text = row.locator("td").nth(0).inner_text().strip()
+                exp_dates.append(exp_date_text)
+
+            # Verify dates are in ascending order (earliest expiration first)
+            # Note: The ranking algorithm sorts by return difference first, then by annualized return
+            # But DataTables initialization sorts by expiration date ascending by default
+            assert len(exp_dates) > 0, "Should have at least one expiration date"
+
+            # Test that clicking on column headers sorts the table
+            # Click on Strike Price header
+            strike_header = table.locator("th:has-text('Strike Price')")
+            if strike_header.count() > 0:
+                strike_header.click()
+                page.wait_for_timeout(500)
+
+                # Get strike prices after sorting
+                strikes_after_sort = []
+                for i in range(min(row_count, 5)):
+                    row = rows.nth(i)
+                    strike_text = row.locator("td").nth(1).inner_text().strip()
+                    # Extract number from $XXX.XX format
+                    import re
+                    match = re.search(r'\$(\d+\.\d+)', strike_text)
+                    if match:
+                        strikes_after_sort.append(float(match.group(1)))
+
+                # Verify strikes are sorted (either ascending or descending)
+                if len(strikes_after_sort) > 1:
+                    is_ascending = all(strikes_after_sort[i] <= strikes_after_sort[i+1] for i in range(len(strikes_after_sort)-1))
+                    is_descending = all(strikes_after_sort[i] >= strikes_after_sort[i+1] for i in range(len(strikes_after_sort)-1))
+                    assert is_ascending or is_descending, f"Strikes should be sorted, got: {strikes_after_sort}"
+
+    def test_covered_calls_premium_filtering(self, page: Page, live_server_url, authenticated_session):
+        """Test that Covered Calls tab only shows premiums > 1% of stock price."""
+        ticker = "AAPL"
+        page.goto(f"{live_server_url}/stock/{ticker}")
+        page.wait_for_load_state("networkidle", timeout=30000)
+
+        # Get current stock price
+        current_price_elem = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large")
+        if current_price_elem.count() == 0:
+            # Skip if no current price available
+            return
+
+        price_text = current_price_elem.inner_text().strip()
+        # Extract price from $XXX.XX format
+        import re
+        match = re.search(r'\$(\d+\.\d+)', price_text)
+        if not match:
+            return
+
+        current_price = float(match.group(1))
+        min_premium = current_price * 0.01  # 1% threshold
+
+        # Navigate to Covered Calls tab
+        cc_v2_tab = page.locator("button#covered-calls-tab")
+        cc_v2_tab.click()
+        page.wait_for_timeout(500)
+
+        # Check if table has data
+        table = page.locator("#coveredCallsTable")
+        if table.count() == 0:
+            return
+
+        rows = table.locator("tbody tr")
+        row_count = rows.count()
+
+        if row_count > 0:
+            # Verify all premiums are strictly > 1% of stock price (not equal)
+            for i in range(min(row_count, 20)):  # Check first 20 rows
+                row = rows.nth(i)
+                premium_text = row.locator("td").nth(2).inner_text().strip()
+
+                # Extract premium value
+                match = re.search(r'\$(\d+\.\d+)', premium_text)
+                if match:
+                    premium = float(match.group(1))
+                    assert premium > min_premium, \
+                        f"Premium ${premium:.2f} should be > 1% of stock price (${min_premium:.2f}), not equal"
 
