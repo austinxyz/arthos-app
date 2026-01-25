@@ -41,3 +41,28 @@ The user interface should have the following table columns
     - Red bar: Negative stock appreciation (for ITM calls)
 
 #### Implement Test coverage for this using PlayWright for all user interactions and user interface elements and unit test cases with mock data for the algorithm.
+
+## Dumbell Charts for Covered Calls
+We need to add a visualization above the table for covered calls. 
+Please create a "Dumbbell Plot" (also known as a Connected Dot Plot) to visualize the spread between "Return if Exercised" vs "Return if Not Exercised".
+We will use the Dumbell Charts from Highcharts library to implement this.
+
+Here are the specific requirements for the implementation:
+
+1. **Data Structure:**
+   The input will be a list of records containing: 'Expiration Date', 'Strike Price', 'Return if Exercised (%)', and 'Return if Not Exercised (%)'.
+
+2. **Visual Layout:**
+   - **Y-Axis:** List the contracts (labeled as "Date - $Strike").
+   - **X-Axis:** The Return percentage.
+   - **Plot Style:** For each contract, plot two distinct markers on the same horizontal line:
+     - One marker for the "Exercised" return.
+     - One marker for the "Not Exercised" return.
+     - Connect these two markers with a horizontal line (to visualize the spread).
+   - **Colors:** Use distinct colors for the two scenarios (e.g., Green for Exercised, Blue for Not Exercised).
+
+3. **Grid & Ticks Configuration (Crucial):**
+   - The X-axis must show **major grid lines at exactly 0.2% increments** (e.g., 2.0%, 2.2%, 2.4%).
+   - Enable **minor ticks** on the X-axis between the major grid lines for precision.
+   - Ensure the grid lines are visible but subtle (e.g., light gray dashed lines) so they don't overpower the data.
+
