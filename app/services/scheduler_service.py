@@ -495,7 +495,7 @@ def update_rr_history():
     
     try:
         # Get all non-expired entries
-        all_entries = get_all_rr_watchlist_entries()
+        all_entries = get_all_rr_watchlist_entries(fetch_all=True)
         active_entries = [e for e in all_entries if e.expired_yn == 'N']
         
         if not active_entries:
@@ -759,7 +759,7 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
     
     try:
         # Get all non-expired entries
-        all_entries = get_all_rr_watchlist_entries()
+        all_entries = get_all_rr_watchlist_entries(fetch_all=True)
         active_entries = [e for e in all_entries if e.expired_yn == 'N']
         
         if not active_entries:

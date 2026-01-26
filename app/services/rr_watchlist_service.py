@@ -203,19 +203,22 @@ def save_rr_to_watchlist(
         return {"success": False, "error": f"Error saving Risk Reversal: {str(e)}"}
 
 
-def get_all_rr_watchlist_entries(account_id: Optional[UUID] = None) -> List[RRWatchlist]:
+def get_all_rr_watchlist_entries(account_id: Optional[UUID] = None, fetch_all: bool = False) -> List[RRWatchlist]:
     """
     Get all Risk Reversal watchlist entries.
     
     Args:
         account_id: Optional ID of the account to filter by
+        fetch_all: If True, returns all entries regardless of account_id (for scheduler)
         
     Returns:
         List of RRWatchlist objects.
     """
     with Session(engine) as session:
         statement = select(RRWatchlist)
-        if account_id:
+        if fetch_all:
+            pass  # No filter, return all
+        elif account_id:
             statement = statement.where(RRWatchlist.account_id == account_id)
         else:
              statement = statement.where(RRWatchlist.account_id == None)
