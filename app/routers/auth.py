@@ -1,5 +1,6 @@
 """Authentication routes."""
 import os
+import logging
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from starlette.config import Config
@@ -19,8 +20,11 @@ router = APIRouter()
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
+# Setup logging
+logger = logging.getLogger(__name__)
+
 if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-    print("Warning: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set")
+    logger.warning("GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not set")
 
 oauth = OAuth()
 oauth.register(
@@ -38,9 +42,14 @@ async def login(request: Request):
     """Redirect to Google for login."""
     # Build absolute redirect URI
     redirect_uri = request.url_for('auth_google')
+    
     # If running behind proxy (like Railway), ensure https
-    if "https" not in str(redirect_uri) and "localhost" not in str(redirect_uri):
-        redirect_uri = str(redirect_uri).replace("http:", "https:")
+    # ALLOW 127.0.0.1 to be HTTP
+    redirect_uri_str = str(redirect_uri)
+    if "https" not in redirect_uri_str and "localhost" not in redirect_uri_str and "127.0.0.1" not in redirect_uri_str:
+        redirect_uri = redirect_uri_str.replace("http:", "https:")
+    
+    logger.info(f"OIDC Login initialized. Redirect URI: {redirect_uri}")
         
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
@@ -48,10 +57,12 @@ async def login(request: Request):
 @router.get("/auth/google")
 async def auth_google(request: Request):
     """Callback for Google OAuth."""
+    logger.info(f"OIDC Callback received. Params: {request.query_params}")
     try:
         token = await oauth.google.authorize_access_token(request)
     except OAuthError as error:
         # Handle error
+        logger.error(f"OIDC Auth Error: {error.description}")
         raise HTTPException(status_code=401, detail=f"Auth error: {error.description}")
         
     user_data = token.get('userinfo')

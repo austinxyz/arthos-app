@@ -1,7 +1,7 @@
 from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID, uuid4
-from sqlmodel import Field, SQLModel, Relationship
+from sqlmodel import Field, SQLModel, Relationship, VARCHAR
 
 if TYPE_CHECKING:
     from app.models.watchlist import WatchList
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 class Account(SQLModel, table=True):
     __tablename__ = "account"
     
-    id: UUID = Field(default_factory=uuid4, primary_key=True)
+    id: UUID = Field(default_factory=uuid4, primary_key=True, sa_type=VARCHAR(36))
     email: str = Field(index=True, unique=True)
     google_sub: str = Field(index=True, unique=True)
     full_name: Optional[str] = None
