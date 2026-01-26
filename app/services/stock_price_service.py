@@ -651,6 +651,84 @@ def get_stock_prices_as_dataframe(ticker: str, start_date: Optional[date] = None
     return df
 
 
+def compute_and_save_trading_metrics(ticker: str) -> None:
+    """
+    Compute trading metrics (devstep, signal, movement_5day_stddev, stddev_50d) and save to stock_attributes.
+
+    This function is called by the scheduler after price data is saved. It uses the
+    existing calculation logic but stores the results in stock_attributes for fast
+    watchlist queries.
+
+    Args:
+        ticker: Stock ticker symbol
+    """
+    ticker_upper = ticker.upper()
+
+    # Get all price data from database
+    prices = get_stock_prices_from_db(ticker_upper)
+
+    if not prices or len(prices) < 2:
+        logger.warning(f"Insufficient price data for {ticker_upper} to compute trading metrics")
+        return
+
+    # Sort by date (ascending)
+    prices_sorted = sorted(prices, key=lambda p: p.price_date)
+
+    # Get latest price data
+    latest_price = prices_sorted[-1]
+    current_price = float(latest_price.close_price)
+
+    # Get SMA values from latest record
+    sma_50 = float(latest_price.dma_50) if latest_price.dma_50 else None
+
+    # If SMAs are not available, calculate from close prices
+    if sma_50 is None:
+        close_prices = [float(p.close_price) for p in prices_sorted]
+        if len(close_prices) >= 50:
+            sma_50 = sum(close_prices[-50:]) / 50
+        elif len(close_prices) > 0:
+            sma_50 = sum(close_prices) / len(close_prices)
+
+    # Calculate std dev for the last 50 prices (or available prices)
+    recent_prices = [float(p.close_price) for p in prices_sorted[-50:]] if len(prices_sorted) >= 50 else [float(p.close_price) for p in prices_sorted]
+
+    stddev_50d = None
+    devstep = 0.0
+
+    if len(recent_prices) > 1:
+        stddev_50d = statistics.stdev(recent_prices)
+        if stddev_50d > 0 and sma_50 is not None:
+            devstep = (current_price - sma_50) / stddev_50d
+
+    # Calculate signal
+    from app.services.stock_service import calculate_signal
+    signal = calculate_signal(devstep)
+
+    # Calculate 5-day price movement
+    movement_5day_stddev = 0.0
+
+    if len(prices_sorted) >= 6 and stddev_50d and stddev_50d > 0:
+        # Get price from 5 trading days ago (need at least 6 days: today + 5 days ago)
+        price_5days_ago = float(prices_sorted[-6].close_price)
+        price_change = current_price - price_5days_ago
+        movement_5day_stddev = price_change / stddev_50d
+
+    # Save to stock_attributes
+    with Session(engine) as session:
+        attributes = session.get(StockAttributes, ticker_upper)
+
+        if attributes:
+            attributes.devstep = Decimal(str(round(devstep, 4))) if devstep is not None else None
+            attributes.signal = signal
+            attributes.movement_5day_stddev = Decimal(str(round(movement_5day_stddev, 4))) if movement_5day_stddev is not None else None
+            attributes.stddev_50d = Decimal(str(round(stddev_50d, 4))) if stddev_50d is not None else None
+            session.add(attributes)
+            session.commit()
+            logger.debug(f"Updated trading metrics for {ticker_upper}: devstep={devstep:.4f}, signal={signal}")
+        else:
+            logger.warning(f"No stock_attributes found for {ticker_upper}, cannot save trading metrics")
+
+
 def get_stock_metrics_from_db(ticker: str) -> Dict[str, Any]:
     """
     Get stock metrics from stock_price table.

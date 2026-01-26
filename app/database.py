@@ -46,6 +46,10 @@ def create_db_and_tables():
     _migrate_stock_attributes_iv_columns()
     # Add IV column to stock_price if it doesn't exist
     _migrate_stock_price_iv_column()
+    # Add trading metrics columns to stock_attributes if they don't exist
+    _migrate_stock_attributes_trading_metrics_columns()
+    # Backfill trading metrics for existing stocks (runs once, skips already computed)
+    _backfill_trading_metrics()
     # Add description column to watchlist if it doesn't exist
     _migrate_watchlist_description_column()
     # Create indexes on stock_price and stock_attributes for faster queries
@@ -622,6 +626,55 @@ def _migrate_stock_price_iv_column():
         print(f"Warning: Could not migrate stock_price IV column: {e}")
 
 
+def _migrate_stock_attributes_trading_metrics_columns():
+    """Add pre-computed trading metrics columns to stock_attributes table if they don't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            # Columns to add: devstep, signal, movement_5day_stddev, stddev_50d
+            trading_metrics_columns = [
+                ('devstep', 'DECIMAL(12, 4)'),
+                ('signal', 'VARCHAR(20)'),
+                ('movement_5day_stddev', 'DECIMAL(12, 4)'),
+                ('stddev_50d', 'DECIMAL(12, 4)')
+            ]
+
+            if is_sqlite:
+                # SQLite-specific migration
+                for col_name, col_type in trading_metrics_columns:
+                    result = session.exec(text(
+                        "PRAGMA table_info(stock_attributes)"
+                    )).all()
+
+                    column_exists = any(row[1] == col_name for row in result)
+
+                    if not column_exists:
+                        session.exec(text(
+                            f"ALTER TABLE stock_attributes ADD COLUMN {col_name} {col_type}"
+                        ))
+                        session.commit()
+                        print(f"Added {col_name} column to stock_attributes table")
+            else:
+                # PostgreSQL-specific migration
+                for col_name, col_type in trading_metrics_columns:
+                    result = session.exec(text(
+                        "SELECT column_name FROM information_schema.columns "
+                        f"WHERE table_name = 'stock_attributes' AND column_name = '{col_name}'"
+                    )).first()
+
+                    if not result:
+                        # Use DECIMAL for PostgreSQL
+                        pg_type = 'DECIMAL' if 'DECIMAL' in col_type else col_type
+                        session.exec(text(
+                            f"ALTER TABLE stock_attributes ADD COLUMN {col_name} {pg_type}"
+                        ))
+                        session.commit()
+                        print(f"Added {col_name} column to stock_attributes table")
+    except Exception as e:
+        print(f"Warning: Could not migrate stock_attributes trading metrics columns: {e}")
+
+
 def _migrate_watchlist_description_column():
     """Add description column to watchlist table if it doesn't exist."""
     try:
@@ -973,5 +1026,43 @@ def _migrate_watchlist_stocks_entry_price_column():
                     print("Added entry_price column to watchlist_stocks table")
     except Exception as e:
         print(f"Warning: Could not migrate watchlist_stocks entry_price column: {e}")
+
+
+def _backfill_trading_metrics():
+    """
+    Backfill pre-computed trading metrics for existing stocks with NULL devstep.
+    Runs once on startup - skips stocks that already have computed metrics.
+    """
+    try:
+        with Session(engine) as session:
+            # Find all stock_attributes with NULL devstep
+            result = session.exec(text(
+                "SELECT ticker FROM stock_attributes WHERE devstep IS NULL"
+            )).all()
+
+            if not result:
+                return
+
+            tickers = [row[0] for row in result]
+            print(f"Backfilling trading metrics for {len(tickers)} stocks...")
+
+            # Import here to avoid circular dependency
+            from app.services.stock_price_service import compute_and_save_trading_metrics
+
+            success_count = 0
+            error_count = 0
+
+            for ticker in tickers:
+                try:
+                    compute_and_save_trading_metrics(ticker)
+                    success_count += 1
+                except Exception as e:
+                    error_count += 1
+                    print(f"  Warning: Could not compute metrics for {ticker}: {e}")
+
+            print(f"Backfill complete: {success_count} success, {error_count} errors")
+
+    except Exception as e:
+        print(f"Warning: Could not backfill trading metrics: {e}")
 
 

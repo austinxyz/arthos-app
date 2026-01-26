@@ -119,3 +119,24 @@ class StockAttributes(SQLModel, table=True):
         sa_column=Column(Numeric(12, 4)),
         description="52-week low implied volatility"
     )
+    # Pre-computed trading metrics (updated by scheduler)
+    devstep: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="Number of standard deviations from 50-day SMA"
+    )
+    signal: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="Trading signal (Strong Buy, Buy, Neutral, Sell, Strong Sell)"
+    )
+    movement_5day_stddev: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="5-day price movement in standard deviations"
+    )
+    stddev_50d: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric(12, 4)),
+        description="50-day standard deviation of close prices"
+    )

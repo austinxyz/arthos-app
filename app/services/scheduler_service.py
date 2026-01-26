@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from app.database import engine
 from app.models.watchlist import WatchListStock
 from app.models.scheduler_log import SchedulerLog
-from app.services.stock_price_service import fetch_and_save_stock_prices
+from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics
 from datetime import datetime, time
 import pytz
 import logging
@@ -146,7 +146,13 @@ def fetch_all_watchlist_stocks():
             logger.info(f"[{idx}/{len(unique_tickers)}] Processing {ticker}...")
             try:
                 price_data, new_records = fetch_and_save_stock_prices(ticker)
-                
+
+                # Compute and save trading metrics (devstep, signal, etc.) to stock_attributes
+                try:
+                    compute_and_save_trading_metrics(ticker)
+                except Exception as e:
+                    logger.warning(f"  Could not compute trading metrics for {ticker}: {e}")
+
                 if new_records > 0:
                     success_count += 1
                     logger.info(f"  ✓ Inserted/updated {new_records} record(s) in stock_price table for {ticker}")
@@ -378,7 +384,13 @@ def fetch_all_watchlist_stocks_manual(bypass_market_hours: bool = False):
             try:
                 logger.info(f"Fetching data for {ticker}...")
                 price_data, new_records = fetch_and_save_stock_prices(ticker)
-                
+
+                # Compute and save trading metrics (devstep, signal, etc.) to stock_attributes
+                try:
+                    compute_and_save_trading_metrics(ticker)
+                except Exception as e:
+                    logger.warning(f"Could not compute trading metrics for {ticker}: {e}")
+
                 if new_records > 0:
                     success_count += 1
                     logger.info(f"Successfully fetched and saved {new_records} new record(s) for {ticker}")
@@ -394,7 +406,7 @@ def fetch_all_watchlist_stocks_manual(bypass_market_hours: bool = False):
                 # Other exceptions (unexpected errors)
                 error_count += 1
                 logger.error(f"Unexpected error fetching data for {ticker}: {str(e)}")
-        
+
         logger.info(f"Manual fetch completed. Success: {success_count}, Errors: {error_count}")
         
         # Update log entry with completion info

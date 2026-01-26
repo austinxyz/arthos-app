@@ -467,188 +467,179 @@ def get_watchlist_stocks(watchlist_id: UUID, account_id: Optional[UUID] = None, 
 def get_watchlist_stocks_with_metrics(watchlist_id: UUID, account_id: UUID = None, skip_auth: bool = False) -> List[Dict[str, Any]]:
     """
     Get all stocks in a watchlist with their current metrics.
-    Reads from stock_attributes table and current day's stock_price table (not from data provider cache).
-    Uses get_stock_metrics_from_db to calculate devstep, signal, and 5-day movement.
-    
+
+    OPTIMIZED: Uses batch queries to fetch all data in 2-3 queries instead of 30-40.
+    - Reads pre-computed devstep, signal, movement_5day_stddev from stock_attributes
+    - Batch fetches latest stock_price for all tickers
+
     NOTE: Auth is enforced at the watchlist level, not here.
     The caller is responsible for verifying access to the watchlist before calling this function.
-    
+
     Args:
         watchlist_id: WatchList UUID
         account_id: Deprecated - not used (kept for backward compatibility)
         skip_auth: Deprecated - not used (kept for backward compatibility)
-        
+
     Returns:
         List of dictionaries containing stock metrics with all columns from stock_attributes
     """
-    from app.services.stock_price_service import get_stock_attributes, get_stock_metrics_from_db
-    from app.models.stock_price import StockPrice
-    from datetime import date
-    
+    from app.models.stock_price import StockPrice, StockAttributes
+    from sqlalchemy import func
+
     stocks = get_watchlist_stocks(watchlist_id)
-    
+
     if not stocks:
         return []
-    
-    # Get metrics from stock_attributes and current day's stock_price for each ticker
+
+    # Get list of all tickers
+    tickers = [stock.ticker.upper() for stock in stocks]
+    # Build entry_price lookup from watchlist stocks
+    entry_price_lookup = {stock.ticker.upper(): float(stock.entry_price) if stock.entry_price else None for stock in stocks}
+
+    with Session(engine) as session:
+        # BATCH QUERY 1: Get all stock_attributes for tickers in watchlist
+        attributes_statement = select(StockAttributes).where(StockAttributes.ticker.in_(tickers))
+        attributes_list = session.exec(attributes_statement).all()
+        attributes_lookup = {attr.ticker: attr for attr in attributes_list}
+
+        # BATCH QUERY 2: Get latest stock_price for each ticker using subquery
+        # This finds the max price_date for each ticker, then fetches those records
+        subquery = (
+            select(StockPrice.ticker, func.max(StockPrice.price_date).label('max_date'))
+            .where(StockPrice.ticker.in_(tickers))
+            .group_by(StockPrice.ticker)
+            .subquery()
+        )
+        price_statement = (
+            select(StockPrice)
+            .join(subquery, (StockPrice.ticker == subquery.c.ticker) & (StockPrice.price_date == subquery.c.max_date))
+        )
+        price_list = session.exec(price_statement).all()
+        price_lookup = {price.ticker: price for price in price_list}
+
+    # Build metrics for each stock
     metrics_list = []
-    today = date.today()
-    
+
     for stock in stocks:
-        ticker = stock.ticker
-        try:
-            # Get stock attributes (includes dividend_amt, dividend_yield, earliest_date, latest_date)
-            attributes = get_stock_attributes(ticker)
-            
-            if not attributes:
-                metrics_list.append({
-                    "ticker": ticker,
-                    "error": f"No stock attributes found for ticker: {ticker}"
-                })
-                continue
-            
-            # Get current day's stock price data
-            with Session(engine) as session:
-                statement = select(StockPrice).where(
-                    StockPrice.ticker == ticker.upper(),
-                    StockPrice.price_date == today
-                )
-                current_price_record = session.exec(statement).first()
-                
-                if not current_price_record:
-                    # Try to get the latest available price
-                    statement = select(StockPrice).where(
-                        StockPrice.ticker == ticker.upper()
-                    ).order_by(StockPrice.price_date.desc())
-                    current_price_record = session.exec(statement).first()
-                
-                if not current_price_record:
-                    metrics_list.append({
-                        "ticker": ticker,
-                        "error": f"No price data found for ticker: {ticker}"
-                    })
-                    continue
-            
-            # Get calculated metrics (devstep, signal, movement_5day_stddev, etc.) from database
+        ticker = stock.ticker.upper()
+        attributes = attributes_lookup.get(ticker)
+        current_price_record = price_lookup.get(ticker)
+
+        # Handle missing data
+        if not attributes:
+            metrics_list.append({
+                "ticker": ticker,
+                "error": f"No stock attributes found for ticker: {ticker}"
+            })
+            continue
+
+        if not current_price_record:
+            metrics_list.append({
+                "ticker": ticker,
+                "error": f"No price data found for ticker: {ticker}"
+            })
+            continue
+
+        # Get current price and entry price
+        current_price = float(current_price_record.close_price)
+        entry_price = entry_price_lookup.get(ticker)
+
+        # Calculate change and percent change from entry price
+        change = None
+        percent_change = None
+        if entry_price and entry_price > 0:
+            change = current_price - entry_price
+            percent_change = ((current_price - entry_price) / entry_price) * 100
+
+        # Read pre-computed trading metrics from stock_attributes
+        devstep = float(attributes.devstep) if attributes.devstep is not None else 0.0
+        signal = attributes.signal if attributes.signal else "Neutral"
+        movement_5day_stddev = float(attributes.movement_5day_stddev) if attributes.movement_5day_stddev is not None else 0.0
+
+        # Determine if price movement is positive (for UI coloring)
+        is_price_positive_5day = movement_5day_stddev >= 0
+
+        metric = {
+            "ticker": ticker,
+            "current_price": current_price,
+            "entry_price": entry_price,
+            "change": change,
+            "percent_change": percent_change,
+            "sma_50": float(current_price_record.dma_50) if current_price_record.dma_50 else None,
+            "sma_200": float(current_price_record.dma_200) if current_price_record.dma_200 else None,
+            "dividend_amt": float(attributes.dividend_amt) if attributes.dividend_amt else None,
+            "dividend_yield": float(attributes.dividend_yield) if attributes.dividend_yield else None,
+            "next_earnings_date": attributes.next_earnings_date,
+            "is_earnings_date_estimate": attributes.is_earnings_date_estimate,
+            "next_dividend_date": attributes.next_dividend_date,
+            "earliest_date": attributes.earliest_date.isoformat(),
+            "latest_date": attributes.latest_date.isoformat(),
+            # Use pre-computed metrics from stock_attributes
+            "devstep": devstep,
+            "signal": signal,
+            "movement_5day_stddev": movement_5day_stddev,
+            "is_price_positive_5day": is_price_positive_5day,
+        }
+
+        # Format numbers for display
+        metric['current_price_formatted'] = f"${metric['current_price']:.2f}"
+        metric['sma_50_formatted'] = f"${metric['sma_50']:.2f}" if metric['sma_50'] else "N/A"
+        metric['sma_200_formatted'] = f"${metric['sma_200']:.2f}" if metric['sma_200'] else "N/A"
+        metric['dividend_amt_formatted'] = f"${metric['dividend_amt']:.2f}" if metric['dividend_amt'] else "N/A"
+        metric['stddev_50d_formatted'] = f"{metric['devstep']:.1f}"
+
+        # Format dividend yield
+        dividend_yield = metric.get('dividend_yield')
+        if dividend_yield is not None and dividend_yield != '':
             try:
-                calculated_metrics = get_stock_metrics_from_db(ticker)
-            except Exception as e:
-                # If calculation fails, use defaults
-                calculated_metrics = {
-                    "devstep": 0.0,
-                    "signal": "Neutral",
-                    "movement_5day_stddev": 0.0,
-                    "is_price_positive_5day": True
-                }
-            
-            # Build metrics dictionary with all data from stock_attributes, current day's stock_price, and calculated metrics
-            current_price = float(current_price_record.close_price)
-            
-            # Get entry price from the WatchListStock record
-            entry_price = float(stock.entry_price) if stock.entry_price else None
-            
-            # Calculate change and percent change from entry price
-            change = None
-            percent_change = None
-            if entry_price and entry_price > 0:
-                change = current_price - entry_price
-                percent_change = ((current_price - entry_price) / entry_price) * 100
-            
-            metric = {
-                "ticker": ticker.upper(),
-                "current_price": current_price,
-                "entry_price": entry_price,
-                "change": change,
-                "percent_change": percent_change,
-                "sma_50": float(current_price_record.dma_50) if current_price_record.dma_50 else None,
-                "sma_200": float(current_price_record.dma_200) if current_price_record.dma_200 else None,
-                "dividend_amt": float(attributes.dividend_amt) if attributes.dividend_amt else None,
-                "dividend_yield": float(attributes.dividend_yield) if attributes.dividend_yield else None,
-                "next_earnings_date": attributes.next_earnings_date,
-                "is_earnings_date_estimate": attributes.is_earnings_date_estimate,
-                "next_dividend_date": attributes.next_dividend_date,
-                "earliest_date": attributes.earliest_date.isoformat(),
-                "latest_date": attributes.latest_date.isoformat(),
-                # Use calculated metrics for trading range widget
-                "devstep": calculated_metrics.get("devstep", 0.0),
-                "signal": calculated_metrics.get("signal", "Neutral"),
-                "movement_5day_stddev": calculated_metrics.get("movement_5day_stddev", 0.0),
-                "is_price_positive_5day": calculated_metrics.get("is_price_positive_5day", True),
-            }
-            
-            # Format numbers for display
-            metric['current_price_formatted'] = f"${metric['current_price']:.2f}"
-            metric['sma_50_formatted'] = f"${metric['sma_50']:.2f}" if metric['sma_50'] else "N/A"
-            metric['sma_200_formatted'] = f"${metric['sma_200']:.2f}" if metric['sma_200'] else "N/A"
-            metric['dividend_amt_formatted'] = f"${metric['dividend_amt']:.2f}" if metric['dividend_amt'] else "N/A"
-            metric['stddev_50d_formatted'] = f"{metric['devstep']:.1f}"
-            
-            # Format dividend yield
-            dividend_yield = metric.get('dividend_yield')
-            if dividend_yield is not None and dividend_yield != '':
-                try:
-                    metric['dividend_yield_formatted'] = f"{float(dividend_yield):.2f}%"
-                except (ValueError, TypeError):
-                    metric['dividend_yield_formatted'] = "N/A"
-            else:
+                metric['dividend_yield_formatted'] = f"{float(dividend_yield):.2f}%"
+            except (ValueError, TypeError):
                 metric['dividend_yield_formatted'] = "N/A"
-            
-            # Format entry price, change, and percent change
-            metric['entry_price_formatted'] = f"${metric['entry_price']:.2f}" if metric['entry_price'] else "N/A"
-            
-            if metric['change'] is not None:
-                # Format with + sign for positive values
-                sign = "+" if metric['change'] >= 0 else ""
-                metric['change_formatted'] = f"{sign}${metric['change']:.2f}"
-                metric['is_change_positive'] = metric['change'] >= 0
+        else:
+            metric['dividend_yield_formatted'] = "N/A"
+
+        # Format entry price, change, and percent change
+        metric['entry_price_formatted'] = f"${metric['entry_price']:.2f}" if metric['entry_price'] else "N/A"
+
+        if metric['change'] is not None:
+            # Format with + sign for positive values
+            sign = "+" if metric['change'] >= 0 else ""
+            metric['change_formatted'] = f"{sign}${metric['change']:.2f}"
+            metric['is_change_positive'] = metric['change'] >= 0
+        else:
+            metric['change_formatted'] = "N/A"
+            metric['is_change_positive'] = None
+
+        if metric['percent_change'] is not None:
+            sign = "+" if metric['percent_change'] >= 0 else ""
+            metric['percent_change_formatted'] = f"{sign}{metric['percent_change']:.2f}%"
+            metric['is_percent_positive'] = metric['percent_change'] >= 0
+        else:
+            metric['percent_change_formatted'] = "N/A"
+            metric['is_percent_positive'] = None
+
+        # Format earnings date for display (yyyy-MM-dd format for proper text sorting)
+        if metric.get('next_earnings_date'):
+            earnings_date = metric['next_earnings_date']
+            if isinstance(earnings_date, date):
+                metric['next_earnings_date_formatted'] = earnings_date.strftime('%Y-%m-%d')
             else:
-                metric['change_formatted'] = "N/A"
-                metric['is_change_positive'] = None
-            
-            if metric['percent_change'] is not None:
-                sign = "+" if metric['percent_change'] >= 0 else ""
-                metric['percent_change_formatted'] = f"{sign}{metric['percent_change']:.2f}%"
-                metric['is_percent_positive'] = metric['percent_change'] >= 0
+                metric['next_earnings_date_formatted'] = str(earnings_date)
+        else:
+            metric['next_earnings_date_formatted'] = None
+
+        # Format dividend date for display (yyyy-MM-dd format for proper text sorting)
+        if metric.get('next_dividend_date'):
+            dividend_date = metric['next_dividend_date']
+            if isinstance(dividend_date, date):
+                metric['next_dividend_date_formatted'] = dividend_date.strftime('%Y-%m-%d')
             else:
-                metric['percent_change_formatted'] = "N/A"
-                metric['is_percent_positive'] = None
-            
-            # Format earnings date for display (yyyy-MM-dd format for proper text sorting)
-            if metric.get('next_earnings_date'):
-                from datetime import date
-                earnings_date = metric['next_earnings_date']
-                if isinstance(earnings_date, date):
-                    metric['next_earnings_date_formatted'] = earnings_date.strftime('%Y-%m-%d')
-                else:
-                    metric['next_earnings_date_formatted'] = str(earnings_date)
-            else:
-                metric['next_earnings_date_formatted'] = None
-            
-            # Format dividend date for display (yyyy-MM-dd format for proper text sorting)
-            if metric.get('next_dividend_date'):
-                from datetime import date
-                dividend_date = metric['next_dividend_date']
-                if isinstance(dividend_date, date):
-                    metric['next_dividend_date_formatted'] = dividend_date.strftime('%Y-%m-%d')
-                else:
-                    metric['next_dividend_date_formatted'] = str(dividend_date)
-            else:
-                metric['next_dividend_date_formatted'] = None
-            
-            metrics_list.append(metric)
-        except ValueError as e:
-            # No price data found - add error entry
-            metrics_list.append({
-                "ticker": ticker,
-                "error": str(e)
-            })
-        except Exception as e:
-            # Other errors
-            metrics_list.append({
-                "ticker": ticker,
-                "error": f"Error fetching metrics: {str(e)}"
-            })
-    
+                metric['next_dividend_date_formatted'] = str(dividend_date)
+        else:
+            metric['next_dividend_date_formatted'] = None
+
+        metrics_list.append(metric)
+
     return metrics_list
 
 
