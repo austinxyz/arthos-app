@@ -96,8 +96,8 @@ class TestWatchlistPerformance:
         for ticker in tickers:
             populate_test_stock_with_metrics(ticker)
 
-        # Create watchlist with stocks
-        watchlist_id = uuid4()
+        # Create watchlist with stocks (use string for UUID to support SQLite)
+        watchlist_id = str(uuid4())
         with Session(engine) as session:
             session.add(WatchList(
                 watchlist_id=watchlist_id,
@@ -146,8 +146,8 @@ class TestWatchlistPerformance:
         for ticker in tickers:
             populate_test_stock_with_metrics(ticker)
 
-        # Create watchlist with stocks
-        watchlist_id = uuid4()
+        # Create watchlist with stocks (use string for UUID to support SQLite)
+        watchlist_id = str(uuid4())
         with Session(engine) as session:
             session.add(WatchList(
                 watchlist_id=watchlist_id,
@@ -192,8 +192,8 @@ class TestWatchlistPerformance:
             stored_devstep = float(attributes.devstep)
             stored_signal = attributes.signal
 
-        # Create watchlist and add stock
-        watchlist_id = uuid4()
+        # Create watchlist and add stock (use string for UUID to support SQLite)
+        watchlist_id = str(uuid4())
         with Session(engine) as session:
             session.add(WatchList(
                 watchlist_id=watchlist_id,
@@ -229,8 +229,8 @@ class TestWatchlistPerformance:
         for ticker in tickers:
             populate_test_stock_with_metrics(ticker)
 
-        # Create watchlist with stocks
-        watchlist_id = uuid4()
+        # Create watchlist with stocks (use string for UUID to support SQLite)
+        watchlist_id = str(uuid4())
         with Session(engine) as session:
             session.add(WatchList(
                 watchlist_id=watchlist_id,

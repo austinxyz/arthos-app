@@ -137,7 +137,7 @@ class TestGetWatchList:
     
     def test_get_portfolio_not_found(self):
         """Test getting a non-existent watchlist."""
-        fake_id = UUID('00000000-0000-0000-0000-000000000000')
+        fake_id = '00000000-0000-0000-0000-000000000000'  # Use string for SQLite compatibility
         with pytest.raises(ValueError, match="not found"):
             get_watchlist(fake_id)
 

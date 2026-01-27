@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, date
 from decimal import Decimal
 from uuid import UUID
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from sqlmodel import Session, select
 from app.database import engine
 from app.models.rr_watchlist import RRWatchlist, RRHistory
@@ -23,7 +23,7 @@ def save_rr_to_watchlist(
     current_price: float,
     sold_call_strike: Optional[float] = None,
     collar_type: Optional[str] = None,
-    account_id: Optional[UUID] = None
+    account_id: Optional[Union[str, UUID]] = None
 ) -> Dict[str, Any]:
     """
     Save a Risk Reversal strategy to the watchlist.
@@ -203,7 +203,7 @@ def save_rr_to_watchlist(
         return {"success": False, "error": f"Error saving Risk Reversal: {str(e)}"}
 
 
-def get_all_rr_watchlist_entries(account_id: Optional[UUID] = None, fetch_all: bool = False) -> List[RRWatchlist]:
+def get_all_rr_watchlist_entries(account_id: Optional[Union[str, UUID]] = None, fetch_all: bool = False) -> List[RRWatchlist]:
     """
     Get all Risk Reversal watchlist entries.
     
@@ -227,7 +227,7 @@ def get_all_rr_watchlist_entries(account_id: Optional[UUID] = None, fetch_all: b
         return list(entries)
 
 
-def get_latest_net_cost(rr_uuid: UUID) -> Optional[Decimal]:
+def get_latest_net_cost(rr_uuid: Union[str, UUID]) -> Optional[Decimal]:
     """Get the latest current value from rr_history for a given RR entry."""
     with Session(engine) as session:
         statement = select(RRHistory).where(
@@ -237,7 +237,7 @@ def get_latest_net_cost(rr_uuid: UUID) -> Optional[Decimal]:
         return latest.curr_value if latest else None
 
 
-def get_rr_watchlist_entry(rr_uuid: UUID, account_id: Optional[UUID] = None) -> Optional[RRWatchlist]:
+def get_rr_watchlist_entry(rr_uuid: Union[str, UUID], account_id: Optional[Union[str, UUID]] = None) -> Optional[RRWatchlist]:
     """Get a specific RR watchlist entry by UUID."""
     with Session(engine) as session:
         entry = session.get(RRWatchlist, rr_uuid)
@@ -247,7 +247,7 @@ def get_rr_watchlist_entry(rr_uuid: UUID, account_id: Optional[UUID] = None) -> 
         return entry
 
 
-def delete_rr_watchlist_entry(rr_uuid: UUID, account_id: Optional[UUID] = None) -> bool:
+def delete_rr_watchlist_entry(rr_uuid: Union[str, UUID], account_id: Optional[Union[str, UUID]] = None) -> bool:
     """
     Delete an RR watchlist entry and all associated history.
     Returns True if successful, False otherwise.
@@ -282,7 +282,7 @@ def delete_rr_watchlist_entry(rr_uuid: UUID, account_id: Optional[UUID] = None) 
         return False
 
 
-def get_rr_history(rr_uuid: UUID) -> list[RRHistory]:
+def get_rr_history(rr_uuid: Union[str, UUID]) -> list[RRHistory]:
     """Get history for a specific RR watchlist entry."""
     with Session(engine) as session:
         statement = select(RRHistory).where(

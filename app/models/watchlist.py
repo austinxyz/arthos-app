@@ -4,17 +4,24 @@ from datetime import datetime
 from uuid import UUID, uuid4
 from typing import Optional, List, TYPE_CHECKING
 from decimal import Decimal
+from pydantic import field_validator
 
 if TYPE_CHECKING:
     from app.models.account import Account
 
 
+def generate_uuid_str() -> str:
+    """Generate a UUID as a string."""
+    return str(uuid4())
+
+
 class WatchList(SQLModel, table=True):
     """WatchList model."""
     __tablename__ = "watchlist"
-    
-    watchlist_id: UUID = Field(
-        default_factory=uuid4,
+
+    # Store UUID as string for SQLite compatibility
+    watchlist_id: str = Field(
+        default_factory=generate_uuid_str,
         primary_key=True,
         description="Unique watchlist identifier"
     )
@@ -39,21 +46,28 @@ class WatchList(SQLModel, table=True):
         default=False,
         description="Whether this watchlist is publicly visible to all users"
     )
-    
-    
+
     # Relationships
     stocks: List["WatchListStock"] = Relationship(back_populates="watchlist", cascade_delete=True)
-    # Foreign Key to Account
-    # Must match Account.id type (VARCHAR(36)) for Postgres compatibility
-    account_id: Optional[UUID] = Field(default=None, foreign_key="account.id", index=True, sa_type=VARCHAR(36))
+    # Foreign Key to Account - stored as VARCHAR(36) for SQLite compatibility
+    account_id: Optional[str] = Field(default=None, foreign_key="account.id", index=True, sa_type=VARCHAR(36))
     account: Optional["Account"] = Relationship(back_populates="watchlists")
+
+    @field_validator('watchlist_id', 'account_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        """Convert UUID to string if needed."""
+        if isinstance(v, UUID):
+            return str(v)
+        return v
 
 
 class WatchListStock(SQLModel, table=True):
     """WatchList stock model."""
     __tablename__ = "watchlist_stocks"
-    
-    watchlist_id: UUID = Field(
+
+    # Store UUID as string for SQLite compatibility
+    watchlist_id: str = Field(
         foreign_key="watchlist.watchlist_id",
         primary_key=True,
         description="Foreign key to watchlist"
@@ -73,7 +87,15 @@ class WatchListStock(SQLModel, table=True):
         decimal_places=4,
         description="Price when the stock was added to the watchlist"
     )
-    
+
     # Relationship to watchlist
     watchlist: Optional[WatchList] = Relationship(back_populates="stocks")
+
+    @field_validator('watchlist_id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        """Convert UUID to string if needed."""
+        if isinstance(v, UUID):
+            return str(v)
+        return v
 

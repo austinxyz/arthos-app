@@ -2,7 +2,6 @@
 """Tests for watchlist API endpoints."""
 import pytest
 from fastapi import status
-from uuid import UUID
 from app.services.watchlist_service import create_watchlist, add_stocks_to_watchlist
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session, select
@@ -28,8 +27,9 @@ class TestWatchListAPI:
         assert data["watchlist_name"] == "Test WatchList"
         # Verify it's owned by test_user
         with Session(engine) as session:
-            wl = session.get(WatchList, UUID(data["watchlist_id"]))
-            assert wl.account_id == test_user.id
+            # Use string directly since UUIDs are stored as VARCHAR
+            wl = session.get(WatchList, data["watchlist_id"])
+            assert wl.account_id == str(test_user.id)
     
     def test_create_portfolio_invalid_name(self, auth_client):
         """Test creating watchlist with invalid name."""
@@ -99,8 +99,14 @@ class TestWatchListAPI:
 
     def test_add_stocks_to_portfolio(self, auth_client, test_user):
         """Test adding stocks to a watchlist."""
+        from tests.conftest import populate_test_stock_prices
+
+        # Pre-populate stock data to avoid relying on external API
+        populate_test_stock_prices("AAPL")
+        populate_test_stock_prices("MSFT")
+
         watchlist = create_watchlist("Test WatchList", account_id=test_user.id)
-        
+
         response = auth_client.post(
             f"/v1/watchlist/{watchlist.watchlist_id}/stocks",
             json={"tickers": "AAPL,MSFT"}
@@ -111,6 +117,12 @@ class TestWatchListAPI:
 
     def test_remove_stock_from_portfolio(self, auth_client, test_user):
         """Test removing a stock from watchlist."""
+        from tests.conftest import populate_test_stock_prices
+
+        # Pre-populate stock data to avoid relying on external API
+        populate_test_stock_prices("AAPL")
+        populate_test_stock_prices("MSFT")
+
         watchlist = create_watchlist("Test WatchList", account_id=test_user.id)
         add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"], account_id=test_user.id)
 

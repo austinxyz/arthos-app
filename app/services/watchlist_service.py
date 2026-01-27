@@ -6,11 +6,20 @@ from app.models.stock_price import StockPrice
 from app.services.ticker_validator import validate_ticker_list
 from app.services.stock_service import get_multiple_stock_metrics
 from datetime import datetime, date
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 from uuid import UUID
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def to_str(value: Union[str, UUID, None]) -> Optional[str]:
+    """Convert UUID or string to string for SQLite compatibility."""
+    if value is None:
+        return None
+    if isinstance(value, UUID):
+        return str(value)
+    return value
 
 
 def validate_watchlist_name(name: str) -> bool:
@@ -33,46 +42,48 @@ def validate_watchlist_name(name: str) -> bool:
     return all(c.isalnum() or c.isspace() for c in name)
 
 
-def create_watchlist(watchlist_name: str, account_id: Optional[UUID] = None, description: Optional[str] = None) -> WatchList:
+def create_watchlist(watchlist_name: str, account_id: Optional[Union[UUID, str]] = None, description: Optional[str] = None) -> WatchList:
     """
     Create a new watchlist.
-    
+
     Args:
         watchlist_name: Name of the watchlist
-        account_id: Optional ID of the owner account
+        account_id: Optional ID of the owner account (UUID or string)
         description: Optional description of the watchlist
-        
+
     Returns:
         The created WatchList object
-        
+
     Raises:
         ValueError: If name is invalid, description is too long, or a watchlist with the same name already exists for the account.
     """
     if not validate_watchlist_name(watchlist_name):
         raise ValueError("WatchList name must be alphanumeric with spaces only, max 128 characters")
-    
+
     if description is not None and len(description) > 265:
         raise ValueError("Description must be 265 characters or less")
-    
+
+    acc_id = to_str(account_id)
+
     with Session(engine) as session:
         # Check if watchlist with same name exists for this account (or globally if public?)
         # Logic: If account_id provided, unique per account. If not, unique globally (for legacy/guest).
-        
+
         statement = select(WatchList).where(WatchList.watchlist_name == watchlist_name.strip())
-        if account_id:
-            statement = statement.where(WatchList.account_id == account_id)
+        if acc_id:
+            statement = statement.where(WatchList.account_id == acc_id)
         else:
              statement = statement.where(WatchList.account_id == None)
-             
+
         existing_watchlist = session.exec(statement).first()
-        
+
         if existing_watchlist:
             raise ValueError(f"WatchList '{watchlist_name}' already exists")
-            
+
         new_watchlist = WatchList(
-            watchlist_name=watchlist_name.strip(), 
+            watchlist_name=watchlist_name.strip(),
             description=description.strip() if description else None,
-            account_id=account_id,
+            account_id=acc_id,
             date_added=datetime.now(),
             date_modified=datetime.now()
         )
@@ -82,7 +93,7 @@ def create_watchlist(watchlist_name: str, account_id: Optional[UUID] = None, des
         return new_watchlist
 
 
-def get_all_watchlists(account_id: Optional[UUID] = None) -> List[WatchList]:
+def get_all_watchlists(account_id: Optional[Union[UUID, str]] = None) -> List[WatchList]:
     """
     Get all watchlists, optionally filtered by account_id.
     
@@ -92,10 +103,11 @@ def get_all_watchlists(account_id: Optional[UUID] = None) -> List[WatchList]:
     Returns:
         List of WatchList objects
     """
+    acc_id = to_str(account_id)
     with Session(engine) as session:
         statement = select(WatchList)
-        if account_id:
-            statement = statement.where(WatchList.account_id == account_id)
+        if acc_id:
+            statement = statement.where(WatchList.account_id == acc_id)
         else:
             # If no account specified, maybe return only public ones or ones without owner?
             # Or for backward compatibility, all of them? 
@@ -107,67 +119,73 @@ def get_all_watchlists(account_id: Optional[UUID] = None) -> List[WatchList]:
         return list(watchlists)
 
 
-def get_watchlist(watchlist_id: UUID, account_id: Optional[UUID] = None) -> WatchList:
+def get_watchlist(watchlist_id: Union[UUID, str], account_id: Optional[Union[UUID, str]] = None) -> WatchList:
     """
     Get a watchlist by ID.
-    
+
     Args:
-        watchlist_id: WatchList UUID
+        watchlist_id: WatchList UUID or string
         account_id: Optional ID of the requesting account to verify ownership
-        
+
     Returns:
         WatchList object
-        
+
     Raises:
         ValueError: If watchlist not found or access denied
     """
+    wl_id = to_str(watchlist_id)
+    acc_id = to_str(account_id)
+
     with Session(engine) as session:
-        watchlist = session.get(WatchList, watchlist_id)
+        watchlist = session.get(WatchList, wl_id)
         if not watchlist:
             raise ValueError(f"WatchList with ID {watchlist_id} not found")
-        
+
         # Verify ownership if watchlist has an owner
         if watchlist.account_id:
-            if not account_id or str(watchlist.account_id) != str(account_id):
+            if not acc_id or watchlist.account_id != acc_id:
                  raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
         return watchlist
 
 
-def update_watchlist_name(watchlist_id: UUID, new_name: str, account_id: Optional[UUID] = None) -> WatchList:
+def update_watchlist_name(watchlist_id: Union[UUID, str], new_name: str, account_id: Optional[Union[UUID, str]] = None) -> WatchList:
     """
     Update watchlist name.
-    
+
     Args:
-        watchlist_id: WatchList UUID
+        watchlist_id: WatchList UUID or string
         new_name: New watchlist name
         account_id: Optional ID of the requesting account to verify ownership
-        
+
     Returns:
         Updated WatchList object
-        
+
     Raises:
         ValueError: If name is invalid, watchlist not found, access denied, or new name already exists
     """
     if not validate_watchlist_name(new_name):
         raise ValueError("WatchList name must be alphanumeric with spaces only, max 128 characters")
-    
+
+    wl_id = to_str(watchlist_id)
+    acc_id = to_str(account_id)
+
     with Session(engine) as session:
-        watchlist = session.get(WatchList, watchlist_id)
+        watchlist = session.get(WatchList, wl_id)
         if not watchlist:
             raise ValueError(f"WatchList with ID {watchlist_id} not found")
-        
+
         # Verify ownership if watchlist has an owner
         if watchlist.account_id:
-            if not account_id or watchlist.account_id != account_id:
+            if not acc_id or watchlist.account_id != acc_id:
                  raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
-        
+
         # Check for duplicate name for the same account (or unowned)
         statement = select(WatchList).where(
             WatchList.watchlist_name == new_name.strip(),
-            WatchList.watchlist_id != watchlist_id # Exclude current watchlist
+            WatchList.watchlist_id != wl_id  # Exclude current watchlist
         )
-        if account_id:
-            statement = statement.where(WatchList.account_id == account_id)
+        if acc_id:
+            statement = statement.where(WatchList.account_id == acc_id)
         else:
             statement = statement.where(WatchList.account_id == None)
         
@@ -183,53 +201,56 @@ def update_watchlist_name(watchlist_id: UUID, new_name: str, account_id: Optiona
         return watchlist
 
 
-def update_watchlist(watchlist_id: UUID, watchlist_name: Optional[str] = None, description: Optional[str] = None, account_id: Optional[UUID] = None) -> Optional[WatchList]:
+def update_watchlist(watchlist_id: Union[UUID, str], watchlist_name: Optional[str] = None, description: Optional[str] = None, account_id: Optional[Union[UUID, str]] = None) -> Optional[WatchList]:
     """
     Update a watchlist's name and/or description.
-    
+
     Args:
-        watchlist_id: UUID of the watchlist
+        watchlist_id: UUID or string of the watchlist
         watchlist_name: New name (optional)
         description: New description (optional)
         account_id: Optional ID of the requesting account to verify ownership
-        
+
     Returns:
         Updated WatchList object or None if not found
-        
+
     Raises:
         ValueError: If name or description is invalid, watchlist not found, access denied, or new name already exists
     """
+    wl_id = to_str(watchlist_id)
+    acc_id = to_str(account_id)
+
     with Session(engine) as session:
-        watchlist = session.get(WatchList, watchlist_id)
+        watchlist = session.get(WatchList, wl_id)
         if not watchlist:
             raise ValueError(f"WatchList with ID {watchlist_id} not found")
-            
+
         # Verify ownership
         if watchlist.account_id:
-            if not account_id or watchlist.account_id != account_id:
+            if not acc_id or watchlist.account_id != acc_id:
                 raise ValueError("Access denied: You do not own this watchlist")
-        
+
         if watchlist_name is not None:
             if not validate_watchlist_name(watchlist_name):
                 raise ValueError("WatchList name must be alphanumeric with spaces only, max 128 characters")
-            
+
             # Check for duplicates, excluding current watchlist
-            statement = select(WatchList).where(WatchList.watchlist_name == watchlist_name.strip()).where(WatchList.watchlist_id != watchlist_id)
-            if account_id:
-                statement = statement.where(WatchList.account_id == account_id)
+            statement = select(WatchList).where(WatchList.watchlist_name == watchlist_name.strip()).where(WatchList.watchlist_id != wl_id)
+            if acc_id:
+                statement = statement.where(WatchList.account_id == acc_id)
             else:
                 statement = statement.where(WatchList.account_id == None)
-                
+
             existing = session.exec(statement).first()
             if existing:
                 raise ValueError(f"WatchList '{watchlist_name}' already exists")
             watchlist.watchlist_name = watchlist_name.strip()
-            
+
         if description is not None:
             if len(description) > 265:
                 raise ValueError("Description must be 265 characters or less")
             watchlist.description = description.strip() if description.strip() else None
-             
+
         watchlist.date_modified = datetime.utcnow()
         session.add(watchlist)
         session.commit()
@@ -237,53 +258,59 @@ def update_watchlist(watchlist_id: UUID, watchlist_name: Optional[str] = None, d
         return watchlist
 
 
-def delete_watchlist(watchlist_id: UUID, account_id: Optional[UUID] = None) -> bool:
+def delete_watchlist(watchlist_id: Union[UUID, str], account_id: Optional[Union[UUID, str]] = None) -> bool:
     """
     Delete a watchlist and all its stocks (cascade delete).
-    
+
     Args:
-        watchlist_id: UUID of the watchlist
+        watchlist_id: UUID or string of the watchlist
         account_id: Optional ID of the requesting account to verify ownership
-        
+
     Returns:
         True if deleted successfully
-        
+
     Raises:
         ValueError: If watchlist not found or access denied
     """
+    wl_id = to_str(watchlist_id)
+    acc_id = to_str(account_id)
+
     with Session(engine) as session:
-        watchlist = session.get(WatchList, watchlist_id)
+        watchlist = session.get(WatchList, wl_id)
         if not watchlist:
             raise ValueError(f"WatchList with ID {watchlist_id} not found")
-            
+
         # Verify ownership
         if watchlist.account_id:
-            if not account_id or watchlist.account_id != account_id:
+            if not acc_id or watchlist.account_id != acc_id:
                 raise ValueError("Access denied: You do not own this watchlist")
-            
+
         session.delete(watchlist)
         session.commit()
         return True
 
 
-def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str], account_id: Optional[UUID] = None) -> Tuple[List[WatchListStock], List[str]]:
+def add_stocks_to_watchlist(watchlist_id: Union[UUID, str], tickers: List[str], account_id: Optional[Union[UUID, str]] = None) -> Tuple[List[WatchListStock], List[str]]:
     """
     Add stocks to a watchlist. Ignores duplicates and filters out invalid tickers.
     Validates both ticker format and that the ticker exists in the data provider.
-    
+
     Args:
-        watchlist_id: WatchList UUID
+        watchlist_id: WatchList UUID or string
         tickers: List of stock ticker symbols
         account_id: Optional ID of the requesting account to verify ownership
-        
+
     Returns:
         Tuple of (List of WatchListStock objects that were added, List of invalid tickers)
-        
+
     Raises:
         ValueError: If watchlist not found or access denied
     """
+    wl_id = to_str(watchlist_id)
+    acc_id = to_str(account_id)
+
     # Validate watchlist exists and ownership
-    watchlist = get_watchlist(watchlist_id, account_id)
+    watchlist = get_watchlist(wl_id, acc_id)
     
     # Validate ticker formats - filter out invalid ones instead of raising error
     valid_format_tickers, invalid_format_tickers = validate_ticker_list(tickers)
@@ -350,11 +377,11 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str], account_id: 
         for ticker in valid_tickers:
             # Check if stock already exists in watchlist
             statement = select(WatchListStock).where(
-                WatchListStock.watchlist_id == watchlist_id,
+                WatchListStock.watchlist_id == wl_id,
                 WatchListStock.ticker == ticker
             )
             existing = session.exec(statement).first()
-            
+
             if not existing:
                 # Get current price as entry price
                 entry_price = None
@@ -362,22 +389,22 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str], account_id: 
                     from app.services.stock_price_service import get_stock_attributes
                     from app.models.stock_price import StockPrice
                     from decimal import Decimal
-                    
+
                     # Try to get latest close price from database
                     price_statement = select(StockPrice).where(
                         StockPrice.ticker == ticker.upper()
                     ).order_by(StockPrice.price_date.desc())
                     latest_price = session.exec(price_statement).first()
-                    
+
                     if latest_price and latest_price.close_price:
                         entry_price = latest_price.close_price
                         logger.debug(f"Captured entry price {entry_price} for {ticker}")
                 except Exception as e:
                     logger.warning(f"Could not capture entry price for {ticker}: {e}")
-                
+
                 # Add new stock with entry price
                 watchlist_stock = WatchListStock(
-                    watchlist_id=watchlist_id,
+                    watchlist_id=wl_id,
                     ticker=ticker,
                     date_added=datetime.now(),
                     entry_price=entry_price
@@ -398,77 +425,81 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str], account_id: 
         return added_stocks, invalid_tickers
 
 
-def remove_stock_from_watchlist(watchlist_id: UUID, ticker: str, account_id: Optional[UUID] = None) -> bool:
+def remove_stock_from_watchlist(watchlist_id: Union[UUID, str], ticker: str, account_id: Optional[Union[UUID, str]] = None) -> bool:
     """
     Remove a stock from a watchlist.
-    
+
     Args:
-        watchlist_id: WatchList UUID
+        watchlist_id: WatchList UUID or string
         ticker: Stock ticker symbol
         account_id: Optional ID of the requesting account to verify ownership
-        
+
     Returns:
         True if removed successfully
-        
+
     Raises:
         ValueError: If watchlist or stock not found, or access denied
     """
+    wl_id = to_str(watchlist_id)
+    acc_id = to_str(account_id)
     ticker = ticker.upper()
-    
+
     with Session(engine) as session:
         # Verify watchlist exists and ownership
-        watchlist = session.get(WatchList, watchlist_id)
+        watchlist = session.get(WatchList, wl_id)
         if not watchlist:
             raise ValueError(f"WatchList with ID {watchlist_id} not found")
-            
+
         if watchlist.account_id:
-            if not account_id or watchlist.account_id != account_id:
+            if not acc_id or watchlist.account_id != acc_id:
                  raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
-        
+
         # Find and delete the stock
         statement = select(WatchListStock).where(
-            WatchListStock.watchlist_id == watchlist_id,
+            WatchListStock.watchlist_id == wl_id,
             WatchListStock.ticker == ticker
         )
         watchlist_stock = session.exec(statement).first()
-        
+
         if not watchlist_stock:
             raise ValueError(f"Stock {ticker} not found in watchlist {watchlist_id}")
-        
+
         session.delete(watchlist_stock)
-        
+
         # Update watchlist's date_modified
         watchlist.date_modified = datetime.now()
         session.add(watchlist)
-        
+
         session.commit()
         return True
 
 
-def get_watchlist_stocks(watchlist_id: UUID, account_id: Optional[UUID] = None, skip_auth: bool = False) -> List[WatchListStock]:
+def get_watchlist_stocks(watchlist_id: Union[UUID, str], account_id: Optional[Union[UUID, str]] = None, skip_auth: bool = False) -> List[WatchListStock]:
     """
     Get all stocks in a watchlist.
-    
-    NOTE: Auth is enforced at the watchlist level, not here. 
+
+    NOTE: Auth is enforced at the watchlist level, not here.
     The caller is responsible for verifying access to the watchlist before calling this function.
-    
+
     Args:
-        watchlist_id: WatchList UUID
+        watchlist_id: WatchList UUID or string
         account_id: Deprecated - not used (kept for backward compatibility)
         skip_auth: Deprecated - not used (kept for backward compatibility)
-        
+
     Returns:
         List of WatchListStock objects
     """
+    wl_id = to_str(watchlist_id)
+
     with Session(engine) as session:
         statement = select(WatchListStock).where(
-            WatchListStock.watchlist_id == watchlist_id
+            WatchListStock.watchlist_id == wl_id
         ).order_by(WatchListStock.date_added.desc())
         stocks = session.exec(statement).all()
         return list(stocks)
 
 
-def get_watchlist_stocks_with_metrics(watchlist_id: UUID, account_id: UUID = None, skip_auth: bool = False) -> List[Dict[str, Any]]:
+def get_watchlist_stocks_with_metrics(watchlist_id: Union[UUID, str], account_id: Union[UUID, str] = None, skip_auth: bool = False) -> List[Dict[str, Any]]:
     """
     Get all stocks in a watchlist with their current metrics.
 
@@ -480,7 +511,7 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID, account_id: UUID = Non
     The caller is responsible for verifying access to the watchlist before calling this function.
 
     Args:
-        watchlist_id: WatchList UUID
+        watchlist_id: WatchList UUID or string
         account_id: Deprecated - not used (kept for backward compatibility)
         skip_auth: Deprecated - not used (kept for backward compatibility)
 
@@ -490,7 +521,8 @@ def get_watchlist_stocks_with_metrics(watchlist_id: UUID, account_id: UUID = Non
     from app.models.stock_price import StockPrice, StockAttributes
     from sqlalchemy import func
 
-    stocks = get_watchlist_stocks(watchlist_id)
+    wl_id = to_str(watchlist_id)
+    stocks = get_watchlist_stocks(wl_id)
 
     if not stocks:
         return []

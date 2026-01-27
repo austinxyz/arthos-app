@@ -193,12 +193,12 @@ def test_user(setup_database):
     """Create a test user/account."""
     from app.models.account import Account
     from uuid import uuid4
-
     from datetime import datetime
+
     account_id = uuid4()
     with Session(engine) as session:
         user = Account(
-            id=account_id,
+            id=str(account_id),  # Convert UUID to string for SQLite compatibility
             email="testuser@example.com",
             google_sub="123456789",
             full_name="Test User",
@@ -236,10 +236,10 @@ def auth_client(test_user):
         from app.models.account import Account
         from sqlmodel import Session
         from app.database import engine
-        from uuid import UUID
 
         with Session(engine) as session:
-            account = session.get(Account, UUID(user_id))
+            # Use string user_id directly - SQLite stores UUIDs as VARCHAR
+            account = session.get(Account, user_id)
             if account:
                 request.session["account_id"] = str(account.id)
                 request.session["user"] = {

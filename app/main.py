@@ -126,7 +126,7 @@ async def watchlists_page(request: Request):
     from app.services import watchlist_service
     # Get user from session
     account_id_str = request.session.get('account_id')
-    account_id = UUID(account_id_str) if account_id_str else None
+    account_id = account_id_str  # Use string directly, models handle conversion
     
     watchlists = watchlist_service.get_all_watchlists(account_id=account_id)
     return templates.TemplateResponse("watchlists.html", {"request": request, "watchlists": watchlists})
@@ -167,7 +167,7 @@ async def rr_list_page(request: Request):
     from app.services import rr_watchlist_service
     # Get user from session
     account_id_str = request.session.get('account_id')
-    account_id = UUID(account_id_str) if account_id_str else None
+    account_id = account_id_str  # Use string directly, models handle conversion
     
     rr_entries = rr_watchlist_service.get_all_rr_watchlist_entries(account_id=account_id)
     
@@ -274,7 +274,7 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
     from datetime import date
     
     account_id_str = request.session.get('account_id')
-    account_id = UUID(account_id_str) if account_id_str else None
+    account_id = account_id_str  # Use string directly, models handle conversion
     
     entry = get_rr_watchlist_entry(rr_uuid, account_id)
     
@@ -447,7 +447,7 @@ async def watchlist_details_page(request: Request, watchlist_id: UUID):
     
     # Get user from session
     account_id_str = request.session.get('account_id')
-    account_id = UUID(account_id_str) if account_id_str else None
+    account_id = account_id_str  # Use string directly, models handle conversion
     
     watchlist = watchlist_service.get_watchlist(watchlist_id, account_id=account_id)
     if not watchlist:
@@ -741,7 +741,7 @@ async def save_rr_to_watchlist_api(request: Request):
         collar_type = data.get('collar_type')
 
         account_id_str = request.session.get('account_id')
-        account_id = UUID(account_id_str) if account_id_str else None
+        account_id = account_id_str  # Use string directly, models handle conversion
         
         if not account_id:
              return {"success": False, "error": "User must be logged in to save strategies"}
@@ -776,7 +776,7 @@ async def delete_rr_watchlist_api(request: Request, rr_uuid: UUID = FPath(...)):
     
     try:
         account_id_str = request.session.get('account_id')
-        account_id = UUID(account_id_str) if account_id_str else None
+        account_id = account_id_str  # Use string directly, models handle conversion
         
         if not account_id:
              return {"success": False, "error": "User must be logged in to delete strategies"}
@@ -960,7 +960,7 @@ async def list_watchlists(request: Request):
     from app.services.watchlist_service import get_all_watchlists
     
     account_id_str = request.session.get('account_id')
-    account_id = UUID(account_id_str) if account_id_str else None
+    account_id = account_id_str  # Use string directly, models handle conversion
     
     watchlists = get_all_watchlists(account_id)
     return {
@@ -991,7 +991,7 @@ async def get_watchlist(request: Request, watchlist_id: UUID = FPath(...)):
     from app.services.watchlist_service import get_watchlist, get_watchlist_stocks
     
     account_id_str = request.session.get('account_id')
-    account_id = UUID(account_id_str) if account_id_str else None
+    account_id = account_id_str  # Use string directly, models handle conversion
     
     try:
         watchlist = get_watchlist(watchlist_id, account_id)
@@ -1030,7 +1030,7 @@ async def create_watchlist(request: Request, watchlist: WatchListCreate):
     from app.services import watchlist_service
     
     account_id_str = request.session.get('account_id')
-    account_id = UUID(account_id_str) if account_id_str else None
+    account_id = account_id_str  # Use string directly, models handle conversion
     
     if not account_id:
         raise HTTPException(status_code=401, detail="User must be logged in to create a watchlist")
@@ -1068,7 +1068,7 @@ async def update_watchlist(request: Request, watchlist_id: UUID = FPath(...), wa
     from app.services.watchlist_service import update_watchlist
     
     account_id_str = request.session.get('account_id')
-    account_id = UUID(account_id_str) if account_id_str else None
+    account_id = account_id_str  # Use string directly, models handle conversion
     
     if not account_id:
         raise HTTPException(status_code=401, detail="User must be logged in to update a watchlist")
@@ -1112,7 +1112,7 @@ async def update_watchlist_visibility_api(request: Request, watchlist_id: UUID =
     from app.services.watchlist_service import update_watchlist_visibility
     
     account_id_str = request.session.get('account_id')
-    account_id = UUID(account_id_str) if account_id_str else None
+    account_id = account_id_str  # Use string directly, models handle conversion
     
     if not account_id:
         raise HTTPException(status_code=401, detail="User must be logged in to update watchlist visibility")
@@ -1151,7 +1151,7 @@ async def delete_watchlist_api(watchlist_id: UUID, request: Request):
         raise HTTPException(status_code=401, detail="User must be logged in to delete a watchlist")
         
     try:
-        account_id = UUID(account_id_str)
+        account_id = account_id_str  # Use string directly
         result = watchlist_service.delete_watchlist(watchlist_id, account_id=account_id)
         if not result:
             raise HTTPException(status_code=404, detail="WatchList not found")
@@ -1176,7 +1176,7 @@ async def add_stocks_to_watchlist(request: Request, watchlist_id: UUID = FPath(.
     from app.services.watchlist_service import add_stocks_to_watchlist
     
     account_id_str = request.session.get('account_id')
-    account_id = UUID(account_id_str) if account_id_str else None
+    account_id = account_id_str  # Use string directly, models handle conversion
     
     if not account_id:
         raise HTTPException(status_code=401, detail="User must be logged in to add stocks")
@@ -1238,7 +1238,7 @@ async def remove_stock_from_watchlist_api(watchlist_id: UUID, ticker: str, reque
         raise HTTPException(status_code=401, detail="User must be logged in to remove stocks")
         
     try:
-        account_id = UUID(account_id_str)
+        account_id = account_id_str  # Use string directly
         result = watchlist_service.remove_stock_from_watchlist(
             watchlist_id=watchlist_id, 
             ticker=ticker,
@@ -1720,16 +1720,22 @@ async def trigger_scheduler_manual(bypass_market_hours: bool = Query(True, descr
 # bypassing the need for manual cookie injection which is brittle across processes.
 # if os.getenv("ARTHOS_TEST_MODE") == "true":
 @app.get("/_test/login/{user_id}")
-async def test_login_endpoint(user_id: UUID, request: Request):
+async def test_login_endpoint(user_id: str, request: Request):
+        """Test endpoint for setting up authenticated sessions.
+
+        Args:
+            user_id: Account ID as string (UUID stored as VARCHAR in database)
+        """
         from app.models.account import Account
         from sqlmodel import Session as SQLSession
         from app.database import engine
-        
+
         with SQLSession(engine) as session:
+            # Query by string since UUIDs are stored as VARCHAR(36)
             account = session.get(Account, user_id)
             if not account:
                 return {"error": "User not found"}
-            
+
             # Set session data exactly as the app expects
             request.session["account_id"] = str(account.id)
             request.session["user"] = {

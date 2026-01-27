@@ -378,14 +378,114 @@ def stop_scheduler():
 
 def fetch_all_watchlist_stocks_manual(bypass_market_hours: bool = False):
     """
-    Manually trigger update_stock_prices_for_all_watchlists (legacy name kept for compatibility).
+    Manually trigger stock price updates for all watchlist tickers.
+
+    Args:
+        bypass_market_hours: If True, skip market hours check and run regardless.
+
+    Returns:
+        log_id: The ID of the scheduler log entry created for this run, or None if skipped.
     """
-    # Simply call the new function, ignoring bypass_market_hours for now as the new function handles logic
-    # Or reimplement wrapper if specific bypass logic needed.
-    # For simplicity, let's just alias it but keep the signature
-    logger.info("Manual trigger: Updating STOCK PRICES...")
-    update_stock_prices_for_all_watchlists()
-    return "stock_update_triggered"
+    log_entry = None
+    start_time = datetime.now()
+
+    logger.info("="*80)
+    logger.info("MANUAL TRIGGER: fetch_all_watchlist_stocks_manual()")
+    logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Bypass market hours: {bypass_market_hours}")
+    logger.info("="*80)
+
+    try:
+        # Create log entry at start
+        with Session(engine) as session:
+            log_entry = SchedulerLog(
+                start_time=start_time,
+                end_time=None,
+                notes="Manual stock price update job started"
+            )
+            session.add(log_entry)
+            session.commit()
+            session.refresh(log_entry)
+            log_id = log_entry.id
+        logger.info(f"✓ Created scheduler_log entry with ID: {log_id}")
+
+        # Check market hours unless bypassing
+        if not bypass_market_hours:
+            et_now = datetime.now(ET_TIMEZONE)
+            current_time = et_now.time()
+            market_close = time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
+
+            is_post_market = market_close <= current_time <= time(16, 20)
+            market_open = is_market_open()
+
+            if not market_open and not is_post_market:
+                logger.warning("⊘ SKIPPING: Market is closed and not in post-market window")
+                with Session(engine) as session:
+                    log_entry = session.get(SchedulerLog, log_id)
+                    if log_entry:
+                        log_entry.end_time = datetime.now()
+                        log_entry.notes = "Manual trigger: Market closed. Skipped stock update."
+                        session.add(log_entry)
+                        session.commit()
+                return log_id
+
+        # Get all unique tickers from all watchlists
+        with Session(engine) as session:
+            statement = select(WatchListStock.ticker).distinct()
+            tickers = session.exec(statement).all()
+
+        unique_tickers = list(set([ticker.upper() for ticker in tickers]))
+
+        if not unique_tickers:
+            logger.warning("⊘ SKIPPING: No tickers found")
+            with Session(engine) as session:
+                log_entry = session.get(SchedulerLog, log_id)
+                if log_entry:
+                    log_entry.end_time = datetime.now()
+                    log_entry.notes = "Manual trigger: No tickers found. Skipped stock update."
+                    session.add(log_entry)
+                    session.commit()
+            return log_id
+
+        logger.info(f"Processing {len(unique_tickers)} unique tickers for STOCK DATA")
+
+        success_count = 0
+        error_count = 0
+
+        for idx, ticker in enumerate(unique_tickers, 1):
+            logger.info(f"[{idx}/{len(unique_tickers)}] Fetching prices for {ticker}...")
+            try:
+                price_data, new_records = fetch_and_save_stock_prices(ticker)
+
+                # Compute and save trading metrics
+                try:
+                    compute_and_save_trading_metrics(ticker)
+                except Exception as e:
+                    logger.warning(f"  Could not compute trading metrics for {ticker}: {e}")
+
+                success_count += 1
+            except Exception as e:
+                error_count += 1
+                logger.error(f"  ✗ Error for {ticker}: {str(e)}")
+
+        # Update log entry
+        end_time = datetime.now()
+        notes = f"Manual trigger: Updated stocks: {len(unique_tickers)}. Success: {success_count}, Errors: {error_count}"
+
+        with Session(engine) as session:
+            log_entry = session.get(SchedulerLog, log_id)
+            if log_entry:
+                log_entry.end_time = end_time
+                log_entry.notes = notes
+                session.add(log_entry)
+                session.commit()
+        logger.info(f"✓ Manual stock update job completed. {notes}")
+
+        return log_id
+
+    except Exception as e:
+        logger.error(f"Error in fetch_all_watchlist_stocks_manual: {str(e)}")
+        return None
 def update_rr_history():
     """
     Update Risk Reversal history by recalculating net cost for all active entries.

@@ -24,7 +24,7 @@ class MockStrategy(dict):
 @pytest.fixture
 def mock_stock_data():
     """Setup minimal stock data for the test."""
-    ticker = "CACHE_TEST"
+    ticker = "CTEST"
     with Session(engine) as session:
         # cleanup
         session.exec(delete(StockPrice).where(StockPrice.ticker == ticker))

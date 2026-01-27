@@ -141,13 +141,14 @@ class TestE2EUserFlows:
         page.fill("#tickersInput", ", ".join(test_stocks))
         page.click("button[type='submit']")
         
-        # Wait for table to populate (DataTable needs time to initialize)
+        # Wait for page to fully load and DataTable to initialize
+        page.wait_for_load_state("networkidle", timeout=30000)
         page.wait_for_timeout(3000)
-        
-        # Verify stocks appear in the table
+
+        # Verify stocks appear in the table (use longer timeout for DataTable initialization)
         table = page.locator("#stocksTable")
-        expect(table).to_be_visible()
-        
+        expect(table).to_be_visible(timeout=15000)
+
         # Wait for DataTable to load and stocks to be fetched
         page.wait_for_timeout(5000)  # Give more time for stock data to load
         
@@ -287,10 +288,11 @@ class TestE2EUserFlows:
             expect(covered_calls_table).to_be_visible()
             
             # Verify table structure - check for key headers
+            # Note: Some columns may be hidden by DataTables responsive mode, use to_be_attached()
             expect(covered_calls_table.locator("th:has-text('Strike Price')")).to_be_visible()
             expect(covered_calls_table.locator("th:has-text('Call Premium')")).to_be_visible()
-            expect(covered_calls_table.locator("th:has-text('Total Return Exercised')")).to_be_visible()
-            expect(covered_calls_table.locator("th:has-text('Total Return Not Exercised')")).to_be_visible()
+            expect(covered_calls_table.locator("th:has-text('Return if Exercised')")).to_be_attached()
+            expect(covered_calls_table.locator("th:has-text('Return if Not Exercised')")).to_be_attached()
             
             # Verify math: For each row, check that the calculations are correct
             table_rows = covered_calls_table.locator("tbody tr")

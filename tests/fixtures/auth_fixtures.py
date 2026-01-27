@@ -21,18 +21,19 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def test_account(setup_database) -> Account:
     """Create a test account in database and clean up after test.
-    
+
     Returns:
         Account: The created test account object
-    
+
     Yields the account and ensures cleanup happens even if test fails.
     """
     account_id = uuid4()
-    
+    account_id_str = str(account_id)  # Convert UUID to string for SQLite compatibility
+
     # Create test account
     with Session(engine) as session:
         account = Account(
-            id=account_id,
+            id=account_id_str,
             email=f"test_{account_id}@example.com",
             google_sub=f"test_sub_{account_id}",
             full_name="Test User",
@@ -44,13 +45,13 @@ def test_account(setup_database) -> Account:
         session.commit()
         session.refresh(account)
         logger.info(f"Created test account: {account_id}")
-    
+
     yield account
-    
+
     # Cleanup: Delete account and all associated data
     # Note: Cascade deletes should handle watchlists and RR entries
     with Session(engine) as session:
-        account_obj = session.get(Account, account_id)
+        account_obj = session.get(Account, account_id_str)
         if account_obj:
             session.delete(account_obj)
             session.commit()

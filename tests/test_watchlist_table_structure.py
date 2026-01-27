@@ -44,22 +44,24 @@ def test_watchlist_table_column_count(page: Page, live_server_url, authenticated
     header_cells = page.locator("#stocksTable thead th")
     header_count = header_cells.count()
     print(f"Header columns: {header_count}")
-    
+
     # Count body row columns (first data row)
     first_row_cells = page.locator("#stocksTable tbody tr:first-child td")
     first_row_count = first_row_cells.count()
     print(f"First row columns: {first_row_count}")
-    
+
     # Verify column counts match
     assert header_count == first_row_count, f"Header has {header_count} columns but first row has {first_row_count} columns"
-    assert header_count == 10, f"Expected 10 columns but found {header_count}"
-    
+    # Current UI has 13 columns: Ticker, Current Price, Entry Price, Change, % Change,
+    # SMA 50, SMA 200, Dividend Yield, Next Dividend, Next Earnings, Signal, Trading Range, Actions
+    assert header_count == 13, f"Expected 13 columns but found {header_count}"
+
     # Check that DataTables initialized without errors
     # DataTables warning would appear in console, but we can check if table is functional
     # by checking if sorting works (DataTables adds click handlers)
     signal_header = page.locator("#stocksTable thead th[data-column='signal']")
     expect(signal_header).to_be_visible()
-    
+
     # Verify no DataTables errors in console
     # Note: This is a basic check - actual console errors would need to be captured differently
     print("Table structure verified - no column count mismatch detected")
