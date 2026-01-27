@@ -290,7 +290,7 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str], account_id: 
     
     # Now validate that tickers actually exist in the data provider and fetch/save price data
     from app.services.stock_service import fetch_stock_data
-    from app.services.stock_price_service import fetch_and_save_stock_prices
+    from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics
     
     valid_tickers = []
     invalid_tickers = list(invalid_format_tickers)  # Start with format-invalid tickers
@@ -323,6 +323,10 @@ def add_stocks_to_watchlist(watchlist_id: UUID, tickers: List[str], account_id: 
                     try:
                         price_data, new_records = fetch_and_save_stock_prices(ticker)
                         logger.info(f"Saved {new_records} new price records for {ticker}")
+                        
+                        # Calculate trading metrics immediately so UI shows correct signal
+                        compute_and_save_trading_metrics(ticker)
+                        logger.info(f"Computed trading metrics for {ticker}")
                     except Exception as e:
                         # Log error but don't fail the watchlist addition
                         logger.warning(f"Could not save price data for {ticker}: {e}")
