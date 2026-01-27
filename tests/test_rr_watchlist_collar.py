@@ -430,5 +430,160 @@ class TestCollarModelFields:
             session.refresh(history)
             
             assert history.short_call_price is None
-            
+
             delete_rr_watchlist_entry(entry.id)
+
+
+class TestUUIDStringCompatibility:
+    """
+    Regression tests for UUID vs string compatibility in RR watchlist.
+
+    These tests verify that ownership checks work correctly when:
+    - Database stores account_id as UUID type (PostgreSQL)
+    - Session/code passes account_id as string
+    """
+
+    def _create_test_account(self, account_id_str: str):
+        """Helper to create a test account for foreign key constraints."""
+        from app.models.account import Account
+        with Session(engine) as session:
+            account = Account(
+                id=account_id_str,
+                email=f"test-{account_id_str[:8]}@example.com",
+                google_sub=f"google-{account_id_str[:8]}"
+            )
+            session.add(account)
+            session.commit()
+
+    def test_get_rr_entry_with_string_account_id(self):
+        """
+        Regression test: Verify get_rr_watchlist_entry works when database has UUID
+        but code passes string account_id.
+        """
+        from uuid import uuid4
+        from app.services.rr_watchlist_service import get_rr_watchlist_entry
+
+        account_id_str = str(uuid4())
+        future_date = date.today() + timedelta(days=30)
+
+        # Create account first (for foreign key constraint)
+        self._create_test_account(account_id_str)
+
+        # Create RR entry with string account_id
+        with Session(engine) as session:
+            entry = RRWatchlist(
+                ticker="TEST",
+                call_strike=Decimal("110.0"),
+                put_strike=Decimal("90.0"),
+                call_quantity=1,
+                put_quantity=1,
+                stock_price=Decimal("100.0"),
+                entry_price=Decimal("1.0"),
+                call_option_quote=Decimal("5.0"),
+                put_option_quote=Decimal("4.0"),
+                expiration=future_date,
+                ratio="1:1",
+                expired_yn="N",
+                account_id=account_id_str
+            )
+            session.add(entry)
+            session.commit()
+            session.refresh(entry)
+            entry_id = entry.id
+
+        # Access with string account_id - should work
+        result = get_rr_watchlist_entry(entry_id, account_id=account_id_str)
+
+        assert result is not None
+        assert result.ticker == "TEST"
+
+        # Cleanup
+        delete_rr_watchlist_entry(entry_id)
+
+    def test_get_rr_entry_wrong_account_denied(self):
+        """Verify that access is still denied for wrong account after the fix."""
+        from uuid import uuid4
+        from app.services.rr_watchlist_service import get_rr_watchlist_entry
+
+        owner_account_id = str(uuid4())
+        other_account_id = str(uuid4())
+        future_date = date.today() + timedelta(days=30)
+
+        # Create both accounts (for foreign key constraint)
+        self._create_test_account(owner_account_id)
+        self._create_test_account(other_account_id)
+
+        # Create RR entry owned by one account
+        with Session(engine) as session:
+            entry = RRWatchlist(
+                ticker="TEST",
+                call_strike=Decimal("110.0"),
+                put_strike=Decimal("90.0"),
+                call_quantity=1,
+                put_quantity=1,
+                stock_price=Decimal("100.0"),
+                entry_price=Decimal("1.0"),
+                call_option_quote=Decimal("5.0"),
+                put_option_quote=Decimal("4.0"),
+                expiration=future_date,
+                ratio="1:1",
+                expired_yn="N",
+                account_id=owner_account_id
+            )
+            session.add(entry)
+            session.commit()
+            session.refresh(entry)
+            entry_id = entry.id
+
+        # Access with different account - should return None (access denied)
+        result = get_rr_watchlist_entry(entry_id, account_id=other_account_id)
+
+        assert result is None
+
+        # Cleanup with correct account
+        delete_rr_watchlist_entry(entry_id, account_id=owner_account_id)
+
+    def test_delete_rr_entry_with_string_account_id(self):
+        """
+        Regression test: Verify delete_rr_watchlist_entry works when database has UUID
+        but code passes string account_id.
+        """
+        from uuid import uuid4
+
+        account_id_str = str(uuid4())
+        future_date = date.today() + timedelta(days=30)
+
+        # Create account first (for foreign key constraint)
+        self._create_test_account(account_id_str)
+
+        # Create RR entry
+        with Session(engine) as session:
+            entry = RRWatchlist(
+                ticker="TEST",
+                call_strike=Decimal("110.0"),
+                put_strike=Decimal("90.0"),
+                call_quantity=1,
+                put_quantity=1,
+                stock_price=Decimal("100.0"),
+                entry_price=Decimal("1.0"),
+                call_option_quote=Decimal("5.0"),
+                put_option_quote=Decimal("4.0"),
+                expiration=future_date,
+                ratio="1:1",
+                expired_yn="N",
+                account_id=account_id_str
+            )
+            session.add(entry)
+            session.commit()
+            session.refresh(entry)
+            entry_id = entry.id
+
+        # Delete with string account_id - should work
+        result = delete_rr_watchlist_entry(entry_id, account_id=account_id_str)
+
+        assert result is True
+
+        # Verify entry is deleted
+        with Session(engine) as session:
+            deleted = session.get(RRWatchlist, entry_id)
+            assert deleted is None

@@ -361,3 +361,132 @@ class TestGetWatchlistStocksWithMetrics:
         assert "is_earnings_date_estimate" in metrics[0]
         assert metrics[0]["next_earnings_date"] == future_date
         assert metrics[0]["is_earnings_date_estimate"] is True
+
+
+class TestUUIDStringCompatibility:
+    """
+    Regression tests for UUID vs string compatibility.
+
+    These tests verify that ownership checks work correctly when:
+    - Database stores account_id as UUID type (PostgreSQL)
+    - Session/code passes account_id as string
+
+    This bug was introduced when we changed model types from UUID to str,
+    but existing production data still had UUID types that SQLAlchemy
+    returns as UUID objects (bypassing model validators).
+    """
+
+    def _create_test_account(self, account_id_str: str):
+        """Helper to create a test account for foreign key constraints."""
+        from app.models.account import Account
+        with Session(engine) as session:
+            account = Account(
+                id=account_id_str,
+                email=f"test-{account_id_str[:8]}@example.com",
+                google_sub=f"google-{account_id_str[:8]}"
+            )
+            session.add(account)
+            session.commit()
+
+    def test_get_watchlist_with_uuid_account_id_in_db(self):
+        """
+        Regression test: Verify ownership check works when database has UUID
+        but code passes string account_id.
+
+        Simulates production scenario where:
+        1. Existing watchlist has account_id stored as UUID in PostgreSQL
+        2. User session provides account_id as string
+        3. Ownership check should still pass (same value, different types)
+        """
+        from uuid import uuid4
+
+        account_id_str = str(uuid4())
+        watchlist_id = str(uuid4())
+
+        # Create account first (for foreign key constraint)
+        self._create_test_account(account_id_str)
+
+        # Create watchlist with account_id
+        with Session(engine) as session:
+            watchlist = WatchList(
+                watchlist_id=watchlist_id,
+                watchlist_name="Test Watchlist",
+                account_id=account_id_str
+            )
+            session.add(watchlist)
+            session.commit()
+
+        # Access watchlist using STRING account_id (like session would provide)
+        # This should NOT raise "Access denied" error
+        result = get_watchlist(watchlist_id, account_id=account_id_str)
+
+        assert result is not None
+        assert result.watchlist_id == watchlist_id
+        assert result.watchlist_name == "Test Watchlist"
+
+    def test_get_watchlist_wrong_account_still_denied(self):
+        """Verify that access is still denied for wrong account after the fix."""
+        from uuid import uuid4
+
+        owner_account_id = str(uuid4())
+        other_account_id = str(uuid4())
+
+        # Create both accounts (for foreign key constraint)
+        self._create_test_account(owner_account_id)
+        self._create_test_account(other_account_id)
+
+        # Create watchlist owned by one account
+        watchlist = create_watchlist("Test Watchlist", account_id=owner_account_id)
+
+        # Try to access with different account - should be denied
+        with pytest.raises(ValueError, match="Access denied"):
+            get_watchlist(watchlist.watchlist_id, account_id=other_account_id)
+
+    def test_update_watchlist_with_uuid_account_id_in_db(self):
+        """Regression test: Verify update works with UUID in db, string in code."""
+        from uuid import uuid4
+
+        account_id_str = str(uuid4())
+
+        # Create account first (for foreign key constraint)
+        self._create_test_account(account_id_str)
+
+        # Create watchlist
+        watchlist = create_watchlist("Original Name", account_id=account_id_str)
+
+        # Update using string account_id - should work
+        updated = update_watchlist_name(
+            watchlist.watchlist_id,
+            "Updated Name",
+            account_id=account_id_str
+        )
+
+        assert updated.watchlist_name == "Updated Name"
+
+    def test_delete_stock_with_uuid_account_id_in_db(self):
+        """Regression test: Verify delete stock works with UUID in db, string in code."""
+        from uuid import uuid4
+        from tests.conftest import populate_test_stock_prices
+
+        account_id_str = str(uuid4())
+
+        # Create account first (for foreign key constraint)
+        self._create_test_account(account_id_str)
+
+        # Create watchlist and add stock
+        watchlist = create_watchlist("Test Watchlist", account_id=account_id_str)
+        populate_test_stock_prices("AAPL")
+        add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL"], account_id=account_id_str)
+
+        # Remove stock using string account_id - should work
+        result = remove_stock_from_watchlist(
+            watchlist.watchlist_id,
+            "AAPL",
+            account_id=account_id_str
+        )
+
+        assert result is True
+
+        # Verify stock is removed
+        stocks = get_watchlist_stocks(watchlist.watchlist_id)
+        assert len(stocks) == 0
