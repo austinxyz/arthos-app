@@ -14,6 +14,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def to_str(value: Union[str, UUID, None]) -> Optional[str]:
+    """Convert UUID to string, pass through strings, return None for None."""
+    if value is None:
+        return None
+    if isinstance(value, UUID):
+        return str(value)
+    return value
+
+
 def save_rr_to_watchlist(
     ticker: str,
     expiration: str,
@@ -241,7 +250,8 @@ def get_rr_watchlist_entry(rr_uuid: Union[str, UUID], account_id: Optional[Union
     """Get a specific RR watchlist entry by UUID."""
     with Session(engine) as session:
         entry = session.get(RRWatchlist, rr_uuid)
-        if entry and account_id and entry.account_id != account_id:
+        # Convert both to strings for comparison (PostgreSQL returns UUID objects)
+        if entry and account_id and to_str(entry.account_id) != to_str(account_id):
             logger.warning(f"Access denied for RR entry {rr_uuid} for account {account_id}")
             return None
         return entry
@@ -258,9 +268,10 @@ def delete_rr_watchlist_entry(rr_uuid: Union[str, UUID], account_id: Optional[Un
             if not rr_entry:
                 return False
             
-            if account_id and rr_entry.account_id != account_id:
-                 logger.warning(f"Attempt to delete RR entry {rr_uuid} by wrong account {account_id}")
-                 return False
+            # Convert both to strings for comparison (PostgreSQL returns UUID objects)
+            if account_id and to_str(rr_entry.account_id) != to_str(account_id):
+                logger.warning(f"Attempt to delete RR entry {rr_uuid} by wrong account {account_id}")
+                return False
             
             # Delete associated history (cascade should handle this, but explicit is better)
             statement = select(RRHistory).where(RRHistory.rr_uuid == rr_uuid)

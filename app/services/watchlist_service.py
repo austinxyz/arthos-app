@@ -143,8 +143,9 @@ def get_watchlist(watchlist_id: Union[UUID, str], account_id: Optional[Union[UUI
 
         # Verify ownership if watchlist has an owner
         if watchlist.account_id:
-            if not acc_id or watchlist.account_id != acc_id:
-                 raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
+            # Convert both to strings for comparison (PostgreSQL returns UUID objects)
+            if not acc_id or to_str(watchlist.account_id) != acc_id:
+                raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
         return watchlist
 
 
@@ -176,8 +177,9 @@ def update_watchlist_name(watchlist_id: Union[UUID, str], new_name: str, account
 
         # Verify ownership if watchlist has an owner
         if watchlist.account_id:
-            if not acc_id or watchlist.account_id != acc_id:
-                 raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
+            # Convert both to strings for comparison (PostgreSQL returns UUID objects)
+            if not acc_id or to_str(watchlist.account_id) != acc_id:
+                raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
 
         # Check for duplicate name for the same account (or unowned)
         statement = select(WatchList).where(
@@ -227,7 +229,8 @@ def update_watchlist(watchlist_id: Union[UUID, str], watchlist_name: Optional[st
 
         # Verify ownership
         if watchlist.account_id:
-            if not acc_id or watchlist.account_id != acc_id:
+            # Convert both to strings for comparison (PostgreSQL returns UUID objects)
+            if not acc_id or to_str(watchlist.account_id) != acc_id:
                 raise ValueError("Access denied: You do not own this watchlist")
 
         if watchlist_name is not None:
@@ -282,7 +285,8 @@ def delete_watchlist(watchlist_id: Union[UUID, str], account_id: Optional[Union[
 
         # Verify ownership
         if watchlist.account_id:
-            if not acc_id or watchlist.account_id != acc_id:
+            # Convert both to strings for comparison (PostgreSQL returns UUID objects)
+            if not acc_id or to_str(watchlist.account_id) != acc_id:
                 raise ValueError("Access denied: You do not own this watchlist")
 
         session.delete(watchlist)
@@ -451,8 +455,9 @@ def remove_stock_from_watchlist(watchlist_id: Union[UUID, str], ticker: str, acc
             raise ValueError(f"WatchList with ID {watchlist_id} not found")
 
         if watchlist.account_id:
-            if not acc_id or watchlist.account_id != acc_id:
-                 raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
+            # Convert both to strings for comparison (PostgreSQL returns UUID objects)
+            if not acc_id or to_str(watchlist.account_id) != acc_id:
+                raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
 
         # Find and delete the stock
         statement = select(WatchListStock).where(
