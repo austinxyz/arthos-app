@@ -321,6 +321,18 @@
     <!-- Options Section with Tabs -->
     <div class="row mt-5">
         <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4>Options Strategies</h4>
+                <div class="d-flex align-items-center">
+                    {% if options_updated_at %}
+                    <span class="text-muted small me-3">Last updated: {{ options_updated_at.strftime('%Y-%m-%d %H:%M
+                        ET') }}</span>
+                    {% endif %}
+                    <button id="refreshOptionsBtn" class="btn btn-sm btn-outline-primary">
+                        Refresh Data
+                    </button>
+                </div>
+            </div>
             <ul class="nav nav-tabs" id="optionsTabs" role="tablist">
                 <li class="nav-item" role="presentation">
                     <button class="nav-link active" id="covered-calls-tab" data-bs-toggle="tab"
@@ -334,7 +346,8 @@
             </ul>
             <div class="tab-content" id="optionsTabsContent">
                 <!-- Covered Calls Tab -->
-                <div class="tab-pane fade show active" id="covered-calls" role="tabpanel" aria-labelledby="covered-calls-tab">
+                <div class="tab-pane fade show active" id="covered-calls" role="tabpanel"
+                    aria-labelledby="covered-calls-tab">
                     <div class="mt-3">
                         {% if covered_calls and covered_calls|length > 0 %}
                         <!-- Dumbbell Chart Visualization -->
@@ -364,59 +377,69 @@
                                             {# Return if exercised with % and annualized return #}
                                             {% if cc.returnExercised > 0 %}
                                             <span class="text-success">${{ "%.2f"|format(cc.returnExercised) }}</span>
-                                            {% elif cc.returnExercised < 0 %}
-                                            <span class="text-danger">${{ "%.2f"|format(cc.returnExercised) }}</span>
-                                            {% else %}
-                                            ${{ "%.2f"|format(cc.returnExercised) }}
-                                            {% endif %}
-                                            <span class="text-muted"> (</span>
-                                            {% if cc.returnPctExercised > 0 %}
-                                            <span class="text-success">{{ "%.2f"|format(cc.returnPctExercised) }}%</span>
-                                            {% elif cc.returnPctExercised < 0 %}
-                                            <span class="text-danger">{{ "%.2f"|format(cc.returnPctExercised) }}%</span>
-                                            {% else %}
-                                            {{ "%.2f"|format(cc.returnPctExercised) }}%
-                                            {% endif %}
-                                            <span class="text-muted">)</span>
-                                            <br>
-                                            <small class="text-muted">Ann:
-                                                {% if cc.annualizedReturnExercised > 0 %}
-                                                <span class="text-success fw-bold">{{ "%.2f"|format(cc.annualizedReturnExercised) }}%</span>
-                                                {% elif cc.annualizedReturnExercised < 0 %}
-                                                <span class="text-danger fw-bold">{{ "%.2f"|format(cc.annualizedReturnExercised) }}%</span>
+                                            {% elif cc.returnExercised < 0 %} <span class="text-danger">${{
+                                                "%.2f"|format(cc.returnExercised) }}</span>
                                                 {% else %}
-                                                <span class="fw-bold">{{ "%.2f"|format(cc.annualizedReturnExercised) }}%</span>
+                                                ${{ "%.2f"|format(cc.returnExercised) }}
                                                 {% endif %}
-                                            </small>
+                                                <span class="text-muted"> (</span>
+                                                {% if cc.returnPctExercised > 0 %}
+                                                <span class="text-success">{{ "%.2f"|format(cc.returnPctExercised)
+                                                    }}%</span>
+                                                {% elif cc.returnPctExercised < 0 %} <span class="text-danger">{{
+                                                    "%.2f"|format(cc.returnPctExercised) }}%</span>
+                                                    {% else %}
+                                                    {{ "%.2f"|format(cc.returnPctExercised) }}%
+                                                    {% endif %}
+                                                    <span class="text-muted">)</span>
+                                                    <br>
+                                                    <small class="text-muted">Ann:
+                                                        {% if cc.annualizedReturnExercised > 0 %}
+                                                        <span class="text-success fw-bold">{{
+                                                            "%.2f"|format(cc.annualizedReturnExercised) }}%</span>
+                                                        {% elif cc.annualizedReturnExercised < 0 %} <span
+                                                            class="text-danger fw-bold">{{
+                                                            "%.2f"|format(cc.annualizedReturnExercised) }}%</span>
+                                                            {% else %}
+                                                            <span class="fw-bold">{{
+                                                                "%.2f"|format(cc.annualizedReturnExercised) }}%</span>
+                                                            {% endif %}
+                                                    </small>
                                         </td>
                                         <td>
                                             {# Return if not exercised with % and annualized return #}
                                             {% if cc.returnNotExercised > 0 %}
-                                            <span class="text-success">${{ "%.2f"|format(cc.returnNotExercised) }}</span>
-                                            {% elif cc.returnNotExercised < 0 %}
-                                            <span class="text-danger">${{ "%.2f"|format(cc.returnNotExercised) }}</span>
-                                            {% else %}
-                                            ${{ "%.2f"|format(cc.returnNotExercised) }}
-                                            {% endif %}
-                                            <span class="text-muted"> (</span>
-                                            {% if cc.returnPctNotExercised > 0 %}
-                                            <span class="text-success">{{ "%.2f"|format(cc.returnPctNotExercised) }}%</span>
-                                            {% elif cc.returnPctNotExercised < 0 %}
-                                            <span class="text-danger">{{ "%.2f"|format(cc.returnPctNotExercised) }}%</span>
-                                            {% else %}
-                                            {{ "%.2f"|format(cc.returnPctNotExercised) }}%
-                                            {% endif %}
-                                            <span class="text-muted">)</span>
-                                            <br>
-                                            <small class="text-muted">Ann:
-                                                {% if cc.annualizedReturnNotExercised > 0 %}
-                                                <span class="text-success fw-bold">{{ "%.2f"|format(cc.annualizedReturnNotExercised) }}%</span>
-                                                {% elif cc.annualizedReturnNotExercised < 0 %}
-                                                <span class="text-danger fw-bold">{{ "%.2f"|format(cc.annualizedReturnNotExercised) }}%</span>
+                                            <span class="text-success">${{ "%.2f"|format(cc.returnNotExercised)
+                                                }}</span>
+                                            {% elif cc.returnNotExercised < 0 %} <span class="text-danger">${{
+                                                "%.2f"|format(cc.returnNotExercised) }}</span>
                                                 {% else %}
-                                                <span class="fw-bold">{{ "%.2f"|format(cc.annualizedReturnNotExercised) }}%</span>
+                                                ${{ "%.2f"|format(cc.returnNotExercised) }}
                                                 {% endif %}
-                                            </small>
+                                                <span class="text-muted"> (</span>
+                                                {% if cc.returnPctNotExercised > 0 %}
+                                                <span class="text-success">{{ "%.2f"|format(cc.returnPctNotExercised)
+                                                    }}%</span>
+                                                {% elif cc.returnPctNotExercised < 0 %} <span class="text-danger">{{
+                                                    "%.2f"|format(cc.returnPctNotExercised) }}%</span>
+                                                    {% else %}
+                                                    {{ "%.2f"|format(cc.returnPctNotExercised) }}%
+                                                    {% endif %}
+                                                    <span class="text-muted">)</span>
+                                                    <br>
+                                                    <small class="text-muted">Ann:
+                                                        {% if cc.annualizedReturnNotExercised > 0 %}
+                                                        <span class="text-success fw-bold">{{
+                                                            "%.2f"|format(cc.annualizedReturnNotExercised) }}%</span>
+                                                        {% elif cc.annualizedReturnNotExercised < 0 %} <span
+                                                            class="text-danger fw-bold">{{
+                                                            "%.2f"|format(cc.annualizedReturnNotExercised) }}%</span>
+                                                            {% else %}
+                                                            <span class="fw-bold">{{
+                                                                "%.2f"|format(cc.annualizedReturnNotExercised)
+                                                                }}%</span>
+                                                            {% endif %}
+                                                    </small>
                                         </td>
                                         <td>
                                             {# Return Visualization: Fixed width bar chart (250px) #}
@@ -426,51 +449,60 @@
                                             {# Calculate the maximum absolute value for scaling #}
                                             {% set max_val = [stock_app_pct|abs, call_prem_pct|abs]|max %}
                                             {% if max_val == 0 %}
-                                                {% set max_val = 1 %}
+                                            {% set max_val = 1 %}
                                             {% endif %}
 
-                                            {# For ITM calls (strike < current price, negative stock appreciation) #}
-                                            {% if stock_app_pct < 0 %}
-                                                {% set abs_stock = -stock_app_pct %}
-                                                {% set total_abs = abs_stock + call_prem_pct %}
-                                                {% if total_abs > 0 %}
-                                                    {% set red_width = (abs_stock / total_abs) * 250 %}
-                                                    {% set green_width = (call_prem_pct / total_abs) * 250 %}
+                                            {# For ITM calls (strike < current price, negative stock appreciation) #} {%
+                                                if stock_app_pct < 0 %} {% set abs_stock=-stock_app_pct %} {% set
+                                                total_abs=abs_stock + call_prem_pct %} {% if total_abs> 0 %}
+                                                {% set red_width = (abs_stock / total_abs) * 250 %}
+                                                {% set green_width = (call_prem_pct / total_abs) * 250 %}
 
-                                                    <div style="display: flex; height: 25px; width: 250px; border: 1px solid #dee2e6;">
-                                                        <div style="background-color: #dc3545; width: {{ red_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
-                                                            <small style="color: white; font-weight: bold;">{{ "%.1f"|format(stock_app_pct) }}%</small>
-                                                        </div>
-                                                        <div style="background-color: #28a745; width: {{ green_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
-                                                            <small style="color: white; font-weight: bold;">{{ "%.1f"|format(call_prem_pct) }}%</small>
-                                                        </div>
+                                                <div
+                                                    style="display: flex; height: 25px; width: 250px; border: 1px solid #dee2e6;">
+                                                    <div
+                                                        style="background-color: #dc3545; width: {{ red_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
+                                                        <small style="color: white; font-weight: bold;">{{
+                                                            "%.1f"|format(stock_app_pct) }}%</small>
                                                     </div>
+                                                    <div
+                                                        style="background-color: #28a745; width: {{ green_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
+                                                        <small style="color: white; font-weight: bold;">{{
+                                                            "%.1f"|format(call_prem_pct) }}%</small>
+                                                    </div>
+                                                </div>
                                                 {% else %}
-                                                    <span class="text-muted">N/A</span>
+                                                <span class="text-muted">N/A</span>
                                                 {% endif %}
-                                            {% else %}
-                                                {# For OTM calls (strike >= current price, positive stock appreciation) #}
+                                                {% else %}
+                                                {# For OTM calls (strike >= current price, positive stock appreciation)
+                                                #}
                                                 {% set total_pct = stock_app_pct + call_prem_pct %}
                                                 {% if total_pct > 0 %}
-                                                    {% set blue_width = (stock_app_pct / total_pct) * 250 %}
-                                                    {% set green_width = (call_prem_pct / total_pct) * 250 %}
+                                                {% set blue_width = (stock_app_pct / total_pct) * 250 %}
+                                                {% set green_width = (call_prem_pct / total_pct) * 250 %}
 
-                                                    <div style="display: flex; height: 25px; width: 250px; border: 1px solid #dee2e6;">
-                                                        {% if blue_width > 0 %}
-                                                        <div style="background-color: #0d6efd; width: {{ blue_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
-                                                            <small style="color: white; font-weight: bold;">{{ "%.1f"|format(stock_app_pct) }}%</small>
-                                                        </div>
-                                                        {% endif %}
-                                                        {% if green_width > 0 %}
-                                                        <div style="background-color: #28a745; width: {{ green_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
-                                                            <small style="color: white; font-weight: bold;">{{ "%.1f"|format(call_prem_pct) }}%</small>
-                                                        </div>
-                                                        {% endif %}
+                                                <div
+                                                    style="display: flex; height: 25px; width: 250px; border: 1px solid #dee2e6;">
+                                                    {% if blue_width > 0 %}
+                                                    <div
+                                                        style="background-color: #0d6efd; width: {{ blue_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
+                                                        <small style="color: white; font-weight: bold;">{{
+                                                            "%.1f"|format(stock_app_pct) }}%</small>
                                                     </div>
+                                                    {% endif %}
+                                                    {% if green_width > 0 %}
+                                                    <div
+                                                        style="background-color: #28a745; width: {{ green_width|round(1) }}px; display: flex; align-items: center; justify-content: center;">
+                                                        <small style="color: white; font-weight: bold;">{{
+                                                            "%.1f"|format(call_prem_pct) }}%</small>
+                                                    </div>
+                                                    {% endif %}
+                                                </div>
                                                 {% else %}
-                                                    <span class="text-muted">N/A</span>
+                                                <span class="text-muted">N/A</span>
                                                 {% endif %}
-                                            {% endif %}
+                                                {% endif %}
                                         </td>
                                     </tr>
                                     {% endfor %}
@@ -479,7 +511,9 @@
                         </div>
                         {% else %}
                         <div class="alert alert-info">
-                            No enhanced covered call data available. This tab shows covered call opportunities with premiums > 1% of stock price and strike prices at or above current stock price (ATM/OTM calls only).
+                            No enhanced covered call data available. This tab shows covered call opportunities with
+                            premiums > 1% of stock price and strike prices at or above current stock price (ATM/OTM
+                            calls only).
                         </div>
                         {% endif %}
                     </div>
@@ -667,8 +701,8 @@
             close: candlestickData.map(d => d.close),
             type: 'candlestick',
             name: 'Price',
-            increasing: { line: { color: '#26a69a' } },
-            decreasing: { line: { color: '#ef5350' } }
+            increasing: { line: { color: '#26a69a' }},
+            decreasing: { line: { color: '#ef5350' }}
         };
 
         // Order matters: background layers first, then foreground
@@ -800,252 +834,281 @@
 
             // Initialize Covered Calls Dumbbell Chart
             if ($('#coveredCallsDumbbellChart').length) {
-                {% if covered_calls and covered_calls|length > 0 %}
+                {% if covered_calls and covered_calls | length > 0 %}
                 // Prepare data for dumbbell chart (show top 15 opportunities)
                 var dumbbellData = [
-                    {% for cc in covered_calls[:15] %}
-                    {
-                        name: '{{ cc.expirationDate }} - ${{ "%.2f"|format(cc.strike) }}',
-                        low: {{ cc.returnPctNotExercised }},
-                        high: {{ cc.returnPctExercised }}
-                    }{% if not loop.last %},{% endif %}
-                    {% endfor %}
+                    {% for cc in covered_calls[: 15] %}
+            {
+                name: '{{ cc.expirationDate }} - ${{ "%.2f"|format(cc.strike) }}',
+                    low: {{ cc.returnPctNotExercised }},
+                high: {{ cc.returnPctExercised }}
+            } {% if not loop.last %}, {% endif %}
+            {% endfor %}
                 ];
 
-                // Create the dumbbell chart
-                Highcharts.chart('coveredCallsDumbbellChart', {
-                    chart: {
-                        type: 'dumbbell',
-                        inverted: true
-                    },
+            // Create the dumbbell chart
+            Highcharts.chart('coveredCallsDumbbellChart', {
+                chart: {
+                    type: 'dumbbell',
+                    inverted: true
+                },
+                title: {
+                    text: 'Covered Call Returns: Exercised vs Not Exercised (Top 15)',
+                    style: {
+                        fontSize: '18px',
+                        fontWeight: 'bold'
+                    }
+                },
+                subtitle: {
+                    text: 'Spread between two return scenarios for each contract'
+                },
+                xAxis: {
+                    type: 'category',
                     title: {
-                        text: 'Covered Call Returns: Exercised vs Not Exercised (Top 15)',
-                        style: {
-                            fontSize: '18px',
-                            fontWeight: 'bold'
-                        }
+                        text: 'Contract (Date - Strike)'
+                    }
+                },
+                yAxis: {
+                    title: {
+                        text: 'Return %'
                     },
-                    subtitle: {
-                        text: 'Spread between two return scenarios for each contract'
-                    },
-                    xAxis: {
-                        type: 'category',
-                        title: {
-                            text: 'Contract (Date - Strike)'
-                        }
-                    },
-                    yAxis: {
-                        title: {
-                            text: 'Return %'
-                        },
-                        tickInterval: 0.2, // Major grid lines at 0.2% increments
-                        minorTickInterval: 0.1, // Minor ticks between major grid lines
-                        gridLineWidth: 1,
-                        gridLineDashStyle: 'Dash',
-                        gridLineColor: '#e0e0e0',
-                        minorGridLineWidth: 1,
-                        minorGridLineDashStyle: 'Dot',
-                        minorGridLineColor: '#f0f0f0'
-                    },
-                    legend: {
+                    tickInterval: 0.2, // Major grid lines at 0.2% increments
+                    minorTickInterval: 0.1, // Minor ticks between major grid lines
+                    gridLineWidth: 1,
+                    gridLineDashStyle: 'Dash',
+                    gridLineColor: '#e0e0e0',
+                    minorGridLineWidth: 1,
+                    minorGridLineDashStyle: 'Dot',
+                    minorGridLineColor: '#f0f0f0'
+                },
+                legend: {
+                    enabled: true
+                },
+                tooltip: {
+                    shared: false,
+                    useHTML: true,
+                    formatter: function () {
+                        var point = this.point;
+                        var spread = Math.abs(point.high - point.low).toFixed(2);
+                        return '<b>' + point.name + '</b><br/>' +
+                            '<span style="color:#28a745">●</span> Exercised: <b>' + point.high.toFixed(2) + '%</b><br/>' +
+                            '<span style="color:#0d6efd">●</span> Not Exercised: <b>' + point.low.toFixed(2) + '%</b><br/>' +
+                            'Spread: <b>' + spread + '%</b>';
+                    }
+                },
+                series: [{
+                    name: 'Return Range',
+                    data: dumbbellData.map(function (item) {
+                        return {
+                            name: item.name,
+                            low: item.low,
+                            high: item.high
+                        };
+                    }),
+                    color: '#666', // Line color connecting the markers
+                    lineWidth: 2,
+                    marker: {
                         enabled: true
                     },
-                    tooltip: {
-                        shared: false,
-                        useHTML: true,
-                        formatter: function() {
-                            var point = this.point;
-                            var spread = Math.abs(point.high - point.low).toFixed(2);
-                            return '<b>' + point.name + '</b><br/>' +
-                                   '<span style="color:#28a745">●</span> Exercised: <b>' + point.high.toFixed(2) + '%</b><br/>' +
-                                   '<span style="color:#0d6efd">●</span> Not Exercised: <b>' + point.low.toFixed(2) + '%</b><br/>' +
-                                   'Spread: <b>' + spread + '%</b>';
-                        }
-                    },
-                    series: [{
-                        name: 'Return Range',
-                        data: dumbbellData.map(function(item) {
-                            return {
-                                name: item.name,
-                                low: item.low,
-                                high: item.high
-                            };
-                        }),
-                        color: '#666', // Line color connecting the markers
-                        lineWidth: 2,
-                        marker: {
-                            enabled: true
-                        },
-                        lowColor: '#0d6efd', // Blue for "Not Exercised"
-                        color: '#28a745' // Green for "Exercised" (high value)
-                    }]
-                });
-                {% endif %}
-            }
+                    lowColor: '#0d6efd', // Blue for "Not Exercised"
+                    color: '#28a745' // Green for "Exercised" (high value)
+                }]
+            });
+            {% endif %}
+        }
 
             // Initialize Risk Reversal Tables with type filtering
             window.rrTables = window.rrTables || {};
-            window.rrSearchFunctions = window.rrSearchFunctions || {};
+        window.rrSearchFunctions = window.rrSearchFunctions || {};
 
-            if ($('#risk-reversal').length) {
-                $('.risk-reversal-table').each(function () {
-                    const tableId = $(this).attr('id');
-                    if (tableId) {
-                        const table = initDataTable(tableId, {
-                            order: [[6, 'asc']], // Sort by Net Cost $ ascending
-                            responsive: false,
-                            scrollX: false,
-                            autoWidth: true,
-                            columnDefs: [
-                                {
-                                    targets: 0, // Type column
-                                    searchable: true
-                                },
-                                {
-                                    targets: 6, // Net Cost $ column
-                                    type: 'num',
-                                    render: function (data, type, row) {
-                                        if (type === 'sort' || type === 'type') {
-                                            var text = '';
-                                            if (typeof data === 'string' && data.trim().startsWith('<')) {
-                                                var tempDiv = document.createElement('div');
-                                                tempDiv.innerHTML = data;
-                                                text = tempDiv.textContent || tempDiv.innerText || data;
-                                            } else {
-                                                text = String(data || '');
-                                            }
-                                            var match = text.match(/-?\$?([\d.]+)/);
-                                            if (match) {
-                                                var value = parseFloat(match[1]);
-                                                return text.indexOf('-') !== -1 ? -value : value;
-                                            }
-                                            return 0;
+        if ($('#risk-reversal').length) {
+            $('.risk-reversal-table').each(function () {
+                const tableId = $(this).attr('id');
+                if (tableId) {
+                    const table = initDataTable(tableId, {
+                        order: [[6, 'asc']], // Sort by Net Cost $ ascending
+                        responsive: false,
+                        scrollX: false,
+                        autoWidth: true,
+                        columnDefs: [
+                            {
+                                targets: 0, // Type column
+                                searchable: true
+                            },
+                            {
+                                targets: 6, // Net Cost $ column
+                                type: 'num',
+                                render: function (data, type, row) {
+                                    if (type === 'sort' || type === 'type') {
+                                        var text = '';
+                                        if (typeof data === 'string' && data.trim().startsWith('<')) {
+                                            var tempDiv = document.createElement('div');
+                                            tempDiv.innerHTML = data;
+                                            text = tempDiv.textContent || tempDiv.innerText || data;
+                                        } else {
+                                            text = String(data || '');
                                         }
-                                        return data;
+                                        var match = text.match(/-?\$?([\d.]+)/);
+                                        if (match) {
+                                            var value = parseFloat(match[1]);
+                                            return text.indexOf('-') !== -1 ? -value : value;
+                                        }
+                                        return 0;
                                     }
+                                    return data;
                                 }
-                            ]
-                        });
-
-                        window.rrTables[tableId] = table;
-
-                        // Apply initial filter (1:1 selected by default)
-                        if (table) {
-                            table.column(0).search('^1\\:1', true, false);
-                            table.order([[6, 'asc']]).draw();
-                        }
-                    }
-                });
-            }
-
-            // Handle Risk Reversal type filter changes
-            $(document).on('change', 'input[name="rrTypeFilter"]', function () {
-                const selectedType = $(this).val();
-
-                $('.risk-reversal-table').each(function () {
-                    const tableElement = this;
-                    const currentTableId = $(tableElement).attr('id');
-                    if (!currentTableId) return;
-
-                    let currentTable = window.rrTables && window.rrTables[currentTableId];
-                    if (!currentTable) return;
-
-                    // Remove any existing custom search function for this table
-                    if (window.rrSearchFunctions[currentTableId]) {
-                        const existingFunction = window.rrSearchFunctions[currentTableId];
-                        const index = $.fn.dataTable.ext.search.indexOf(existingFunction);
-                        if (index !== -1) {
-                            $.fn.dataTable.ext.search.splice(index, 1);
-                        }
-                        delete window.rrSearchFunctions[currentTableId];
-                    }
-
-                    // Clear any existing column search
-                    currentTable.column(0).search('');
-
-                    if (selectedType === 'all') {
-                        currentTable.draw();
-                    } else {
-                        // Create a custom search function for this specific table
-                        const searchFunction = function (settings, data, dataIndex) {
-                            if (settings.nTable.id !== currentTableId) {
-                                return true;
                             }
+                        ]
+                    });
 
-                            const typeValue = data[0];
-                            let typeText = '';
-                            if (typeof typeValue === 'string') {
-                                if (typeValue.trim().startsWith('<')) {
-                                    const tempDiv = document.createElement('div');
-                                    tempDiv.innerHTML = typeValue;
-                                    typeText = (tempDiv.textContent || tempDiv.innerText || '').trim();
-                                } else {
-                                    typeText = typeValue.trim();
-                                }
-                            } else {
-                                typeText = String(typeValue || '').trim();
-                            }
+                    window.rrTables[tableId] = table;
 
-                            // Match the selected type (handle Collar with sub-type)
-                            if (selectedType === 'Collar') {
-                                return typeText.startsWith('Collar');
-                            }
-                            return typeText.startsWith(selectedType);
-                        };
-
-                        window.rrSearchFunctions[currentTableId] = searchFunction;
-                        $.fn.dataTable.ext.search.push(searchFunction);
-                        currentTable.draw();
+                    // Apply initial filter (1:1 selected by default)
+                    if (table) {
+                        table.column(0).search('^1\\:1', true, false);
+                        table.order([[6, 'asc']]).draw();
                     }
-
-                    currentTable.order([[6, 'asc']]).draw();
-                });
+                }
             });
+        }
 
-            // Handle Save RR button clicks
-            $(document).on('click', '.save-rr-btn', function () {
-                const btn = $(this);
-                const originalText = btn.text();
+        // Handle Risk Reversal type filter changes
+        $(document).on('change', 'input[name="rrTypeFilter"]', function () {
+            const selectedType = $(this).val();
 
-                btn.prop('disabled', true).text('Saving...');
+            $('.risk-reversal-table').each(function () {
+                const tableElement = this;
+                const currentTableId = $(tableElement).attr('id');
+                if (!currentTableId) return;
 
-                const data = {
-                    ticker: btn.data('ticker'),
-                    expiration: btn.data('expiration'),
-                    put_strike: btn.data('put-strike'),
-                    call_strike: btn.data('call-strike'),
-                    ratio: btn.data('ratio'),
-                    current_price: btn.data('current-price')
-                };
+                let currentTable = window.rrTables && window.rrTables[currentTableId];
+                if (!currentTable) return;
 
-                // Add collar-specific data if present
-                if (btn.data('sold-call-strike')) {
-                    data.sold_call_strike = btn.data('sold-call-strike');
-                    data.collar_type = btn.data('collar-type');
+                // Remove any existing custom search function for this table
+                if (window.rrSearchFunctions[currentTableId]) {
+                    const existingFunction = window.rrSearchFunctions[currentTableId];
+                    const index = $.fn.dataTable.ext.search.indexOf(existingFunction);
+                    if (index !== -1) {
+                        $.fn.dataTable.ext.search.splice(index, 1);
+                    }
+                    delete window.rrSearchFunctions[currentTableId];
                 }
 
-                $.ajax({
-                    url: '/api/rr-watchlist/save',
-                    method: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify(data),
-                    success: function (response) {
-                        if (response.success) {
-                            btn.removeClass('btn-primary').addClass('btn-success').text('Saved!');
-                            setTimeout(function () {
-                                btn.prop('disabled', false).removeClass('btn-success').addClass('btn-primary').text(originalText);
-                            }, 2000);
-                        } else {
-                            alert('Error: ' + (response.error || 'Failed to save Risk Reversal'));
-                            btn.prop('disabled', false).text(originalText);
+                // Clear any existing column search
+                currentTable.column(0).search('');
+
+                if (selectedType === 'all') {
+                    currentTable.draw();
+                } else {
+                    // Create a custom search function for this specific table
+                    const searchFunction = function (settings, data, dataIndex) {
+                        if (settings.nTable.id !== currentTableId) {
+                            return true;
                         }
-                    },
-                    error: function (xhr, status, error) {
-                        alert('Error saving Risk Reversal: ' + error);
+
+                        const typeValue = data[0];
+                        let typeText = '';
+                        if (typeof typeValue === 'string') {
+                            if (typeValue.trim().startsWith('<')) {
+                                const tempDiv = document.createElement('div');
+                                tempDiv.innerHTML = typeValue;
+                                typeText = (tempDiv.textContent || tempDiv.innerText || '').trim();
+                            } else {
+                                typeText = typeValue.trim();
+                            }
+                        } else {
+                            typeText = String(typeValue || '').trim();
+                        }
+
+                        // Match the selected type (handle Collar with sub-type)
+                        if (selectedType === 'Collar') {
+                            return typeText.startsWith('Collar');
+                        }
+                        return typeText.startsWith(selectedType);
+                    };
+
+                    window.rrSearchFunctions[currentTableId] = searchFunction;
+                    $.fn.dataTable.ext.search.push(searchFunction);
+                    currentTable.draw();
+                }
+
+                currentTable.order([[6, 'asc']]).draw();
+            });
+        });
+
+        // Handle Save RR button clicks
+        $(document).on('click', '.save-rr-btn', function () {
+            const btn = $(this);
+            const originalText = btn.text();
+
+            btn.prop('disabled', true).text('Saving...');
+
+            const data = {
+                ticker: btn.data('ticker'),
+                expiration: btn.data('expiration'),
+                put_strike: btn.data('put-strike'),
+                call_strike: btn.data('call-strike'),
+                ratio: btn.data('ratio'),
+                current_price: btn.data('current-price')
+            };
+
+            // Add collar-specific data if present
+            if (btn.data('sold-call-strike')) {
+                data.sold_call_strike = btn.data('sold-call-strike');
+                data.collar_type = btn.data('collar-type');
+            }
+
+            $.ajax({
+                url: '/api/rr-watchlist/save',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(data),
+                success: function (response) {
+                    if (response.success) {
+                        btn.removeClass('btn-primary').addClass('btn-success').text('Saved!');
+                        setTimeout(function () {
+                            btn.prop('disabled', false).removeClass('btn-success').addClass('btn-primary').text(originalText);
+                        }, 2000);
+                    } else {
+                        alert('Error: ' + (response.error || 'Failed to save Risk Reversal'));
                         btn.prop('disabled', false).text(originalText);
                     }
-                });
+                },
+                error: function (xhr, status, error) {
+                    alert('Error saving Risk Reversal: ' + error);
+                    btn.prop('disabled', false).text(originalText);
+                }
             });
+        });
+        // Handle Refresh Options button
+        $('#refreshOptionsBtn').on('click', function () {
+            const btn = $(this);
+            const originalText = btn.html();
+            const ticker = "{{ ticker }}";
+
+            // Disable button and show loading state
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Refreshing...');
+
+            $.ajax({
+                url: `/stock/${ticker}/refresh-options`,
+                method: 'POST',
+                contentType: 'application/json',
+                success: function (response) {
+                    if (response.success) {
+                        // Reload page to show new data
+                        window.location.reload();
+                    } else {
+                        alert('Error refreshing data: ' + (response.error || 'Unknown error'));
+                        btn.prop('disabled', false).html(originalText);
+                    }
+                },
+                error: function (xhr, status, error) {
+                    console.error('Error:', error);
+                    alert('Error refreshing data. Please try again.');
+                    btn.prop('disabled', false).html(originalText);
+                }
+            });
+        });
         });
     </script>
 </body>

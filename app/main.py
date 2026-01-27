@@ -552,6 +552,7 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         covered_calls = []
         risk_reversals = {}
         min_distance_rr = None
+        options_updated_at = None
 
         try:
             from app.services.options_strategy_cache_service import (
@@ -600,6 +601,37 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
                     print(f"Using cached risk reversals for {ticker} ({len(risk_reversals)} expirations)")
                 else:
                     print(f"No risk reversals found/computed for {ticker}")
+
+                # Determine last updated timestamp
+                if covered_calls and len(covered_calls) > 0:
+                     # covered_calls is a list of objects (CachedCoveredCall)
+                     # accessing attribute directly
+                     try:
+                        options_updated_at = covered_calls[0].computed_at
+                     except (AttributeError, IndexError):
+                        pass
+                
+                if not options_updated_at and risk_reversals:
+                    # risk_reversals is a dict {date: [list of strategy dicts]}
+                    # The strategy objects in the list are dicts (from to_dict() probably?) 
+                    # status check: get_cached_risk_reversals returns a dict where values are lists of DICTIONARIES (not objects)
+                    # Let's verify this in options_strategy_cache_service.py if needed, 
+                    # but typically we convert to dict for template.
+                    # Wait, get_cached_covered_calls returns list of SQLModel objects usually.
+                    # Let's check get_cached_risk_reversals implementation.
+                    # Assuming it might be objects or dicts. logic below handles both safely.
+                    try:
+                        first_date = next(iter(risk_reversals))
+                        first_list = risk_reversals[first_date]
+                        if first_list:
+                            first_item = first_list[0]
+                            # Check if it's a dict or object
+                            if isinstance(first_item, dict):
+                                options_updated_at = first_item.get('computed_at')
+                            else:
+                                options_updated_at = getattr(first_item, 'computed_at', None)
+                    except (StopIteration, IndexError, AttributeError):
+                        pass
                 
                 # Calculate minimum distance from current price to closest strike (put or call) for highlighting
                 min_distance_rr = None
@@ -639,6 +671,7 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             covered_calls = []
             risk_reversals = {}
             min_distance_rr = None
+            options_updated_at = None
         
         return templates.TemplateResponse("stock_detail.html", {
             "request": request,
@@ -648,7 +681,8 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             "covered_calls": covered_calls,
             "risk_reversals": risk_reversals,
             "current_price": metrics['current_price'],
-            "min_distance_rr": min_distance_rr
+            "min_distance_rr": min_distance_rr,
+            "options_updated_at": options_updated_at
         })
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -658,6 +692,33 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         raise HTTPException(status_code=500, detail=f"Error fetching stock data: {str(e)}")
 
 
+@app.post("/stock/{ticker}/refresh-options")
+async def refresh_options_cache(request: Request, ticker: str = FPath(...)):
+    """
+    Manually refresh the options cache for a specific ticker.
+    This fetches fresh data from MarketData and updates the cache.
+    """
+    from app.services.options_strategy_cache_service import cache_options_strategies_for_ticker
+    
+    ticker = ticker.strip().upper()
+    
+    try:
+        print(f"Manual refresh of options cache for {ticker} requested")
+        result = cache_options_strategies_for_ticker(ticker)
+        
+        return {
+            "success": True,
+            "message": f"Successfully refreshed options data for {ticker}",
+            "details": result
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        # Return 500 but as JSON so frontend can handle it
+        return {
+            "success": False, 
+            "error": f"Error refreshing options: {str(e)}"
+        }
 @app.post("/api/rr-watchlist/save")
 async def save_rr_to_watchlist_api(request: Request):
     """Save a Risk Reversal strategy to the watchlist."""
