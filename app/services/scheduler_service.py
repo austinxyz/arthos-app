@@ -110,6 +110,13 @@ def fetch_all_watchlist_stocks():
         logger.info("✓ Market is open or in post-market window - proceeding with fetch")
         logger.info(f"Current ET time: {et_now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
         logger.info(f"Market open: {market_open}, Post-market: {is_post_market}")
+
+        # Prune expired options from cache before processing
+        try:
+            from app.services.options_strategy_cache_service import prune_expired_options_cache
+            prune_expired_options_cache()
+        except Exception as e:
+            logger.warning(f"Could not prune expired options cache: {e}")
         
         # Get all unique tickers from all watchlists
         logger.debug("Querying database for watchlist tickers...")
@@ -152,6 +159,15 @@ def fetch_all_watchlist_stocks():
                     compute_and_save_trading_metrics(ticker)
                 except Exception as e:
                     logger.warning(f"  Could not compute trading metrics for {ticker}: {e}")
+
+                # Compute and cache options strategies (covered calls & risk reversals)
+                try:
+                    from app.services.options_strategy_cache_service import cache_options_strategies_for_ticker
+                    result = cache_options_strategies_for_ticker(ticker)
+                    if result['covered_calls'] > 0 or result['risk_reversals'] > 0:
+                        logger.info(f"  ✓ Cached {result['covered_calls']} covered calls, {result['risk_reversals']} risk reversals for {ticker}")
+                except Exception as e:
+                    logger.warning(f"  Could not cache options strategies for {ticker}: {e}")
 
                 if new_records > 0:
                     success_count += 1
@@ -354,7 +370,14 @@ def fetch_all_watchlist_stocks_manual(bypass_market_hours: bool = False):
         logger.info(f"Bypass market hours: {bypass_market_hours}")
         if not bypass_market_hours:
             logger.info(f"Market open check: {is_market_open()}")
-        
+
+        # Prune expired options from cache before processing
+        try:
+            from app.services.options_strategy_cache_service import prune_expired_options_cache
+            prune_expired_options_cache()
+        except Exception as e:
+            logger.warning(f"Could not prune expired options cache: {e}")
+
         # Get all unique tickers from all watchlists
         with Session(engine) as session:
             statement = select(WatchListStock.ticker).distinct()
@@ -390,6 +413,15 @@ def fetch_all_watchlist_stocks_manual(bypass_market_hours: bool = False):
                     compute_and_save_trading_metrics(ticker)
                 except Exception as e:
                     logger.warning(f"Could not compute trading metrics for {ticker}: {e}")
+
+                # Compute and cache options strategies (covered calls & risk reversals)
+                try:
+                    from app.services.options_strategy_cache_service import cache_options_strategies_for_ticker
+                    result = cache_options_strategies_for_ticker(ticker)
+                    if result['covered_calls'] > 0 or result['risk_reversals'] > 0:
+                        logger.info(f"Cached {result['covered_calls']} covered calls, {result['risk_reversals']} risk reversals for {ticker}")
+                except Exception as e:
+                    logger.warning(f"Could not cache options strategies for {ticker}: {e}")
 
                 if new_records > 0:
                     success_count += 1

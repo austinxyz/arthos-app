@@ -92,10 +92,10 @@ class TestStockDetailAPI:
         assert 'data-bs-toggle="tab"' in response.text
 
         # Check for Covered Calls tab content
-        assert "Option Data" in response.text or "No options data available" in response.text
-        
-        # Check for Covered Calls tab content
-        assert "Covered Calls" in response.text or "No covered call data available" in response.text
+        assert "Covered Calls" in response.text
+
+        # Check for covered calls data or empty state message
+        assert "Strike" in response.text or "No enhanced covered call data available" in response.text
         
         # Check that page rendered without errors
         assert "Internal Server Error" not in response.text

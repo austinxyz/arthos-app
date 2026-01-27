@@ -548,31 +548,59 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             metrics['next_dividend_date_formatted'] = None
         
         # Get options data with error handling
+        # First try cached data, then fall back to computing on-demand
         covered_calls = []
         risk_reversals = {}
         min_distance_rr = None
 
         try:
-            from app.services.stock_service import (
-                get_all_options_data,
-                calculate_covered_call_returns_v2
+            from app.services.options_strategy_cache_service import (
+                get_cached_covered_calls,
+                get_cached_risk_reversals
             )
 
-            # Calculate covered call returns
+            # Try to get cached covered calls
             try:
-                all_options_data = get_all_options_data(ticker, metrics['current_price'], days_limit=90)
-                covered_calls = calculate_covered_call_returns_v2(all_options_data, metrics['current_price'])
+                covered_calls = get_cached_covered_calls(ticker)
+                
+                if not covered_calls:
+                    print(f"Cache miss for covered calls on {ticker}. Computing and caching...")
+                    # Fallback: compute and populate cache
+                    from app.services.options_strategy_cache_service import compute_and_cache_covered_calls
+                    compute_and_cache_covered_calls(ticker, metrics['current_price'])
+                    
+                    # Retrieve newly cached data
+                    covered_calls = get_cached_covered_calls(ticker)
+                    
+                if covered_calls:
+                     print(f"Using {len(covered_calls)} cached covered calls for {ticker}")
+                else:
+                    print(f"No covered calls found/computed for {ticker}")
+                    
             except Exception as e:
-                print(f"Error calculating covered call returns for {ticker}: {str(e)}")
+                print(f"Error getting covered call returns for {ticker}: {str(e)}")
                 import traceback
                 traceback.print_exc()
                 covered_calls = []
-                
-            # Calculate risk reversal strategies
+
+            # Try to get cached risk reversals
             try:
-                from app.services.stock_service import calculate_risk_reversal_strategies
-                risk_reversals = calculate_risk_reversal_strategies(ticker, metrics['current_price'])
-                    
+                risk_reversals = get_cached_risk_reversals(ticker)
+                
+                if not risk_reversals:
+                     print(f"Cache miss for risk reversals on {ticker}. Computing and caching...")
+                     # Fallback: compute and populate cache
+                     from app.services.options_strategy_cache_service import compute_and_cache_risk_reversals
+                     compute_and_cache_risk_reversals(ticker, metrics['current_price'])
+                     
+                     # Retrieve newly cached data
+                     risk_reversals = get_cached_risk_reversals(ticker)
+                
+                if risk_reversals:
+                    print(f"Using cached risk reversals for {ticker} ({len(risk_reversals)} expirations)")
+                else:
+                    print(f"No risk reversals found/computed for {ticker}")
+                
                 # Calculate minimum distance from current price to closest strike (put or call) for highlighting
                 min_distance_rr = None
                 if risk_reversals and metrics['current_price'] and metrics['current_price'] > 0:

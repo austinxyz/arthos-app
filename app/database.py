@@ -7,6 +7,7 @@ from app.models.scheduler_log import SchedulerLog  # Import to register with met
 from app.models.rr_watchlist import RRWatchlist, RRHistory
 from app.models.rr_history_log import RRHistoryLog  # Import to register with metadata
 from app.models.account import Account # New import, fixed typo
+from app.models.options_cache import CachedCoveredCall, CachedRiskReversal  # Options strategy cache
 
 # Database URL - supports both SQLite (local dev) and PostgreSQL (production)
 # Railway provides DATABASE_URL environment variable automatically
@@ -65,6 +66,10 @@ def create_db_and_tables():
     # Public Watchlist Feature Migrations
     _migrate_watchlist_is_public_column()
     _migrate_watchlist_stocks_entry_price_column()
+
+    # Options Strategy Cache Tables
+    _create_options_cache_tables()
+    _create_options_cache_indexes()
     
 
 
@@ -1066,3 +1071,97 @@ def _backfill_trading_metrics():
         print(f"Warning: Could not backfill trading metrics: {e}")
 
 
+def _create_options_cache_tables():
+    """Create options cache tables if they don't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            # Check and create cached_covered_call table
+            if is_sqlite:
+                result = session.exec(text(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='cached_covered_call'"
+                )).all()
+                if not result:
+                    SQLModel.metadata.create_all(engine)
+                    print("Created cached_covered_call table")
+            else:
+                result = session.exec(text(
+                    "SELECT tablename FROM pg_tables WHERE tablename = 'cached_covered_call'"
+                )).all()
+                if not result:
+                    SQLModel.metadata.create_all(engine)
+                    print("Created cached_covered_call table")
+
+            # Check and create cached_risk_reversal table
+            if is_sqlite:
+                result = session.exec(text(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='cached_risk_reversal'"
+                )).all()
+                if not result:
+                    SQLModel.metadata.create_all(engine)
+                    print("Created cached_risk_reversal table")
+            else:
+                result = session.exec(text(
+                    "SELECT tablename FROM pg_tables WHERE tablename = 'cached_risk_reversal'"
+                )).all()
+                if not result:
+                    SQLModel.metadata.create_all(engine)
+                    print("Created cached_risk_reversal table")
+
+    except Exception as e:
+        print(f"Warning: Could not create options cache tables: {e}")
+
+
+def _create_options_cache_indexes():
+    """Create indexes on options cache tables for faster queries."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            # Index on cached_covered_call(ticker, expiration_date)
+            if is_sqlite:
+                result = session.exec(text(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_cached_covered_call_ticker_exp'"
+                )).all()
+                if not result:
+                    session.exec(text(
+                        "CREATE INDEX idx_cached_covered_call_ticker_exp ON cached_covered_call(ticker, expiration_date)"
+                    ))
+                    session.commit()
+                    print("Created index idx_cached_covered_call_ticker_exp")
+            else:
+                result = session.exec(text(
+                    "SELECT indexname FROM pg_indexes WHERE tablename = 'cached_covered_call' AND indexname = 'idx_cached_covered_call_ticker_exp'"
+                )).all()
+                if not result:
+                    session.exec(text(
+                        "CREATE INDEX idx_cached_covered_call_ticker_exp ON cached_covered_call(ticker, expiration_date)"
+                    ))
+                    session.commit()
+                    print("Created index idx_cached_covered_call_ticker_exp")
+
+            # Index on cached_risk_reversal(ticker, expiration_date)
+            if is_sqlite:
+                result = session.exec(text(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_cached_risk_reversal_ticker_exp'"
+                )).all()
+                if not result:
+                    session.exec(text(
+                        "CREATE INDEX idx_cached_risk_reversal_ticker_exp ON cached_risk_reversal(ticker, expiration_date)"
+                    ))
+                    session.commit()
+                    print("Created index idx_cached_risk_reversal_ticker_exp")
+            else:
+                result = session.exec(text(
+                    "SELECT indexname FROM pg_indexes WHERE tablename = 'cached_risk_reversal' AND indexname = 'idx_cached_risk_reversal_ticker_exp'"
+                )).all()
+                if not result:
+                    session.exec(text(
+                        "CREATE INDEX idx_cached_risk_reversal_ticker_exp ON cached_risk_reversal(ticker, expiration_date)"
+                    ))
+                    session.commit()
+                    print("Created index idx_cached_risk_reversal_ticker_exp")
+
+    except Exception as e:
+        print(f"Warning: Could not create options cache indexes: {e}")
