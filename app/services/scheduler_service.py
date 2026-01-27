@@ -10,6 +10,8 @@ from app.services.stock_price_service import fetch_and_save_stock_prices, comput
 from datetime import datetime, time
 import pytz
 import logging
+import random
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +151,20 @@ def fetch_all_watchlist_stocks():
         success_count = 0
         error_count = 0
         
+        # Jitter initialization
+        next_pause_count = random.randint(1, 10)
+        processed_count_since_pause = 0
+        
         for idx, ticker in enumerate(unique_tickers, 1):
+            # Jitter logic
+            processed_count_since_pause += 1
+            if processed_count_since_pause >= next_pause_count:
+                pause_duration = random.randint(1, 10)
+                logger.info(f"  ...Cooling off for {pause_duration}s to avoid rate limiting...")
+                time.sleep(pause_duration)
+                processed_count_since_pause = 0
+                next_pause_count = random.randint(1, 10)
+            
             logger.info(f"[{idx}/{len(unique_tickers)}] Processing {ticker}...")
             try:
                 price_data, new_records = fetch_and_save_stock_prices(ticker)
@@ -413,9 +428,22 @@ def fetch_all_watchlist_stocks_manual(bypass_market_hours: bool = False):
         success_count = 0
         error_count = 0
         
-        for ticker in unique_tickers:
+        # Jitter initialization
+        next_pause_count = random.randint(1, 10)
+        processed_count_since_pause = 0
+        
+        for idx, ticker in enumerate(unique_tickers, 1):
+            # Jitter logic
+            processed_count_since_pause += 1
+            if processed_count_since_pause >= next_pause_count:
+                pause_duration = random.randint(1, 10)
+                logger.info(f"  ...Cooling off for {pause_duration}s to avoid rate limiting...")
+                time.sleep(pause_duration)
+                processed_count_since_pause = 0
+                next_pause_count = random.randint(1, 10)
+
             try:
-                logger.info(f"Fetching data for {ticker}...")
+                logger.info(f"[{idx}/{len(unique_tickers)}] Fetching data for {ticker}...")
                 price_data, new_records = fetch_and_save_stock_prices(ticker)
 
                 # Compute and save trading metrics (devstep, signal, etc.) to stock_attributes
@@ -563,7 +591,20 @@ def update_rr_history():
         error_count = 0
         expired_count = 0
         
-        for entry in active_entries:
+        # Jitter initialization
+        next_pause_count = random.randint(1, 10)
+        processed_count_since_pause = 0
+        
+        for idx, entry in enumerate(active_entries, 1):
+            # Jitter logic
+            processed_count_since_pause += 1
+            if processed_count_since_pause >= next_pause_count:
+                pause_duration = random.randint(1, 10)
+                logger.info(f"  ...Cooling off for {pause_duration}s to avoid rate limiting...")
+                time.sleep(pause_duration)
+                processed_count_since_pause = 0
+                next_pause_count = random.randint(1, 10)
+                
             try:
                 # Check if expired
                 if entry.expiration < today:
@@ -840,7 +881,22 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
         error_count = 0
         expired_count = 0
         
-        for entry in active_entries:
+        expired_count = 0
+        
+        # Jitter initialization
+        next_pause_count = random.randint(1, 10)
+        processed_count_since_pause = 0
+        
+        for idx, entry in enumerate(active_entries, 1):
+            # Jitter logic
+            processed_count_since_pause += 1
+            if processed_count_since_pause >= next_pause_count:
+                pause_duration = random.randint(1, 10)
+                logger.info(f"  ...Cooling off for {pause_duration}s to avoid rate limiting...")
+                time.sleep(pause_duration)
+                processed_count_since_pause = 0
+                next_pause_count = random.randint(1, 10)
+            
             try:
                 # Check if expired
                 if entry.expiration < today:
