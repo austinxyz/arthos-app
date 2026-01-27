@@ -1,5 +1,5 @@
 """WatchList models."""
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import SQLModel, Field, Relationship, VARCHAR
 from datetime import datetime
 from uuid import UUID, uuid4
 from typing import Optional, List, TYPE_CHECKING
@@ -44,7 +44,8 @@ class WatchList(SQLModel, table=True):
     # Relationships
     stocks: List["WatchListStock"] = Relationship(back_populates="watchlist", cascade_delete=True)
     # Foreign Key to Account
-    account_id: Optional[UUID] = Field(default=None, foreign_key="account.id", index=True)
+    # Must match Account.id type (VARCHAR(36)) for Postgres compatibility
+    account_id: Optional[UUID] = Field(default=None, foreign_key="account.id", index=True, sa_type=VARCHAR(36))
     account: Optional["Account"] = Relationship(back_populates="watchlists")
 
 
