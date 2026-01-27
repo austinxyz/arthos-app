@@ -237,6 +237,16 @@ def start_scheduler():
     logger.info("INITIALIZING SCHEDULER")
     logger.info("="*80)
     
+    # helper for bool env var
+    import os
+    auto_start = os.getenv("SCHEDULER_AUTO_START", "true").lower() == "true"
+    
+    if not auto_start:
+        logger.warning("⚠ SCHEDULER AUTO-START DISABLED (Dev Mode)")
+        logger.info("  Set SCHEDULER_AUTO_START=true in .env to enable automatic scheduling.")
+        logger.info("  You can still trigger jobs manually via debug endpoints.")
+        return
+
     if scheduler is not None and scheduler.running:
         logger.warning("⚠ Scheduler is already running - skipping initialization")
         return
