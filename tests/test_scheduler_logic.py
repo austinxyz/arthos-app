@@ -10,6 +10,7 @@ Test cases to verify scheduler logic matches requirements:
 8. Manual trigger fills missing data and makes data current
 9. Every scheduler run logs to scheduler_log
 10. Never fetch yfinance on demand except first time stock is added
+11. Cleanup job deletes log entries older than 72 hours
 """
 import pytest
 from datetime import datetime, date, timedelta
@@ -18,9 +19,10 @@ from app.database import engine
 from app.models.stock_price import StockPrice, StockAttributes
 from app.models.watchlist import WatchList, WatchListStock
 from app.models.scheduler_log import SchedulerLog
+from app.models.rr_history_log import RRHistoryLog
 from app.services.watchlist_service import add_stocks_to_watchlist, create_watchlist
 from app.services.stock_price_service import (
-    get_stock_attributes, 
+    get_stock_attributes,
     fetch_and_save_stock_prices,
     get_stock_prices_as_dataframe
 )
@@ -46,10 +48,12 @@ def setup_database():
             session.delete(attr)
         for log in session.exec(select(SchedulerLog)).all():
             session.delete(log)
+        for log in session.exec(select(RRHistoryLog)).all():
+            session.delete(log)
         session.commit()
-    
+
     yield
-    
+
     # Cleanup after
     with Session(engine) as session:
         for stock in session.exec(select(WatchListStock)).all():
@@ -61,6 +65,8 @@ def setup_database():
         for attr in session.exec(select(StockAttributes)).all():
             session.delete(attr)
         for log in session.exec(select(SchedulerLog)).all():
+            session.delete(log)
+        for log in session.exec(select(RRHistoryLog)).all():
             session.delete(log)
         session.commit()
 
@@ -280,3 +286,77 @@ class TestNoOnDemandFetching:
         # Should have metrics without calling yfinance
         assert metrics is not None
         assert 'current_price' in metrics or 'close_price' in metrics
+
+
+class TestSchedulerLogCleanup:
+    """Test that old scheduler log entries are cleaned up correctly."""
+
+    def test_cleanup_deletes_old_entries(self, setup_database):
+        """
+        Test that cleanup_old_scheduler_logs deletes entries older than 72 hours.
+        """
+        from app.models.rr_history_log import RRHistoryLog
+        from app.services.scheduler_service import cleanup_old_scheduler_logs
+
+        # Create some log entries - some old (4 days ago), some recent (1 hour ago)
+        old_time = datetime.now() - timedelta(days=4)
+        recent_time = datetime.now() - timedelta(hours=1)
+
+        with Session(engine) as session:
+            # Old scheduler_log entries (should be deleted)
+            for i in range(3):
+                session.add(SchedulerLog(
+                    start_time=old_time,
+                    end_time=old_time + timedelta(minutes=5),
+                    notes=f"Old entry {i}"
+                ))
+
+            # Recent scheduler_log entries (should be kept)
+            for i in range(2):
+                session.add(SchedulerLog(
+                    start_time=recent_time,
+                    end_time=recent_time + timedelta(minutes=5),
+                    notes=f"Recent entry {i}"
+                ))
+
+            # Old rr_history_log entries (should be deleted)
+            for i in range(2):
+                session.add(RRHistoryLog(
+                    start_time=old_time,
+                    end_time=old_time + timedelta(minutes=5),
+                    notes=f"Old RR entry {i}"
+                ))
+
+            # Recent rr_history_log entries (should be kept)
+            session.add(RRHistoryLog(
+                start_time=recent_time,
+                end_time=recent_time + timedelta(minutes=5),
+                notes="Recent RR entry"
+            ))
+
+            session.commit()
+
+        # Verify entries were created
+        with Session(engine) as session:
+            scheduler_logs = session.exec(select(SchedulerLog)).all()
+            rr_logs = session.exec(select(RRHistoryLog)).all()
+            assert len(scheduler_logs) == 5  # 3 old + 2 recent
+            assert len(rr_logs) == 3  # 2 old + 1 recent
+
+        # Run cleanup
+        cleanup_old_scheduler_logs()
+
+        # Verify old entries were deleted, recent ones kept
+        with Session(engine) as session:
+            scheduler_logs = session.exec(select(SchedulerLog)).all()
+            rr_logs = session.exec(select(RRHistoryLog)).all()
+
+            # Should only have the recent entries
+            assert len(scheduler_logs) == 2, f"Expected 2 recent scheduler_log entries, got {len(scheduler_logs)}"
+            assert len(rr_logs) == 1, f"Expected 1 recent rr_history_log entry, got {len(rr_logs)}"
+
+            # Verify the remaining entries are the recent ones
+            for log in scheduler_logs:
+                assert "Recent entry" in log.notes
+            for log in rr_logs:
+                assert "Recent RR entry" in log.notes

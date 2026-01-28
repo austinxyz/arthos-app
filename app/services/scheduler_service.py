@@ -7,7 +7,7 @@ from app.database import engine
 from app.models.watchlist import WatchListStock
 from app.models.scheduler_log import SchedulerLog
 from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 import pytz
 import logging
 import random
@@ -377,7 +377,17 @@ def start_scheduler():
         name='Update RR history (every 60 min)',
         replace_existing=True
     )
-    
+
+    # 6. Cleanup old scheduler logs: Daily at 5:00 AM ET
+    logger.info("Registering job: cleanup_old_scheduler_logs (daily 05:00 ET)")
+    scheduler.add_job(
+        func=cleanup_old_scheduler_logs,
+        trigger=CronTrigger(hour=5, minute=0, timezone=ET_TIMEZONE),
+        id='cleanup_old_scheduler_logs',
+        name='Cleanup old scheduler logs (daily 05:00 ET)',
+        replace_existing=True
+    )
+
     logger.info("Starting scheduler...")
     scheduler.start()
     logger.info("✓ Scheduler started successfully")
@@ -1081,5 +1091,50 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
                         session.commit()
             except Exception as log_error:
                 logger.error(f"Error updating RR history log entry: {str(log_error)}")
-        
+
         raise
+
+
+def cleanup_old_scheduler_logs():
+    """
+    Delete scheduler log entries older than 72 hours.
+    Cleans up both scheduler_log and rr_history_log tables.
+    Scheduled to run daily at 5:00 AM ET.
+    """
+    from app.models.rr_history_log import RRHistoryLog
+
+    cutoff_time = datetime.now() - timedelta(hours=72)
+
+    logger.info("="*80)
+    logger.info("SCHEDULER JOB TRIGGERED: cleanup_old_scheduler_logs()")
+    logger.info(f"Deleting log entries older than {cutoff_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info("="*80)
+
+    try:
+        scheduler_deleted = 0
+        rr_history_deleted = 0
+
+        # Delete old scheduler_log entries
+        with Session(engine) as session:
+            statement = select(SchedulerLog).where(SchedulerLog.start_time < cutoff_time)
+            old_entries = session.exec(statement).all()
+            scheduler_deleted = len(old_entries)
+            for entry in old_entries:
+                session.delete(entry)
+            session.commit()
+
+        # Delete old rr_history_log entries
+        with Session(engine) as session:
+            statement = select(RRHistoryLog).where(RRHistoryLog.start_time < cutoff_time)
+            old_entries = session.exec(statement).all()
+            rr_history_deleted = len(old_entries)
+            for entry in old_entries:
+                session.delete(entry)
+            session.commit()
+
+        logger.info(f"✓ Cleanup completed: Deleted {scheduler_deleted} scheduler_log entries, {rr_history_deleted} rr_history_log entries")
+
+    except Exception as e:
+        logger.error(f"Error in cleanup_old_scheduler_logs: {str(e)}")
+        import traceback
+        traceback.print_exc()
