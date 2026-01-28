@@ -351,12 +351,20 @@ class TestSchedulerLogCleanup:
             scheduler_logs = session.exec(select(SchedulerLog)).all()
             rr_logs = session.exec(select(RRHistoryLog)).all()
 
-            # Should only have the recent entries
-            assert len(scheduler_logs) == 2, f"Expected 2 recent scheduler_log entries, got {len(scheduler_logs)}"
+            # Should have recent entries + 1 new entry from cleanup job itself
+            assert len(scheduler_logs) == 3, f"Expected 3 scheduler_log entries (2 recent + 1 cleanup), got {len(scheduler_logs)}"
             assert len(rr_logs) == 1, f"Expected 1 recent rr_history_log entry, got {len(rr_logs)}"
 
-            # Verify the remaining entries are the recent ones
+            # Verify the remaining entries are the recent ones + cleanup log
+            recent_count = 0
+            cleanup_count = 0
             for log in scheduler_logs:
-                assert "Recent entry" in log.notes
+                if "Recent entry" in log.notes:
+                    recent_count += 1
+                elif "Cleanup completed" in log.notes:
+                    cleanup_count += 1
+            assert recent_count == 2, f"Expected 2 recent entries, got {recent_count}"
+            assert cleanup_count == 1, f"Expected 1 cleanup entry, got {cleanup_count}"
+
             for log in rr_logs:
                 assert "Recent RR entry" in log.notes

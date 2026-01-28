@@ -1100,21 +1100,38 @@ def cleanup_old_scheduler_logs():
     Delete scheduler log entries older than 72 hours.
     Cleans up both scheduler_log and rr_history_log tables.
     Scheduled to run daily at 5:00 AM ET.
+    Creates a log entry in scheduler_log table for tracking.
     """
     from app.models.rr_history_log import RRHistoryLog
 
-    cutoff_time = datetime.now() - timedelta(hours=72)
+    start_time = datetime.now()
+    cutoff_time = start_time - timedelta(hours=72)
+    log_id = None
 
     logger.info("="*80)
     logger.info("SCHEDULER JOB TRIGGERED: cleanup_old_scheduler_logs()")
+    logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info(f"Deleting log entries older than {cutoff_time.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("="*80)
 
     try:
+        # Create log entry at start
+        with Session(engine) as session:
+            log_entry = SchedulerLog(
+                start_time=start_time,
+                end_time=None,
+                notes="Scheduler log cleanup job started"
+            )
+            session.add(log_entry)
+            session.commit()
+            session.refresh(log_entry)
+            log_id = log_entry.id
+        logger.info(f"✓ Created scheduler_log entry with ID: {log_id}")
+
         scheduler_deleted = 0
         rr_history_deleted = 0
 
-        # Delete old scheduler_log entries
+        # Delete old scheduler_log entries (excluding current run which is within 72 hours)
         with Session(engine) as session:
             statement = select(SchedulerLog).where(SchedulerLog.start_time < cutoff_time)
             old_entries = session.exec(statement).all()
@@ -1132,9 +1149,33 @@ def cleanup_old_scheduler_logs():
                 session.delete(entry)
             session.commit()
 
-        logger.info(f"✓ Cleanup completed: Deleted {scheduler_deleted} scheduler_log entries, {rr_history_deleted} rr_history_log entries")
+        # Update log entry with completion info
+        end_time = datetime.now()
+        notes = f"Cleanup completed: Deleted {scheduler_deleted} scheduler_log, {rr_history_deleted} rr_history_log entries"
+
+        with Session(engine) as session:
+            log_entry = session.get(SchedulerLog, log_id)
+            if log_entry:
+                log_entry.end_time = end_time
+                log_entry.notes = notes
+                session.add(log_entry)
+                session.commit()
+
+        logger.info(f"✓ {notes}")
 
     except Exception as e:
         logger.error(f"Error in cleanup_old_scheduler_logs: {str(e)}")
+        # Update log entry to mark as failed
+        if log_id:
+            try:
+                with Session(engine) as session:
+                    log_entry = session.get(SchedulerLog, log_id)
+                    if log_entry:
+                        log_entry.end_time = datetime.now()
+                        log_entry.notes = f"FAILED: {str(e)}"
+                        session.add(log_entry)
+                        session.commit()
+            except Exception as log_error:
+                logger.error(f"Could not update log entry: {log_error}")
         import traceback
         traceback.print_exc()
