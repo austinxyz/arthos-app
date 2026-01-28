@@ -170,6 +170,18 @@ def update_stock_prices_for_all_watchlists():
         
     except Exception as e:
         logger.error(f"Error in update_stock_prices_for_all_watchlists: {str(e)}")
+        # Update log entry to mark as failed
+        if log_id:
+            try:
+                with Session(engine) as session:
+                    log_entry = session.get(SchedulerLog, log_id)
+                    if log_entry:
+                        log_entry.end_time = datetime.now()
+                        log_entry.notes = f"FAILED: {str(e)}"
+                        session.add(log_entry)
+                        session.commit()
+            except Exception as log_error:
+                logger.error(f"Could not update log entry: {log_error}")
 
 
 def update_options_cache_for_all_watchlists():
@@ -273,6 +285,18 @@ def update_options_cache_for_all_watchlists():
 
     except Exception as e:
         logger.error(f"Error in update_options_cache_for_all_watchlists: {str(e)}")
+        # Update log entry to mark as failed
+        if log_id:
+            try:
+                with Session(engine) as session:
+                    log_entry = session.get(SchedulerLog, log_id)
+                    if log_entry:
+                        log_entry.end_time = datetime.now()
+                        log_entry.notes = f"FAILED: {str(e)}"
+                        session.add(log_entry)
+                        session.commit()
+            except Exception as log_error:
+                logger.error(f"Could not update log entry: {log_error}")
 
 
 def start_scheduler():
@@ -485,7 +509,21 @@ def fetch_all_watchlist_stocks_manual(bypass_market_hours: bool = False):
 
     except Exception as e:
         logger.error(f"Error in fetch_all_watchlist_stocks_manual: {str(e)}")
+        # Update log entry to mark as failed
+        if log_id:
+            try:
+                with Session(engine) as session:
+                    log_entry = session.get(SchedulerLog, log_id)
+                    if log_entry:
+                        log_entry.end_time = datetime.now()
+                        log_entry.notes = f"FAILED: {str(e)}"
+                        session.add(log_entry)
+                        session.commit()
+            except Exception as log_error:
+                logger.error(f"Could not update log entry: {log_error}")
         return None
+
+
 def update_rr_history():
     """
     Update Risk Reversal history by recalculating net cost for all active entries.
