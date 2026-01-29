@@ -63,7 +63,7 @@
                         </div>
                         <div class="col-md-6 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary me-2">View Data</button>
-                            <button type="button" class="btn btn-success" onclick="fetchData()">Fetch from yfinance</button>
+                            <button type="button" class="btn btn-success" onclick="fetchData()">Force Refresh</button>
                         </div>
                     </div>
                     <div class="error-message" id="errorMessage"></div>
@@ -161,7 +161,7 @@
         </div>
         {% elif ticker %}
         <div class="alert alert-info" role="alert">
-            No price data found for ticker <strong>{{ ticker }}</strong>. Click "Fetch from yfinance" to fetch and save data.
+            No price data found for ticker <strong>{{ ticker }}</strong>. Click "Force Refresh" to fetch data, clear cache, and recalculate metrics.
         </div>
         {% endif %}
     </div>

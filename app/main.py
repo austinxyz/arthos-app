@@ -1356,28 +1356,44 @@ async def debug_stock_price_page(request: Request, ticker: str = Query("", descr
 @app.post("/debug/stock-price/fetch")
 async def fetch_stock_price_data(ticker: str = Query(..., description="Stock ticker symbol")):
     """
-    Fetch and save stock price data from yfinance.
-    
+    Force refresh stock data, options cache, and trading metrics.
+
+    This endpoint:
+    1. Clears the options cache for this ticker
+    2. Fetches fresh stock price data from yfinance
+    3. Recalculates trading metrics (SMAs, signals, IV)
+
     Args:
         ticker: Stock ticker symbol
-        
+
     Returns:
         JSON response with fetch status
     """
-    from app.services.stock_price_service import fetch_and_save_stock_prices
-    
+    from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics
+    from app.services.options_cache_service import clear_options_cache
+
     if not ticker or not ticker.strip():
         raise HTTPException(status_code=400, detail="Ticker is required")
-    
+
     try:
         ticker = ticker.strip().upper()
+
+        # Step 1: Clear options cache for this ticker
+        clear_options_cache(ticker)
+
+        # Step 2: Fetch and save fresh stock price data
         price_data, new_records = fetch_and_save_stock_prices(ticker)
-        
+
+        # Step 3: Recalculate trading metrics (SMAs, signals, IV)
+        compute_and_save_trading_metrics(ticker)
+
         return {
-            "message": f"Successfully fetched and saved {new_records} new records",
+            "message": f"Force refreshed {ticker}: {new_records} new price records, options cache cleared, metrics recalculated",
             "ticker": ticker,
             "new_records": new_records,
-            "data_points": len(price_data)
+            "data_points": len(price_data),
+            "cache_cleared": True,
+            "metrics_recalculated": True
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
