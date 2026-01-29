@@ -7,7 +7,7 @@ from app.database import engine
 from app.models.watchlist import WatchListStock
 from app.models.scheduler_log import SchedulerLog
 from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics
-from datetime import datetime, time, timedelta
+from datetime import datetime, time as dt_time, timedelta
 import pytz
 import logging
 import random
@@ -42,8 +42,8 @@ def is_market_open() -> bool:
     
     # Check if current time is within market hours
     current_time = et_now.time()
-    market_open = time(MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE)
-    market_close = time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
+    market_open = dt_time(MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE)
+    market_close = dt_time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
     
     return market_open <= current_time < market_close
 
@@ -80,11 +80,11 @@ def update_stock_prices_for_all_watchlists():
         # Check if market is open (unless this is the post-market update)
         et_now = datetime.now(ET_TIMEZONE)
         current_time = et_now.time()
-        market_close = time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
-        
+        market_close = dt_time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
+
         # Allow execution if market is open OR if it's the post-market update
         # Post-market window expanded slightly to catch closing prices (4:00 PM - 4:20 PM)
-        is_post_market = market_close <= current_time <= time(16, 20)
+        is_post_market = market_close <= current_time <= dt_time(16, 20)
         market_open = is_market_open()
         
         if not market_open and not is_post_market:
@@ -447,9 +447,9 @@ def fetch_all_watchlist_stocks_manual(bypass_market_hours: bool = False):
         if not bypass_market_hours:
             et_now = datetime.now(ET_TIMEZONE)
             current_time = et_now.time()
-            market_close = time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
+            market_close = dt_time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
 
-            is_post_market = market_close <= current_time <= time(16, 20)
+            is_post_market = market_close <= current_time <= dt_time(16, 20)
             market_open = is_market_open()
 
             if not market_open and not is_post_market:
@@ -568,8 +568,8 @@ def update_rr_history():
         # Check if we should run (market hours or within 60 mins after close)
         et_now = datetime.now(ET_TIMEZONE)
         current_time = et_now.time()
-        market_close = time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
-        post_market_end = time(17, 0)  # 5:00 PM ET (60 mins after 4:00 PM close)
+        market_close = dt_time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
+        post_market_end = dt_time(17, 0)  # 5:00 PM ET (60 mins after 4:00 PM close)
         
         # Allow execution if market is open OR if it's within 60 mins after market close
         is_post_market_window = market_close <= current_time <= post_market_end
@@ -842,8 +842,8 @@ def update_rr_history_manual(bypass_market_hours: bool = False):
         if not bypass_market_hours:
             et_now = datetime.now(ET_TIMEZONE)
             current_time = et_now.time()
-            market_close = time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
-            post_market_end = time(17, 0)  # 5:00 PM ET (60 mins after 4:00 PM close)
+            market_close = dt_time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
+            post_market_end = dt_time(17, 0)  # 5:00 PM ET (60 mins after 4:00 PM close)
             
             # Allow execution if market is open OR if it's within 60 mins after market close
             is_post_market_window = market_close <= current_time <= post_market_end
