@@ -8,7 +8,8 @@ from app.services.stock_price_service import (
     get_stock_metrics_from_db,
     fetch_and_save_stock_prices,
     get_stock_attributes,
-    update_stock_attributes
+    update_stock_attributes,
+    refresh_stock_data
 )
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session
@@ -391,3 +392,56 @@ class TestFetchAndSaveStockPrices:
         assert "is_earnings_date_estimate" in metrics
         assert metrics["next_earnings_date"] == future_date
         assert metrics["is_earnings_date_estimate"] is True
+
+
+class TestRefreshStockData:
+    """Tests for the unified refresh_stock_data function."""
+
+    def test_refresh_stock_data_returns_dict(self):
+        """Test that refresh_stock_data returns a dict with expected keys."""
+        from app.services.stock_price_service import refresh_stock_data
+        from tests.conftest import populate_test_stock_prices
+
+        ticker = "TEST"
+
+        # Populate test data first
+        populate_test_stock_prices(ticker)
+
+        result = refresh_stock_data(ticker, clear_cache=False)
+
+        # Verify result structure
+        assert isinstance(result, dict)
+        assert "ticker" in result
+        assert "success" in result
+        assert "price_records" in result
+        assert "current_price" in result
+        assert "rr_strategies" in result
+        assert "cc_strategies" in result
+        assert result["ticker"] == ticker
+
+    def test_refresh_stock_data_with_clear_cache(self):
+        """Test that refresh_stock_data accepts clear_cache parameter."""
+        from app.services.stock_price_service import refresh_stock_data
+        from tests.conftest import populate_test_stock_prices
+
+        ticker = "TEST2"
+
+        # Populate test data first
+        populate_test_stock_prices(ticker)
+
+        # This should not raise any errors
+        result = refresh_stock_data(ticker, clear_cache=True)
+
+        assert isinstance(result, dict)
+        assert result["ticker"] == ticker
+
+    def test_refresh_stock_data_invalid_ticker(self):
+        """Test refresh_stock_data with an invalid ticker."""
+        from app.services.stock_price_service import refresh_stock_data
+
+        result = refresh_stock_data("INVALID_TICKER_XYZ", clear_cache=False)
+
+        # Should return result with success=False or error message
+        assert isinstance(result, dict)
+        assert result["ticker"] == "INVALID_TICKER_XYZ"
+        # The function should handle this gracefully

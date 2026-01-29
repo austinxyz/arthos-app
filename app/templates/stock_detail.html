@@ -178,7 +178,15 @@
         {% include 'partials/auth_header.html' %}
         <div class="header mb-4">
             <a href="/" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Home</a>
-            <h1>{{ ticker }} - Stock Details</h1>
+            <div class="d-flex align-items-center gap-3">
+                <h1 class="mb-0">{{ ticker }} - Stock Details</h1>
+                <button id="refreshBtn" class="btn btn-outline-primary btn-sm" onclick="refreshStockData()" title="Force refresh all data">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
+                        <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2z"/>
+                        <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466"/>
+                    </svg>
+                </button>
+            </div>
         </div>
 
         <div class="row">
@@ -1085,17 +1093,23 @@
                 }
             });
         });
-        // Handle Refresh Options button
+        // Handle Refresh Options button (legacy, if still present)
         $('#refreshOptionsBtn').on('click', function () {
-            const btn = $(this);
-            const originalText = btn.html();
+            refreshStockData();
+        });
+        });
+
+        // Refresh stock data function - called from header refresh button
+        function refreshStockData() {
+            const btn = $('#refreshBtn');
+            const originalHtml = btn.html();
             const ticker = "{{ ticker }}";
 
-            // Disable button and show loading state
-            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Refreshing...');
+            // Disable button and show loading state with spinning icon
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>');
 
             $.ajax({
-                url: `/stock/${ticker}/refresh-options`,
+                url: `/stock/${ticker}/refresh`,
                 method: 'POST',
                 contentType: 'application/json',
                 success: function (response) {
@@ -1104,17 +1118,16 @@
                         window.location.reload();
                     } else {
                         alert('Error refreshing data: ' + (response.error || 'Unknown error'));
-                        btn.prop('disabled', false).html(originalText);
+                        btn.prop('disabled', false).html(originalHtml);
                     }
                 },
                 error: function (xhr, status, error) {
                     console.error('Error:', error);
                     alert('Error refreshing data. Please try again.');
-                    btn.prop('disabled', false).html(originalText);
+                    btn.prop('disabled', false).html(originalHtml);
                 }
             });
-        });
-        });
+        }
     </script>
 </body>
 

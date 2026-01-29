@@ -6,7 +6,7 @@ from sqlmodel import Session, select
 from app.database import engine
 from app.models.watchlist import WatchListStock
 from app.models.scheduler_log import SchedulerLog
-from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics
+from app.services.stock_price_service import refresh_stock_data
 from datetime import datetime, time as dt_time, timedelta
 from typing import Tuple
 import pytz
@@ -169,17 +169,20 @@ def update_stock_prices_for_all_watchlists(bypass_market_hours: bool = False):
                 processed_count_since_pause = 0
                 next_pause_count = random.randint(1, 10)
 
-            logger.info(f"[{idx}/{len(unique_tickers)}] Fetching prices for {ticker}...")
+            logger.info(f"[{idx}/{len(unique_tickers)}] Refreshing data for {ticker}...")
             try:
-                price_data, new_records = fetch_and_save_stock_prices(ticker)
+                # Use unified refresh_stock_data function
+                # This fetches prices, computes trading metrics, AND caches option strategies
+                # clear_cache=True ensures identical behavior to manual Force Refresh
+                result = refresh_stock_data(ticker, clear_cache=True)
 
-                # Compute and save trading metrics
-                try:
-                    compute_and_save_trading_metrics(ticker)
-                except Exception as e:
-                    logger.warning(f"  Could not compute trading metrics for {ticker}: {e}")
-
-                success_count += 1
+                if result.get("success"):
+                    logger.info(f"  ✓ {ticker}: {result['price_records']} prices, "
+                                f"{result['rr_strategies']} RR, {result['cc_strategies']} CC")
+                    success_count += 1
+                else:
+                    error_count += 1
+                    logger.error(f"  ✗ {ticker}: {result.get('error', 'Unknown error')}")
             except Exception as e:
                 error_count += 1
                 logger.error(f"  ✗ Error for {ticker}: {str(e)}")

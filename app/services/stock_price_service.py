@@ -877,3 +877,112 @@ def get_stock_metrics_from_db(ticker: str) -> Dict[str, Any]:
         "iv_high_52w": round(iv_high_52w, 2) if iv_high_52w is not None else None,
         "iv_low_52w": round(iv_low_52w, 2) if iv_low_52w is not None else None
     }
+
+
+def refresh_stock_data(ticker: str, clear_cache: bool = False) -> Dict[str, Any]:
+    """
+    Unified function to refresh all stock data for a ticker.
+
+    This is the single code path that should be called from:
+    - Scheduler (background jobs)
+    - Force Refresh (debug page and stock detail page)
+    - On-demand cache population (when cache miss occurs)
+
+    The function performs these steps in order:
+    1. (Optional) Clear options cache for the ticker
+    2. Fetch and save fresh stock price data
+    3. Compute and save trading metrics (SMAs, signals, IV)
+    4. Compute and cache option strategies (Risk Reversal, Covered Calls)
+
+    Args:
+        ticker: Stock ticker symbol
+        clear_cache: If True, clears the options cache before fetching new data.
+                     Use True for force refresh scenarios.
+
+    Returns:
+        Dict with refresh results:
+        - ticker: Stock ticker
+        - success: Whether the refresh completed successfully
+        - price_records: Number of new price records added
+        - current_price: Current stock price (if available)
+        - rr_strategies: Number of Risk Reversal strategies cached
+        - cc_strategies: Number of Covered Call strategies cached
+        - error: Error message if failed (only present on failure)
+    """
+    ticker_upper = ticker.strip().upper()
+    result = {
+        "ticker": ticker_upper,
+        "success": False,
+        "price_records": 0,
+        "current_price": None,
+        "rr_strategies": 0,
+        "cc_strategies": 0
+    }
+
+    try:
+        # Step 1: Optionally clear options cache
+        if clear_cache:
+            try:
+                from app.services.options_cache_service import clear_options_cache
+                clear_options_cache(ticker_upper)
+                logger.debug(f"Cleared options cache for {ticker_upper}")
+            except Exception as e:
+                logger.warning(f"Could not clear options cache for {ticker_upper}: {e}")
+
+        # Step 2: Fetch and save fresh stock price data
+        try:
+            price_data, new_records = fetch_and_save_stock_prices(ticker_upper)
+            result["price_records"] = new_records
+
+            if not price_data.empty:
+                result["current_price"] = float(price_data['Close'].iloc[-1])
+        except Exception as e:
+            logger.error(f"Error fetching stock prices for {ticker_upper}: {e}")
+            result["error"] = f"Failed to fetch stock prices: {str(e)}"
+            return result
+
+        # Step 3: Compute and save trading metrics
+        try:
+            compute_and_save_trading_metrics(ticker_upper)
+        except Exception as e:
+            logger.warning(f"Could not compute trading metrics for {ticker_upper}: {e}")
+
+        # Step 4: Compute and cache option strategies
+        current_price = result.get("current_price")
+
+        if current_price and current_price > 0:
+            try:
+                from app.services.options_strategy_cache_service import (
+                    compute_and_cache_risk_reversals,
+                    compute_and_cache_covered_calls
+                )
+
+                # Compute and cache Risk Reversal strategies
+                try:
+                    rr_count = compute_and_cache_risk_reversals(ticker_upper, current_price)
+                    result["rr_strategies"] = rr_count
+                except Exception as e:
+                    logger.warning(f"Could not compute/cache RR strategies for {ticker_upper}: {e}")
+
+                # Compute and cache Covered Call strategies
+                try:
+                    cc_count = compute_and_cache_covered_calls(ticker_upper, current_price)
+                    result["cc_strategies"] = cc_count
+                except Exception as e:
+                    logger.warning(f"Could not compute/cache CC strategies for {ticker_upper}: {e}")
+
+            except ImportError as e:
+                logger.warning(f"Could not import options strategy cache service: {e}")
+        else:
+            logger.debug(f"Skipping option strategy caching for {ticker_upper}: no valid current price")
+
+        result["success"] = True
+        logger.info(f"Refreshed {ticker_upper}: {result['price_records']} prices, "
+                    f"{result['rr_strategies']} RR, {result['cc_strategies']} CC")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error refreshing stock data for {ticker_upper}: {e}")
+        result["error"] = str(e)
+        return result

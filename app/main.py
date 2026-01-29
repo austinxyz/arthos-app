@@ -692,32 +692,45 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         raise HTTPException(status_code=500, detail=f"Error fetching stock data: {str(e)}")
 
 
-@app.post("/stock/{ticker}/refresh-options")
-async def refresh_options_cache(request: Request, ticker: str = FPath(...)):
+@app.post("/stock/{ticker}/refresh")
+async def refresh_stock_data_endpoint(request: Request, ticker: str = FPath(...)):
     """
-    Manually refresh the options cache for a specific ticker.
-    This fetches fresh data from MarketData and updates the cache.
+    Force refresh all data for a specific ticker.
+
+    Uses the unified refresh_stock_data function that:
+    1. Clears the options cache
+    2. Fetches fresh stock price data
+    3. Recalculates trading metrics (SMAs, signals, IV)
+    4. Pre-calculates option strategies (Risk Reversal, Covered Calls)
+
+    This is the same code path used by the scheduler and debug page Force Refresh.
     """
-    from app.services.options_strategy_cache_service import cache_options_strategies_for_ticker
-    
+    from app.services.stock_price_service import refresh_stock_data
+
     ticker = ticker.strip().upper()
-    
+
     try:
-        print(f"Manual refresh of options cache for {ticker} requested")
-        result = cache_options_strategies_for_ticker(ticker)
-        
-        return {
-            "success": True,
-            "message": f"Successfully refreshed options data for {ticker}",
-            "details": result
-        }
+        print(f"Force refresh requested for {ticker} from stock detail page")
+        result = refresh_stock_data(ticker, clear_cache=True)
+
+        if result.get("success"):
+            return {
+                "success": True,
+                "message": f"Refreshed {ticker}: {result['price_records']} prices, "
+                           f"{result['rr_strategies']} RR, {result['cc_strategies']} CC",
+                "details": result
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.get("error", "Unknown error during refresh")
+            }
     except Exception as e:
         import traceback
         traceback.print_exc()
-        # Return 500 but as JSON so frontend can handle it
         return {
-            "success": False, 
-            "error": f"Error refreshing options: {str(e)}"
+            "success": False,
+            "error": f"Error refreshing data: {str(e)}"
         }
 @app.post("/api/rr-watchlist/save")
 async def save_rr_to_watchlist_api(request: Request):
@@ -1358,7 +1371,7 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
     """
     Force refresh stock data, options cache, trading metrics, and option strategies.
 
-    This endpoint:
+    Uses the unified refresh_stock_data function that:
     1. Clears the options cache for this ticker
     2. Fetches fresh stock price data from yfinance
     3. Recalculates trading metrics (SMAs, signals, IV)
@@ -1370,10 +1383,7 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
     Returns:
         JSON response with fetch status
     """
-    from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics
-    from app.services.options_cache_service import clear_options_cache
-    from app.services.stock_service import get_options_data, calculate_covered_call_returns
-    from app.services.options_strategy_cache_service import compute_and_cache_risk_reversals, compute_and_cache_covered_calls
+    from app.services.stock_price_service import refresh_stock_data
 
     if not ticker or not ticker.strip():
         raise HTTPException(status_code=400, detail="Ticker is required")
@@ -1381,48 +1391,29 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
     try:
         ticker = ticker.strip().upper()
 
-        # Step 1: Clear options cache for this ticker
-        clear_options_cache(ticker)
+        # Use unified refresh function with cache clearing enabled
+        result = refresh_stock_data(ticker, clear_cache=True)
 
-        # Step 2: Fetch and save fresh stock price data
-        price_data, new_records = fetch_and_save_stock_prices(ticker)
-
-        # Step 3: Recalculate trading metrics (SMAs, signals, IV)
-        compute_and_save_trading_metrics(ticker)
-
-        # Step 4: Pre-calculate option strategies to warm the cache
-        strategies_calculated = False
-        rr_count = 0
-        cc_count = 0
-
-        if not price_data.empty:
-            current_price = float(price_data['Close'].iloc[-1])
-
-            # Compute and cache Risk Reversal strategies
-            try:
-                rr_count = compute_and_cache_risk_reversals(ticker, current_price)
-                strategies_calculated = True
-            except Exception as e:
-                logger.warning(f"Could not compute/cache RR strategies for {ticker}: {e}")
-
-            # Compute and cache Covered Call strategies
-            try:
-                cc_count = compute_and_cache_covered_calls(ticker, current_price)
-                strategies_calculated = True
-            except Exception as e:
-                logger.warning(f"Could not compute/cache CC strategies for {ticker}: {e}")
+        if not result.get("success"):
+            raise HTTPException(
+                status_code=500,
+                detail=result.get("error", "Failed to refresh stock data")
+            )
 
         return {
-            "message": f"Force refreshed {ticker}: {new_records} price records, {rr_count} RR strategies, {cc_count} CC strategies",
+            "message": f"Force refreshed {ticker}: {result['price_records']} price records, "
+                       f"{result['rr_strategies']} RR strategies, {result['cc_strategies']} CC strategies",
             "ticker": ticker,
-            "new_records": new_records,
-            "data_points": len(price_data),
+            "new_records": result["price_records"],
+            "current_price": result.get("current_price"),
             "cache_cleared": True,
             "metrics_recalculated": True,
-            "strategies_calculated": strategies_calculated,
-            "rr_strategies_count": rr_count,
-            "cc_strategies_count": cc_count
+            "strategies_calculated": result["rr_strategies"] > 0 or result["cc_strategies"] > 0,
+            "rr_strategies_count": result["rr_strategies"],
+            "cc_strategies_count": result["cc_strategies"]
         }
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
