@@ -1,11 +1,13 @@
-"""Tests for RR Watchlist Collar functionality."""
+"""Tests for RR Watchlist Collar functionality.
+
+Note: Uses shared setup_database fixture from conftest.py
+"""
 import pytest
-from uuid import UUID
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from unittest.mock import patch, MagicMock
 from sqlmodel import Session, select
-from app.database import engine, create_db_and_tables
+from app.database import engine
 from app.models.rr_watchlist import RRWatchlist, RRHistory
 from app.services.rr_watchlist_service import (
     save_rr_to_watchlist,
@@ -16,55 +18,9 @@ from app.services.rr_watchlist_service import (
 
 
 @pytest.fixture(autouse=True)
-def setup_database():
-    """Create database tables and clean up before/after each test."""
-    from app.models.account import Account
-    create_db_and_tables()
-
-    # Cleanup before test
-    with Session(engine) as session:
-        # Delete history first (foreign key constraint)
-        statement = select(RRHistory)
-        all_history = session.exec(statement).all()
-        for hist in all_history:
-            session.delete(hist)
-        session.commit()
-
-        # Delete watchlist entries
-        statement = select(RRWatchlist)
-        all_entries = session.exec(statement).all()
-        for entry in all_entries:
-            session.delete(entry)
-        session.commit()
-
-        # Delete accounts
-        statement = select(Account)
-        all_accounts = session.exec(statement).all()
-        for acc in all_accounts:
-            session.delete(acc)
-        session.commit()
-
-    yield
-
-    # Cleanup after test
-    with Session(engine) as session:
-        statement = select(RRHistory)
-        all_history = session.exec(statement).all()
-        for hist in all_history:
-            session.delete(hist)
-        session.commit()
-
-        statement = select(RRWatchlist)
-        all_entries = session.exec(statement).all()
-        for entry in all_entries:
-            session.delete(entry)
-        session.commit()
-
-        statement = select(Account)
-        all_accounts = session.exec(statement).all()
-        for acc in all_accounts:
-            session.delete(acc)
-        session.commit()
+def auto_setup_database(setup_database):
+    """Automatically use the shared setup_database fixture for all tests."""
+    pass
 
 
 def create_mock_option(strike, bid, ask, last_price=None):

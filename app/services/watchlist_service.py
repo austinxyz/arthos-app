@@ -5,21 +5,13 @@ from app.models.watchlist import WatchList, WatchListStock
 from app.models.stock_price import StockPrice
 from app.services.ticker_validator import validate_ticker_list
 from app.services.stock_service import get_multiple_stock_metrics
+from app.utils.type_helpers import to_str
 from datetime import datetime, date
 from typing import List, Dict, Any, Optional, Tuple, Union
 from uuid import UUID
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-def to_str(value: Union[str, UUID, None]) -> Optional[str]:
-    """Convert UUID or string to string for SQLite compatibility."""
-    if value is None:
-        return None
-    if isinstance(value, UUID):
-        return str(value)
-    return value
 
 
 def validate_watchlist_name(name: str) -> bool:

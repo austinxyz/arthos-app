@@ -18,56 +18,49 @@ def client():
     return TestClient(app)
 
 
+def _cleanup_all_tables(session):
+    """
+    Helper to clean up all test-related tables in correct order.
+    Respects foreign key constraints by deleting child tables first.
+    """
+    from app.models.watchlist import WatchList, WatchListStock
+    from app.models.rr_watchlist import RRWatchlist, RRHistory
+    from app.models.scheduler_log import SchedulerLog
+    from app.models.rr_history_log import RRHistoryLog
+    from app.models.account import Account
+
+    # Delete in order respecting foreign keys
+    tables_to_clean = [
+        WatchListStock,  # FK to WatchList
+        WatchList,
+        RRHistory,       # FK to RRWatchlist
+        RRWatchlist,
+        StockPrice,
+        StockAttributes,
+        SchedulerLog,
+        RRHistoryLog,
+        Account,
+    ]
+
+    for model in tables_to_clean:
+        for item in session.exec(select(model)).all():
+            session.delete(item)
+
+    session.commit()
+
+
 @pytest.fixture
 def setup_database():
     """
     Consolidated database setup fixture.
-    Creates tables and cleans up watchlist/RR data before and after tests.
+    Creates tables and cleans up all test data before and after tests.
     Use this fixture for tests that need a clean database state.
     """
-    from app.models.watchlist import WatchList, WatchListStock
-    from app.models.rr_watchlist import RRWatchlist, RRHistory
-
     create_db_and_tables()
 
     # Cleanup before test
     with Session(engine) as session:
-        # Delete watchlist stocks first (foreign key)
-        statement = select(WatchListStock)
-        for stock in session.exec(statement).all():
-            session.delete(stock)
-
-        # Delete watchlists
-        statement = select(WatchList)
-        for watchlist in session.exec(statement).all():
-            session.delete(watchlist)
-
-        # Delete RR history first (foreign key)
-        statement = select(RRHistory)
-        for hist in session.exec(statement).all():
-            session.delete(hist)
-
-        # Delete RR watchlist entries
-        statement = select(RRWatchlist)
-        for entry in session.exec(statement).all():
-            session.delete(entry)
-
-        # Clean stock price data
-        statement = select(StockPrice)
-        for price in session.exec(statement).all():
-            session.delete(price)
-
-        statement = select(StockAttributes)
-        for attr in session.exec(statement).all():
-            session.delete(attr)
-
-        # Delete accounts
-        from app.models.account import Account
-        statement = select(Account)
-        for account in session.exec(statement).all():
-            session.delete(account)
-
-        session.commit()
+        _cleanup_all_tables(session)
 
     import os
     import requests
@@ -76,36 +69,13 @@ def setup_database():
         try:
             requests.post(f"{test_server_url}/_test/clear-cache", timeout=5)
         except Exception as e:
-            # print(f"Warning: Failed to clear-cache on test server: {e}")
             pass
 
     yield
 
     # Cleanup after test
     with Session(engine) as session:
-        statement = select(WatchListStock)
-        for stock in session.exec(statement).all():
-            session.delete(stock)
-
-        statement = select(WatchList)
-        for watchlist in session.exec(statement).all():
-            session.delete(watchlist)
-
-        statement = select(RRHistory)
-        for hist in session.exec(statement).all():
-            session.delete(hist)
-
-        statement = select(RRWatchlist)
-        for entry in session.exec(statement).all():
-            session.delete(entry)
-            
-        # Delete accounts
-        from app.models.account import Account
-        statement = select(Account)
-        for account in session.exec(statement).all():
-            session.delete(account)
-
-        session.commit()
+        _cleanup_all_tables(session)
 
 
 @pytest.fixture

@@ -1,26 +1,17 @@
 """Service for managing Risk Reversal watchlist."""
-import pandas as pd
 from datetime import datetime, date
 from decimal import Decimal
-from uuid import UUID
 from typing import Dict, Any, Optional, List, Union
+from uuid import UUID
 from sqlmodel import Session, select
 from app.database import engine
 from app.models.rr_watchlist import RRWatchlist, RRHistory
 from app.providers.factory import ProviderFactory
-from app.providers.exceptions import TickerNotFoundError, DataNotAvailableError
+from app.providers.exceptions import DataNotAvailableError
+from app.utils.type_helpers import to_str
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-def to_str(value: Union[str, UUID, None]) -> Optional[str]:
-    """Convert UUID to string, pass through strings, return None for None."""
-    if value is None:
-        return None
-    if isinstance(value, UUID):
-        return str(value)
-    return value
 
 
 def save_rr_to_watchlist(

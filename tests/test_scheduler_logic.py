@@ -12,29 +12,24 @@ Test cases to verify scheduler logic matches requirements:
 10. Never fetch yfinance on demand except first time stock is added
 11. Cleanup job deletes log entries older than 72 hours
 12. Market hours check is exercised in tests (single code path)
+
+Note: Uses shared setup_database fixture from conftest.py
 """
 import pytest
 from datetime import datetime, date, timedelta
 from sqlmodel import Session, select
 from app.database import engine
 from app.models.stock_price import StockPrice, StockAttributes
-from app.models.watchlist import WatchList, WatchListStock
 from app.models.scheduler_log import SchedulerLog
 from app.models.rr_history_log import RRHistoryLog
 from app.services.watchlist_service import add_stocks_to_watchlist, create_watchlist
-from app.services.stock_price_service import (
-    get_stock_attributes,
-    fetch_and_save_stock_prices,
-    get_stock_prices_as_dataframe
-)
+from app.services.stock_price_service import get_stock_attributes
 from app.services.scheduler_service import (
     update_stock_prices_for_all_watchlists,
     is_market_open,
     should_proceed_with_update,
     cleanup_old_scheduler_logs
 )
-from uuid import UUID
-import pytz
 
 
 def get_bypass_flag() -> bool:
@@ -44,46 +39,6 @@ def get_bypass_flag() -> bool:
     the market hours check logic.
     """
     return not is_market_open()
-
-
-@pytest.fixture
-def setup_database():
-    """Clean up database before and after each test."""
-    # Cleanup before
-    with Session(engine) as session:
-        # Delete in order to respect foreign key constraints
-        session.exec(select(WatchListStock)).all()
-        for stock in session.exec(select(WatchListStock)).all():
-            session.delete(stock)
-        for watchlist in session.exec(select(WatchList)).all():
-            session.delete(watchlist)
-        for price in session.exec(select(StockPrice)).all():
-            session.delete(price)
-        for attr in session.exec(select(StockAttributes)).all():
-            session.delete(attr)
-        for log in session.exec(select(SchedulerLog)).all():
-            session.delete(log)
-        for log in session.exec(select(RRHistoryLog)).all():
-            session.delete(log)
-        session.commit()
-
-    yield
-
-    # Cleanup after
-    with Session(engine) as session:
-        for stock in session.exec(select(WatchListStock)).all():
-            session.delete(stock)
-        for watchlist in session.exec(select(WatchList)).all():
-            session.delete(watchlist)
-        for price in session.exec(select(StockPrice)).all():
-            session.delete(price)
-        for attr in session.exec(select(StockAttributes)).all():
-            session.delete(attr)
-        for log in session.exec(select(SchedulerLog)).all():
-            session.delete(log)
-        for log in session.exec(select(RRHistoryLog)).all():
-            session.delete(log)
-        session.commit()
 
 
 class TestMarketHoursLogic:
