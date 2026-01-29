@@ -31,11 +31,16 @@ A risk reversal strategy bets that a stock will reverse direction and appreciate
 ### 1:2 Ratio
 - Sell 1 put, buy 2 calls
 - Provides more upside leverage
-- May require higher put strike to collect enough premium to finance 2 calls
+- May require higher put strike to collect enough premium to finance 2 calls. Prioritize put strike prices same as call strike prices. If not possible, then choose the next best option below call strike prices.
+
+### 1:3 Ratio
+- Sell 1 put, buy 3 calls
+- Provides even more upside leverage
+- May require higher put strike to collect enough premium to finance 3 calls. Prioritize put strike prices same as call strike prices. If not possible, then choose the next best option below call strike prices.
 
 ### Collar
 - Sell 1 put + buy call(s) + **sell OTM call**
-- The sold call must be at least **10% higher** than the bought call strike
+- The sold call must be at least **30% higher** than the bought call strike
 - Caps maximum profit at the sold call strike
 - Reduces net cost, useful in high volatility environments
 - Available in both 1:1 and 1:2 configurations
@@ -68,6 +73,7 @@ For AAPL at $100:
 Results are shown in the **RRR tab** on the stock detail page with filters for:
 - 1:1
 - 1:2
+- 1:3
 - Collar
 - All
 

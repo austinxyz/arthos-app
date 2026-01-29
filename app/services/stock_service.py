@@ -1022,19 +1022,18 @@ def get_leaps_expirations(ticker: str) -> List[str]:
 def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dict[str, List[Dict[str, Any]]]:
     """
     Calculate Risk Reversal strategies for LEAPS expirations.
-    
+
     Algorithm based on risk_reversal.md specs:
     - Only LEAPS expiring Jan next year or later
     - Put strike: close to current price (90% to 130% of current price)
-    - Call strike: close to or slightly higher than put strike
-    - Ratios: 1:1, 1:2, Collar (1:1 or 1:2 with sold OTM call)
-    - Net cost: as close to $0 as possible, max 3% of current price
+    - Call strike: at or above put strike
+    - Ratios: 1:1, 1:2, 1:3, Collar (1:1 or 1:2 with sold OTM call at least 30% higher)
+    - Net cost: as close to $0 as possible, max ±3% of current price
     - Always use average of bid/ask prices (filter out missing quotes)
-    
+
     Sorting priority:
-    1. Put strike proximity to current price
-    2. Call strike proximity to put strike
-    3. Net cost closest to $0
+    - For 1:1: put proximity to current price, call proximity to put, net cost
+    - For 1:2, 1:3: call proximity to put (same strike first), then put proximity, net cost
     """
     strategies_by_expiration = {}
     
@@ -1198,20 +1197,58 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                             'call_proximity': abs(call['strike'] - put['strike']),
                         })
 
-                strategies_1_2.sort(key=lambda s: (s['put_proximity'], s['call_proximity'], abs(s['cost'])))
+                # Sort 1:2 by: call proximity to put (same strike first), then put proximity, then cost
+                # Per spec: "Prioritize put strike prices same as call strike prices. If not possible, choose next best below call."
+                strategies_1_2.sort(key=lambda s: (s['call_proximity'], s['put_proximity'], abs(s['cost'])))
                 strategies_1_2 = strategies_1_2[:5]
 
+                # --- 1:3 strategies ---
+                strategies_1_3 = []
+                for put in puts_sorted:
+                    eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
+                    eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
+
+                    for call in eligible_calls_sorted[:10]:
+                        net_cost = (3 * call['mid']) - put['mid']
+                        if abs(net_cost) > cost_limit:
+                            continue
+                        cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
+                        put_risk = put['strike'] * 100
+                        strategies_1_3.append({
+                            'ratio': '1:3',
+                            'put_strike': put['strike'],
+                            'call_strike': call['strike'],
+                            'put_bid': round(put['mid'], 2),
+                            'call_ask': round(call['mid'], 2),
+                            'put_breakeven': round(put['strike'] - put['mid'], 2),
+                            'call_breakeven': round(call['strike'] + (net_cost / 3), 2),  # Adjusted for 3 calls
+                            'strike_spread': round(abs(call['strike'] - put['strike']), 2),
+                            'cost': round(net_cost, 2),
+                            'cost_pct': round(cost_pct, 2),
+                            'days_to_expiration': days_to_exp,
+                            'put_risk': round(put_risk, 2),
+                            'put_risk_formatted': f"{put_risk:,.2f}",
+                            'expiration': expiration,
+                            'put_proximity': abs(put['strike'] - current_price),
+                            'call_proximity': abs(call['strike'] - put['strike']),
+                        })
+
+                # Sort 1:3 by: call proximity to put (same strike first), then put proximity, then cost
+                strategies_1_3.sort(key=lambda s: (s['call_proximity'], s['put_proximity'], abs(s['cost'])))
+                strategies_1_3 = strategies_1_3[:5]
+
                 # --- Collar strategies (sell put, buy call(s), sell OTM call) ---
+                # Per spec: sold call must be at least 30% higher than bought call
                 strategies_collar = []
                 for put in puts_sorted:
                     eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
                     eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
-                    
+
                     for call in eligible_calls_sorted[:5]:
-                        # Find OTM calls to sell (strikes higher than the bought call)
-                        otm_calls = [c for c in calls if c['strike'] > call['strike'] * 1.10]  # At least 10% higher
+                        # Find OTM calls to sell (strikes at least 30% higher than the bought call)
+                        otm_calls = [c for c in calls if c['strike'] >= call['strike'] * 1.30]
                         otm_calls_sorted = sorted(otm_calls, key=lambda c: c['strike'])
-                        
+
                         for sold_call in otm_calls_sorted[:3]:
                             # 1:1 Collar: sell put, buy 1 call, sell 1 OTM call
                             net_cost_1_1 = call['mid'] - put['mid'] - sold_call['mid']
@@ -1273,7 +1310,7 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 strategies_collar = strategies_collar[:5]
 
                 # Combine all strategies
-                strategies.extend(strategies_1_1 + strategies_1_2 + strategies_collar)
+                strategies.extend(strategies_1_1 + strategies_1_2 + strategies_1_3 + strategies_collar)
                 
                 # Find strategies closest to $0 and mark for highlighting
                 if strategies:
