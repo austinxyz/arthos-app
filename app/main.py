@@ -1714,6 +1714,27 @@ async def trigger_scheduler_manual(bypass_market_hours: bool = Query(True, descr
         raise HTTPException(status_code=500, detail=f"Error triggering scheduler: {str(e)}")
 
 
+@app.post("/debug/cleanup-logs/trigger")
+async def trigger_cleanup_logs():
+    """
+    Manually trigger the cleanup job to delete old scheduler log entries.
+    This endpoint allows testing the cleanup job at any time.
+
+    Returns:
+        JSON response with trigger status
+    """
+    from app.services.scheduler_service import cleanup_old_scheduler_logs
+
+    try:
+        cleanup_old_scheduler_logs()
+
+        return {
+            "message": "Cleanup job triggered successfully",
+            "status": "completed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error triggering cleanup: {str(e)}")
+
 
 # TEST ONLY: Endpoint to facilitate browser test authentication
 # This endpoint allows setting the session cookie via a direct request,
