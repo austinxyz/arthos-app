@@ -17,21 +17,38 @@ logger = logging.getLogger(__name__)
 def validate_watchlist_name(name: str) -> bool:
     """
     Validate watchlist name (alphanumeric and spaces only, max 128 chars).
-    
+
     Args:
         name: WatchList name to validate
-        
+
     Returns:
         True if valid, False otherwise
     """
     if not name or not name.strip():
         return False
-    
+
     if len(name) > 128:
         return False
-    
+
     # Allow alphanumeric and spaces only
     return all(c.isalnum() or c.isspace() for c in name)
+
+
+def verify_watchlist_access(watchlist: WatchList, account_id: Optional[str], watchlist_id: str) -> None:
+    """
+    Verify that the requesting account has access to the watchlist.
+
+    Args:
+        watchlist: The WatchList object to check
+        account_id: The requesting account ID (already converted to string)
+        watchlist_id: The watchlist ID for error messages
+
+    Raises:
+        ValueError: If access is denied
+    """
+    if watchlist.account_id:
+        if not account_id or to_str(watchlist.account_id) != account_id:
+            raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
 
 
 def create_watchlist(watchlist_name: str, account_id: Optional[Union[UUID, str]] = None, description: Optional[str] = None) -> WatchList:
@@ -133,11 +150,7 @@ def get_watchlist(watchlist_id: Union[UUID, str], account_id: Optional[Union[UUI
         if not watchlist:
             raise ValueError(f"WatchList with ID {watchlist_id} not found")
 
-        # Verify ownership if watchlist has an owner
-        if watchlist.account_id:
-            # Convert both to strings for comparison (PostgreSQL returns UUID objects)
-            if not acc_id or to_str(watchlist.account_id) != acc_id:
-                raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
+        verify_watchlist_access(watchlist, acc_id, wl_id)
         return watchlist
 
 
@@ -167,11 +180,7 @@ def update_watchlist_name(watchlist_id: Union[UUID, str], new_name: str, account
         if not watchlist:
             raise ValueError(f"WatchList with ID {watchlist_id} not found")
 
-        # Verify ownership if watchlist has an owner
-        if watchlist.account_id:
-            # Convert both to strings for comparison (PostgreSQL returns UUID objects)
-            if not acc_id or to_str(watchlist.account_id) != acc_id:
-                raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
+        verify_watchlist_access(watchlist, acc_id, wl_id)
 
         # Check for duplicate name for the same account (or unowned)
         statement = select(WatchList).where(
@@ -446,10 +455,7 @@ def remove_stock_from_watchlist(watchlist_id: Union[UUID, str], ticker: str, acc
         if not watchlist:
             raise ValueError(f"WatchList with ID {watchlist_id} not found")
 
-        if watchlist.account_id:
-            # Convert both to strings for comparison (PostgreSQL returns UUID objects)
-            if not acc_id or to_str(watchlist.account_id) != acc_id:
-                raise ValueError(f"Access denied: WatchList with ID {watchlist_id} belongs to another account")
+        verify_watchlist_access(watchlist, acc_id, wl_id)
 
         # Find and delete the stock
         statement = select(WatchListStock).where(
