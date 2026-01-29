@@ -31,12 +31,12 @@ A risk reversal strategy bets that a stock will reverse direction and appreciate
 ### 1:2 Ratio
 - Sell 1 put, buy 2 calls
 - Provides more upside leverage
-- May require higher put strike to collect enough premium to finance 2 calls. Prioritize put strike prices same as call strike prices. If not possible, then choose the next best option below call strike prices.
+- May require higher put strike to collect enough premium to finance 2 calls. Identify the strike price where selling one put can let us buy 2 calls at the same strike price with a net cost of less than 3% of the current stock price. From this pivot point, expand the search by 10% above and below the put strike price to find other combinations.
 
 ### 1:3 Ratio
 - Sell 1 put, buy 3 calls
 - Provides even more upside leverage
-- May require higher put strike to collect enough premium to finance 3 calls. Prioritize put strike prices same as call strike prices. If not possible, then choose the next best option below call strike prices.
+- May require higher put strike to collect enough premium to finance 3 calls. Identify the strike price where selling one put can let us buy 2 calls at the same strike price with a net cost of less than 5% of the current stock price. From this pivot point, expand the search by 10% above and below the put strike price to find other combinations.
 
 ### Collar
 - Sell 1 put + buy call(s) + **sell OTM call**

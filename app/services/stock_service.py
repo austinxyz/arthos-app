@@ -1028,12 +1028,16 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
     - Put strike: close to current price (90% to 130% of current price)
     - Call strike: at or above put strike
     - Ratios: 1:1, 1:2, 1:3, Collar (1:1 or 1:2 with sold OTM call at least 30% higher)
-    - Net cost: as close to $0 as possible, max ±3% of current price
     - Always use average of bid/ask prices (filter out missing quotes)
 
-    Sorting priority:
-    - For 1:1: put proximity to current price, call proximity to put, net cost
-    - For 1:2, 1:3: call proximity to put (same strike first), then put proximity, net cost
+    Cost limits:
+    - 1:1: ±3% of current price
+    - 1:2: ±3% of current price (pivot-based search)
+    - 1:3: ±5% of current price (pivot-based search)
+
+    1:2 and 1:3 Algorithm:
+    1. Find pivot strike where put/call at same strike meets cost limit
+    2. Expand search ±10% from pivot strike
     """
     strategies_by_expiration = {}
     
@@ -1167,14 +1171,38 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                 strategies_1_1 = strategies_1_1[:5]
 
                 # --- 1:2 strategies ---
+                # Per spec: Find pivot strike where put premium finances 2 calls at same strike (<3% cost)
+                # Then expand search ±10% from pivot
                 strategies_1_2 = []
-                for put in puts_sorted:
+                cost_limit_1_2 = current_price * 0.03  # 3% for 1:2
+
+                # Step 1: Find pivot strike (same strike for put and call where net cost < 3%)
+                pivot_strike_1_2 = None
+                for put in puts:
+                    # Find call at same strike
+                    matching_calls = [c for c in calls if c['strike'] == put['strike']]
+                    if matching_calls:
+                        call = matching_calls[0]
+                        net_cost = (2 * call['mid']) - put['mid']
+                        if abs(net_cost) <= cost_limit_1_2:
+                            pivot_strike_1_2 = put['strike']
+                            break
+
+                # Step 2: If pivot found, search ±10% of pivot; otherwise search all puts
+                if pivot_strike_1_2:
+                    min_search_strike = pivot_strike_1_2 * 0.90
+                    max_search_strike = pivot_strike_1_2 * 1.10
+                    search_puts = [p for p in puts if min_search_strike <= p['strike'] <= max_search_strike]
+                else:
+                    search_puts = puts
+
+                for put in search_puts:
                     eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
                     eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
-                    
+
                     for call in eligible_calls_sorted[:10]:
                         net_cost = (2 * call['mid']) - put['mid']
-                        if abs(net_cost) > cost_limit:
+                        if abs(net_cost) > cost_limit_1_2:
                             continue
                         cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
                         put_risk = put['strike'] * 100
@@ -1185,7 +1213,7 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                             'put_bid': round(put['mid'], 2),
                             'call_ask': round(call['mid'], 2),
                             'put_breakeven': round(put['strike'] - put['mid'], 2),
-                            'call_breakeven': round(call['strike'] + (net_cost / 2), 2),  # Adjusted for 2 calls
+                            'call_breakeven': round(call['strike'] + (net_cost / 2), 2),
                             'strike_spread': round(abs(call['strike'] - put['strike']), 2),
                             'cost': round(net_cost, 2),
                             'cost_pct': round(cost_pct, 2),
@@ -1197,20 +1225,42 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                             'call_proximity': abs(call['strike'] - put['strike']),
                         })
 
-                # Sort 1:2 by: call proximity to put (same strike first), then put proximity, then cost
-                # Per spec: "Prioritize put strike prices same as call strike prices. If not possible, choose next best below call."
+                # Sort by: same strike first, then put proximity, then cost
                 strategies_1_2.sort(key=lambda s: (s['call_proximity'], s['put_proximity'], abs(s['cost'])))
                 strategies_1_2 = strategies_1_2[:5]
 
                 # --- 1:3 strategies ---
+                # Per spec: Find pivot strike where put premium finances 3 calls at same strike (<5% cost)
+                # Then expand search ±10% from pivot
                 strategies_1_3 = []
-                for put in puts_sorted:
+                cost_limit_1_3 = current_price * 0.05  # 5% for 1:3
+
+                # Step 1: Find pivot strike (same strike for put and call where net cost < 5%)
+                pivot_strike_1_3 = None
+                for put in puts:
+                    matching_calls = [c for c in calls if c['strike'] == put['strike']]
+                    if matching_calls:
+                        call = matching_calls[0]
+                        net_cost = (3 * call['mid']) - put['mid']
+                        if abs(net_cost) <= cost_limit_1_3:
+                            pivot_strike_1_3 = put['strike']
+                            break
+
+                # Step 2: If pivot found, search ±10% of pivot; otherwise search all puts
+                if pivot_strike_1_3:
+                    min_search_strike = pivot_strike_1_3 * 0.90
+                    max_search_strike = pivot_strike_1_3 * 1.10
+                    search_puts = [p for p in puts if min_search_strike <= p['strike'] <= max_search_strike]
+                else:
+                    search_puts = puts
+
+                for put in search_puts:
                     eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
                     eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
 
                     for call in eligible_calls_sorted[:10]:
                         net_cost = (3 * call['mid']) - put['mid']
-                        if abs(net_cost) > cost_limit:
+                        if abs(net_cost) > cost_limit_1_3:
                             continue
                         cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
                         put_risk = put['strike'] * 100
@@ -1221,7 +1271,7 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                             'put_bid': round(put['mid'], 2),
                             'call_ask': round(call['mid'], 2),
                             'put_breakeven': round(put['strike'] - put['mid'], 2),
-                            'call_breakeven': round(call['strike'] + (net_cost / 3), 2),  # Adjusted for 3 calls
+                            'call_breakeven': round(call['strike'] + (net_cost / 3), 2),
                             'strike_spread': round(abs(call['strike'] - put['strike']), 2),
                             'cost': round(net_cost, 2),
                             'cost_pct': round(cost_pct, 2),
@@ -1233,7 +1283,7 @@ def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dic
                             'call_proximity': abs(call['strike'] - put['strike']),
                         })
 
-                # Sort 1:3 by: call proximity to put (same strike first), then put proximity, then cost
+                # Sort by: same strike first, then put proximity, then cost
                 strategies_1_3.sort(key=lambda s: (s['call_proximity'], s['put_proximity'], abs(s['cost'])))
                 strategies_1_3 = strategies_1_3[:5]
 
