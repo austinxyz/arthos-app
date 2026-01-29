@@ -6,7 +6,7 @@ from app.models.stock_price import StockPrice
 from app.services.ticker_validator import validate_ticker_list
 from app.services.stock_service import get_multiple_stock_metrics
 from app.utils.type_helpers import to_str
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import List, Dict, Any, Optional, Tuple, Union
 from uuid import UUID
 import logging
@@ -322,14 +322,28 @@ def add_stocks_to_watchlist(watchlist_id: Union[UUID, str], tickers: List[str], 
     
     # Now validate that tickers actually exist in the data provider and fetch/save price data
     from app.services.stock_service import fetch_stock_data
-    from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics
-    
+    from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics, get_stock_attributes
+
     valid_tickers = []
     invalid_tickers = list(invalid_format_tickers)  # Start with format-invalid tickers
-    
+    today = date.today()
+
     for ticker in valid_format_tickers:
         ticker = ticker.upper()
         is_valid = False
+
+        # OPTIMIZATION: Check if stock already exists with recent data
+        # If so, skip expensive fetch operations
+        existing_attributes = get_stock_attributes(ticker)
+        if existing_attributes and existing_attributes.latest_date:
+            days_since_update = (today - existing_attributes.latest_date).days
+            if days_since_update <= 1:
+                # Stock already has current data - no need to fetch again
+                logger.info(f"Ticker {ticker} already has current data (latest_date: {existing_attributes.latest_date}), skipping fetch")
+                is_valid = True
+                valid_tickers.append(ticker)
+                continue  # Skip to next ticker
+
         try:
             # Try to fetch data to verify ticker exists in the data provider
             # This will raise ValueError if ticker doesn't exist or has no data
@@ -349,13 +363,13 @@ def add_stocks_to_watchlist(watchlist_id: Union[UUID, str], tickers: List[str], 
                     logger.debug(f"Ticker {ticker} validated successfully, {len(data)} data points")
                     is_valid = True
                     valid_tickers.append(ticker)
-                    
+
                     # Fetch and save stock price data to database
                     # This is the ONLY time we fetch data provider on demand (first time stock is added)
                     try:
                         price_data, new_records = fetch_and_save_stock_prices(ticker)
                         logger.info(f"Saved {new_records} new price records for {ticker}")
-                        
+
                         # Calculate trading metrics immediately so UI shows correct signal
                         compute_and_save_trading_metrics(ticker)
                         logger.info(f"Computed trading metrics for {ticker}")
@@ -368,7 +382,7 @@ def add_stocks_to_watchlist(watchlist_id: Union[UUID, str], tickers: List[str], 
         except Exception as e:
             # Catch any other exceptions (network errors, etc.) and treat as invalid
             logger.debug(f"Ticker {ticker} failed data provider validation (Exception): {e}")
-        
+
         # If validation failed, add to invalid list
         if not is_valid:
             invalid_tickers.append(ticker)
