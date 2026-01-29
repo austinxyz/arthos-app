@@ -1356,12 +1356,13 @@ async def debug_stock_price_page(request: Request, ticker: str = Query("", descr
 @app.post("/debug/stock-price/fetch")
 async def fetch_stock_price_data(ticker: str = Query(..., description="Stock ticker symbol")):
     """
-    Force refresh stock data, options cache, and trading metrics.
+    Force refresh stock data, options cache, trading metrics, and option strategies.
 
     This endpoint:
     1. Clears the options cache for this ticker
     2. Fetches fresh stock price data from yfinance
     3. Recalculates trading metrics (SMAs, signals, IV)
+    4. Pre-calculates option strategies (Risk Reversal, Covered Calls)
 
     Args:
         ticker: Stock ticker symbol
@@ -1371,6 +1372,7 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
     """
     from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics
     from app.services.options_cache_service import clear_options_cache
+    from app.services.stock_service import get_options_data, calculate_risk_reversal_strategies, calculate_covered_call_returns
 
     if not ticker or not ticker.strip():
         raise HTTPException(status_code=400, detail="Ticker is required")
@@ -1387,13 +1389,42 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
         # Step 3: Recalculate trading metrics (SMAs, signals, IV)
         compute_and_save_trading_metrics(ticker)
 
+        # Step 4: Pre-calculate option strategies to warm the cache
+        strategies_calculated = False
+        rr_count = 0
+        cc_count = 0
+
+        if not price_data.empty:
+            current_price = float(price_data['Close'].iloc[-1])
+
+            # Calculate Risk Reversal strategies (this also warms the options cache)
+            try:
+                rr_strategies = calculate_risk_reversal_strategies(ticker, current_price)
+                rr_count = sum(len(strategies) for strategies in rr_strategies.values())
+                strategies_calculated = True
+            except Exception as e:
+                logger.warning(f"Could not calculate RR strategies for {ticker}: {e}")
+
+            # Calculate Covered Call returns
+            try:
+                _, options_data = get_options_data(ticker, current_price)
+                if options_data:
+                    cc_returns = calculate_covered_call_returns(options_data, current_price)
+                    cc_count = len(cc_returns)
+                    strategies_calculated = True
+            except Exception as e:
+                logger.warning(f"Could not calculate CC returns for {ticker}: {e}")
+
         return {
-            "message": f"Force refreshed {ticker}: {new_records} new price records, options cache cleared, metrics recalculated",
+            "message": f"Force refreshed {ticker}: {new_records} price records, {rr_count} RR strategies, {cc_count} CC strategies",
             "ticker": ticker,
             "new_records": new_records,
             "data_points": len(price_data),
             "cache_cleared": True,
-            "metrics_recalculated": True
+            "metrics_recalculated": True,
+            "strategies_calculated": strategies_calculated,
+            "rr_strategies_count": rr_count,
+            "cc_strategies_count": cc_count
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
