@@ -68,6 +68,21 @@ class TestMarketHoursLogic:
         result = get_bypass_flag()
         assert isinstance(result, bool)
 
+    def test_should_proceed_with_large_post_market_minutes(self):
+        """
+        Ensure should_proceed_with_update handles post_market_minutes > 59.
+        This was causing ValueError: minute must be in 0..59 in production.
+        """
+        # This should not raise ValueError even with 60 minutes (which would
+        # overflow the minute field if using naive time arithmetic)
+        result = should_proceed_with_update(bypass_market_hours=False, post_market_minutes=60)
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+
+        # Also test with 120 minutes (2 hours)
+        result = should_proceed_with_update(bypass_market_hours=False, post_market_minutes=120)
+        assert isinstance(result, tuple)
+
 
 class TestStockAdditionFlow:
     """Test that stock addition follows the correct flow."""

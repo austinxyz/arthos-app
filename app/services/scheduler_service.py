@@ -68,7 +68,11 @@ def should_proceed_with_update(bypass_market_hours: bool = False, post_market_mi
     et_now = datetime.now(ET_TIMEZONE)
     current_time = et_now.time()
     market_close = dt_time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)
-    post_market_end = dt_time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE + post_market_minutes)
+
+    # Calculate post-market end time using datetime arithmetic to handle minute overflow
+    market_close_dt = et_now.replace(hour=MARKET_CLOSE_HOUR, minute=MARKET_CLOSE_MINUTE, second=0, microsecond=0)
+    post_market_end_dt = market_close_dt + timedelta(minutes=post_market_minutes)
+    post_market_end = post_market_end_dt.time()
 
     # Allow execution if market is open
     if is_market_open():
