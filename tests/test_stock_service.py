@@ -2,6 +2,7 @@
 import pytest
 import pandas as pd
 from datetime import datetime, timedelta
+from unittest.mock import MagicMock
 from app.services.stock_service import (
     fetch_stock_data,
     fetch_intraday_data,
@@ -9,8 +10,97 @@ from app.services.stock_service import (
     calculate_devstep,
     calculate_signal,
     calculate_5day_price_movement,
-    calculate_covered_call_returns_v2
+    calculate_covered_call_returns_v2,
+    separate_daily_intraday,
+    build_option_dict,
+    process_options_chain
 )
+
+
+class TestSeparateDailyIntraday:
+    """Tests for separate_daily_intraday helper function."""
+
+    def test_separates_daily_from_intraday(self):
+        """Test that daily and intraday data are properly separated."""
+        today = datetime.now().date()
+        yesterday = today - timedelta(days=1)
+
+        # Create mixed data with daily (midnight) and intraday (with time) timestamps
+        index = pd.DatetimeIndex([
+            pd.Timestamp(yesterday),  # Daily - midnight
+            pd.Timestamp(today).replace(hour=10, minute=30),  # Intraday
+            pd.Timestamp(today).replace(hour=14, minute=0),   # Intraday
+        ])
+        data = pd.DataFrame({'Close': [100, 101, 102]}, index=index)
+
+        daily, intraday = separate_daily_intraday(data)
+
+        assert len(daily) == 1
+        assert len(intraday) == 2
+        assert daily['Close'].iloc[0] == 100
+        assert intraday['Close'].iloc[0] == 101
+
+    def test_all_daily_data(self):
+        """Test with only daily data (no intraday)."""
+        dates = pd.date_range(end=datetime.now().date() - timedelta(days=1), periods=5)
+        data = pd.DataFrame({'Close': [100, 101, 102, 103, 104]}, index=dates)
+
+        daily, intraday = separate_daily_intraday(data)
+
+        assert len(daily) == 5
+        assert len(intraday) == 0
+
+
+class TestBuildOptionDict:
+    """Tests for build_option_dict helper function."""
+
+    def test_builds_complete_dict(self):
+        """Test that all option fields are properly extracted."""
+        option = MagicMock()
+        option.contract_symbol = "AAPL230120C00150000"
+        option.last_price = 5.50
+        option.bid = 5.40
+        option.ask = 5.60
+        option.volume = 1000
+        option.open_interest = 5000
+        option.implied_volatility = 0.25
+        option.delta = 0.55
+        option.gamma = 0.03
+        option.theta = -0.05
+        option.vega = 0.15
+        option.rho = 0.02
+
+        result = build_option_dict(option)
+
+        assert result['contractSymbol'] == "AAPL230120C00150000"
+        assert result['lastPrice'] == 5.50
+        assert result['bid'] == 5.40
+        assert result['ask'] == 5.60
+        assert result['volume'] == 1000
+        assert result['delta'] == 0.55
+
+    def test_handles_none_values(self):
+        """Test that None values are handled gracefully."""
+        option = MagicMock()
+        option.contract_symbol = "AAPL230120C00150000"
+        option.last_price = None
+        option.bid = None
+        option.ask = None
+        option.volume = None
+        option.open_interest = None
+        option.implied_volatility = None
+        option.delta = None
+        option.gamma = None
+        option.theta = None
+        option.vega = None
+        option.rho = None
+
+        result = build_option_dict(option)
+
+        assert result['lastPrice'] is None
+        assert result['bid'] is None
+        assert result['volume'] == 0  # Default for None
+        assert result['delta'] is None
 
 
 class TestCalculateSMA:

@@ -10,6 +10,114 @@ from app.providers.exceptions import TickerNotFoundError, DataNotAvailableError
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# Helper Functions - Reduce code duplication
+# =============================================================================
+
+def separate_daily_intraday(data: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Separate daily data from intraday data based on timestamp characteristics.
+
+    Daily data: timestamps at midnight (00:00) or dates before today
+    Intraday data: timestamps with time component on today's date
+
+    Args:
+        data: DataFrame with DateTimeIndex
+
+    Returns:
+        Tuple of (daily_data, intraday_data) DataFrames
+    """
+    today = datetime.now().date()
+    daily_mask = []
+    intraday_mask = []
+
+    for ts in data.index:
+        ts_obj = pd.Timestamp(ts)
+        # Normalize to timezone-naive if needed
+        if ts_obj.tz is not None:
+            ts_obj = ts_obj.tz_localize(None)
+        # Check if it's a daily timestamp (at midnight) or before today
+        if ts_obj.hour == 0 and ts_obj.minute == 0:
+            daily_mask.append(True)
+            intraday_mask.append(False)
+        elif ts_obj.date() < today:
+            daily_mask.append(True)
+            intraday_mask.append(False)
+        else:
+            # Has time component and is today - this is intraday data
+            daily_mask.append(False)
+            intraday_mask.append(True)
+
+    daily_data = data[daily_mask] if any(daily_mask) else pd.DataFrame()
+    intraday_data = data[intraday_mask] if any(intraday_mask) else pd.DataFrame()
+
+    return daily_data, intraday_data
+
+
+def build_option_dict(option) -> Dict[str, Any]:
+    """
+    Build a standardized dictionary from an OptionQuote object.
+
+    Args:
+        option: OptionQuote object with strike, bid, ask, etc.
+
+    Returns:
+        Dictionary with option data formatted for API response
+    """
+    return {
+        'contractSymbol': option.contract_symbol,
+        'lastPrice': round(option.last_price, 2) if option.last_price is not None else None,
+        'bid': round(option.bid, 2) if option.bid is not None else None,
+        'ask': round(option.ask, 2) if option.ask is not None else None,
+        'volume': option.volume if option.volume is not None else 0,
+        'openInterest': option.open_interest if option.open_interest is not None else 0,
+        'impliedVolatility': round(option.implied_volatility, 2) if option.implied_volatility is not None else None,
+        'delta': round(option.delta, 4) if option.delta is not None else None,
+        'gamma': round(option.gamma, 5) if option.gamma is not None else None,
+        'theta': round(option.theta, 4) if option.theta is not None else None,
+        'vega': round(option.vega, 4) if option.vega is not None else None,
+        'rho': round(option.rho, 4) if option.rho is not None else None,
+    }
+
+
+def process_options_chain(opt_chain, price_range_low: float, price_range_high: float) -> Dict[float, Dict[str, Any]]:
+    """
+    Process an options chain into a dictionary organized by strike price.
+
+    Args:
+        opt_chain: OptionsChain object with calls and puts
+        price_range_low: Minimum strike price to include
+        price_range_high: Maximum strike price to include
+
+    Returns:
+        Dictionary mapping strike prices to {'put': dict, 'call': dict}
+    """
+    options_by_strike = {}
+
+    # Process calls
+    for call in opt_chain.calls:
+        if price_range_low <= call.strike <= price_range_high:
+            strike = round(call.strike, 2)
+            if strike not in options_by_strike:
+                options_by_strike[strike] = {'put': None, 'call': None}
+            options_by_strike[strike]['call'] = build_option_dict(call)
+
+    # Process puts
+    for put in opt_chain.puts:
+        if price_range_low <= put.strike <= price_range_high:
+            strike = round(put.strike, 2)
+            if strike not in options_by_strike:
+                options_by_strike[strike] = {'put': None, 'call': None}
+            options_by_strike[strike]['put'] = build_option_dict(put)
+
+    return options_by_strike
+
+
+# =============================================================================
+# Data Fetching Functions
+# =============================================================================
+
+
 def fetch_intraday_data(ticker: str) -> Optional[pd.DataFrame]:
     """
     Fetch current day's intraday data for a given ticker.
@@ -97,47 +205,22 @@ def fetch_stock_data(ticker: str) -> pd.DataFrame:
 def calculate_sma(data: pd.DataFrame, window: int) -> float:
     """
     Calculate Simple Moving Average (SMA) for the given window.
-    
+
     Uses only daily data points (excludes intraday data points) but includes
     today's close price if intraday data is available. This ensures consistency
     with chart calculations which include today's aggregated candle.
-    
+
     Args:
         data: DataFrame with 'Close' prices (may include intraday data)
         window: Number of days for the moving average
-        
+
     Returns:
         SMA value calculated from daily data, including today's close if available
     """
-    from datetime import datetime
-    
-    # Separate daily data from intraday data
     today = datetime.now().date()
-    daily_mask = []
-    intraday_today = []
-    
-    for ts in data.index:
-        ts_obj = pd.Timestamp(ts)
-        # Normalize to timezone-naive if needed
-        if ts_obj.tz is not None:
-            ts_obj = ts_obj.tz_localize(None)
-        # Check if it's a daily timestamp (at midnight) or before today
-        if ts_obj.hour == 0 and ts_obj.minute == 0:
-            daily_mask.append(True)
-            intraday_today.append(False)
-        elif ts_obj.date() < today:
-            daily_mask.append(True)
-            intraday_today.append(False)
-        else:
-            # Has time component and is today - this is intraday data
-            daily_mask.append(False)
-            intraday_today.append(True)
-    
-    # Get daily data (excluding today's daily data if it exists)
-    daily_data = data[daily_mask] if any(daily_mask) else pd.DataFrame()
-    
-    # Get today's intraday data if available
-    intraday_data = data[intraday_today] if any(intraday_today) else pd.DataFrame()
+
+    # Separate daily data from intraday data using helper
+    daily_data, intraday_data = separate_daily_intraday(data)
     
     # If we have intraday data for today, aggregate it into a daily candle
     # and add it to daily_data for SMA calculation
@@ -199,41 +282,24 @@ def calculate_sma(data: pd.DataFrame, window: int) -> float:
 def calculate_devstep(data: pd.DataFrame, sma_50: float) -> float:
     """
     Calculate the number of standard deviations the current price is from the 50-day SMA.
-    
+
     Uses only daily data points for std_dev calculation to avoid skewing from intraday data.
     Uses the latest price (intraday if available) for current_price.
-    
+
     Args:
         data: DataFrame with 'Close' prices (may include intraday data)
         sma_50: 50-day Simple Moving Average
-    
+
     Returns:
         Number of standard deviations (devstep)
     """
-    from datetime import datetime
-    
     # Get current price (use latest, which could be intraday)
     current_price = data['Close'].iloc[-1]
-    
+
     # Separate daily data from intraday data for std_dev calculation
-    today = datetime.now().date()
-    daily_mask = []
-    
-    for ts in data.index:
-        ts_obj = pd.Timestamp(ts)
-        # Normalize to timezone-naive if needed
-        if ts_obj.tz is not None:
-            ts_obj = ts_obj.tz_localize(None)
-        # Check if it's a daily timestamp (at midnight) or before today
-        if ts_obj.hour == 0 and ts_obj.minute == 0:
-            daily_mask.append(True)
-        elif ts_obj.date() < today:
-            daily_mask.append(True)
-        else:
-            # Has time component and is today - this is intraday data
-            daily_mask.append(False)
-    
-    daily_data = data[daily_mask] if any(daily_mask) else data
+    daily_data, _ = separate_daily_intraday(data)
+    if daily_data.empty:
+        daily_data = data
     
     # Calculate std_dev using only daily data points
     if len(daily_data) < 50:
@@ -257,53 +323,37 @@ def calculate_devstep(data: pd.DataFrame, sma_50: float) -> float:
 def calculate_5day_price_movement(data: pd.DataFrame, sma_50: float) -> Tuple[float, bool]:
     """
     Calculate the 5-day price movement in terms of standard deviations.
-    
+
     Uses only daily data points to find the price 5 trading days ago (not 5 data points ago).
     Uses the latest price (intraday if available) for current_price.
     Uses only daily data points for std_dev calculation.
-    
+
     Args:
         data: DataFrame with 'Close' prices (may include intraday data)
         sma_50: 50-day Simple Moving Average
-    
+
     Returns:
         Tuple of (movement_in_stddev, is_positive)
         - movement_in_stddev: Price movement over 5 trading days in standard deviations
         - is_positive: True if price moved up, False if price moved down
     """
-    from datetime import datetime
-    
     # Get current price (use latest, which could be intraday)
     current_price = data['Close'].iloc[-1]
-    
+
     # Separate daily data from intraday data
-    today = datetime.now().date()
-    daily_mask = []
-    
-    for ts in data.index:
-        ts_obj = pd.Timestamp(ts)
-        # Normalize to timezone-naive if needed
-        if ts_obj.tz is not None:
-            ts_obj = ts_obj.tz_localize(None)
-        # Check if it's a daily timestamp (at midnight) or before today
-        if ts_obj.hour == 0 and ts_obj.minute == 0:
-            daily_mask.append(True)
-        elif ts_obj.date() < today:
-            daily_mask.append(True)
-        else:
-            # Has time component and is today - this is intraday data
-            daily_mask.append(False)
-    
-    daily_data = data[daily_mask] if any(daily_mask) else data
-    
+    daily_data, intraday_data = separate_daily_intraday(data)
+    if daily_data.empty:
+        daily_data = data
+
     # Need at least 6 daily data points (5 days ago + current day)
     if len(daily_data) < 6:
         return (0.0, True)
-    
+
     # Get price from 5 trading days ago (using daily data only)
     # If we have intraday data for today, we want the price from 5 daily candles ago
     # If we don't have intraday data, we want the price from 6 daily candles ago (5 days before today)
-    if any(not mask for mask in daily_mask):  # We have intraday data
+    has_intraday = not intraday_data.empty
+    if has_intraday:
         # Use the last 5 daily candles (excluding today's intraday)
         price_5days_ago = daily_data['Close'].iloc[-5]
     else:
@@ -508,56 +558,12 @@ def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], 
             else:
                 return (None, {})
         
-        # Filter strikes within 10% of current price
+        # Filter strikes within 10% of current price and process options
         price_range_low = current_price * 0.9  # 10% below
         price_range_high = current_price * 1.1  # 10% above
-        
-        options_by_strike = {}
-        
-        # Process calls
-        for call in opt_chain.calls:
-            if price_range_low <= call.strike <= price_range_high:
-                strike = round(call.strike, 2)
-                if strike not in options_by_strike:
-                    options_by_strike[strike] = {'put': None, 'call': None}
-                options_by_strike[strike]['call'] = {
-                    'contractSymbol': call.contract_symbol,
-                    'lastPrice': round(call.last_price, 2) if call.last_price is not None else None,
-                    'bid': round(call.bid, 2) if call.bid is not None else None,
-                    'ask': round(call.ask, 2) if call.ask is not None else None,
-                    'volume': call.volume if call.volume is not None else 0,
-                    'openInterest': call.open_interest if call.open_interest is not None else 0,
-                    'impliedVolatility': round(call.implied_volatility, 2) if call.implied_volatility is not None else None,
-                    # Greeks from MarketData or other provider
-                    'delta': round(call.delta, 4) if call.delta is not None else None,
-                    'gamma': round(call.gamma, 5) if call.gamma is not None else None,
-                    'theta': round(call.theta, 4) if call.theta is not None else None,
-                    'vega': round(call.vega, 4) if call.vega is not None else None,
-                    'rho': round(call.rho, 4) if call.rho is not None else None,
-                }
-        
-        # Process puts
-        for put in opt_chain.puts:
-            if price_range_low <= put.strike <= price_range_high:
-                strike = round(put.strike, 2)
-                if strike not in options_by_strike:
-                    options_by_strike[strike] = {'put': None, 'call': None}
-                options_by_strike[strike]['put'] = {
-                    'contractSymbol': put.contract_symbol,
-                    'lastPrice': round(put.last_price, 2) if put.last_price is not None else None,
-                    'bid': round(put.bid, 2) if put.bid is not None else None,
-                    'ask': round(put.ask, 2) if put.ask is not None else None,
-                    'volume': put.volume if put.volume is not None else 0,
-                    'openInterest': put.open_interest if put.open_interest is not None else 0,
-                    'impliedVolatility': round(put.implied_volatility, 2) if put.implied_volatility is not None else None,
-                    # Greeks from MarketData or other provider
-                    'delta': round(put.delta, 4) if put.delta is not None else None,
-                    'gamma': round(put.gamma, 5) if put.gamma is not None else None,
-                    'theta': round(put.theta, 4) if put.theta is not None else None,
-                    'vega': round(put.vega, 4) if put.vega is not None else None,
-                    'rho': round(put.rho, 4) if put.rho is not None else None,
-                }
-        
+
+        options_by_strike = process_options_chain(opt_chain, price_range_low, price_range_high)
+
         # Cache the options data
         cache_options_data(ticker, last_expiration, options_by_strike)
         
@@ -666,49 +672,7 @@ def get_all_options_data(ticker: str, current_price: float, days_limit: int = 90
                 else:
                     continue
 
-            options_by_strike = {}
-
-            # Process calls
-            for call in opt_chain.calls:
-                if price_range_low <= call.strike <= price_range_high:
-                    strike = round(call.strike, 2)
-                    if strike not in options_by_strike:
-                        options_by_strike[strike] = {'put': None, 'call': None}
-                    options_by_strike[strike]['call'] = {
-                        'contractSymbol': call.contract_symbol,
-                        'lastPrice': round(call.last_price, 2) if call.last_price is not None else None,
-                        'bid': round(call.bid, 2) if call.bid is not None else None,
-                        'ask': round(call.ask, 2) if call.ask is not None else None,
-                        'volume': call.volume if call.volume is not None else 0,
-                        'openInterest': call.open_interest if call.open_interest is not None else 0,
-                        'impliedVolatility': round(call.implied_volatility, 2) if call.implied_volatility is not None else None,
-                        'delta': round(call.delta, 4) if call.delta is not None else None,
-                        'gamma': round(call.gamma, 5) if call.gamma is not None else None,
-                        'theta': round(call.theta, 4) if call.theta is not None else None,
-                        'vega': round(call.vega, 4) if call.vega is not None else None,
-                        'rho': round(call.rho, 4) if call.rho is not None else None,
-                    }
-
-            # Process puts
-            for put in opt_chain.puts:
-                if price_range_low <= put.strike <= price_range_high:
-                    strike = round(put.strike, 2)
-                    if strike not in options_by_strike:
-                        options_by_strike[strike] = {'put': None, 'call': None}
-                    options_by_strike[strike]['put'] = {
-                        'contractSymbol': put.contract_symbol,
-                        'lastPrice': round(put.last_price, 2) if put.last_price is not None else None,
-                        'bid': round(put.bid, 2) if put.bid is not None else None,
-                        'ask': round(put.ask, 2) if put.ask is not None else None,
-                        'volume': put.volume if put.volume is not None else 0,
-                        'openInterest': put.open_interest if put.open_interest is not None else 0,
-                        'impliedVolatility': round(put.implied_volatility, 2) if put.implied_volatility is not None else None,
-                        'delta': round(put.delta, 4) if put.delta is not None else None,
-                        'gamma': round(put.gamma, 5) if put.gamma is not None else None,
-                        'theta': round(put.theta, 4) if put.theta is not None else None,
-                        'vega': round(put.vega, 4) if put.vega is not None else None,
-                        'rho': round(put.rho, 4) if put.rho is not None else None,
-                    }
+            options_by_strike = process_options_chain(opt_chain, price_range_low, price_range_high)
 
             # Cache the options data
             cache_options_data(ticker, expiration, options_by_strike)
