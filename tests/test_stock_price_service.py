@@ -321,9 +321,9 @@ class TestFetchAndSaveStockPrices:
         assert attributes is not None
         
         # Earnings date may or may not be available depending on yfinance data
-        # If available, it should be a future date
+        # If available, it should be today or a future date
         if attributes.next_earnings_date is not None:
-            assert attributes.next_earnings_date > date.today()
+            assert attributes.next_earnings_date >= date.today()
             # is_earnings_date_estimate should be a boolean if earnings date exists
             assert isinstance(attributes.is_earnings_date_estimate, (bool, type(None)))
     
