@@ -1,12 +1,47 @@
 """Run the Arthos FastAPI application."""
 import uvicorn
 import logging
+import os
+import json
+import datetime
 
-# Configure logging to see DEBUG level logs from scheduler
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(levelname)s:     %(name)s - %(message)s'
-)
+
+class JSONFormatter(logging.Formatter):
+    """JSON formatter for Railway production logging."""
+
+    def format(self, record):
+        log_entry = {
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "level": record.levelname.lower(),
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+
+        # Add exception info if present
+        if record.exc_info:
+            log_entry["exception"] = self.formatException(record.exc_info)
+
+        return json.dumps(log_entry)
+
+
+# Check if running in Railway
+is_railway = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_SERVICE_NAME')
+
+if is_railway:
+    # Production (Railway): Use JSON format for proper log parsing
+    handler = logging.StreamHandler()
+    handler.setFormatter(JSONFormatter())
+    logging.basicConfig(
+        level=logging.INFO,
+        handlers=[handler],
+        force=True
+    )
+else:
+    # Local development: Use human-readable format
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(levelname)s: %(name)s - %(message)s'
+    )
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

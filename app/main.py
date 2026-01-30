@@ -13,17 +13,53 @@ from app.database import create_db_and_tables
 from pydantic import BaseModel
 import logging
 import os
+import json
+import datetime
+
+
+class JSONFormatter(logging.Formatter):
+    """JSON formatter for Railway production logging."""
+
+    def format(self, record):
+        log_entry = {
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "level": record.levelname.lower(),
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+
+        # Add exception info if present
+        if record.exc_info:
+            log_entry["exception"] = self.formatException(record.exc_info)
+
+        return json.dumps(log_entry)
+
 
 # Configure logging for both local and production (Railway)
-# This ensures scheduler debug logs appear regardless of how the app is started
 # Set LOG_LEVEL environment variable to 'DEBUG' for detailed logs, defaults to 'INFO'
 log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(
-    level=getattr(logging, log_level, logging.INFO),
-    format='%(levelname)s:     %(name)s - %(message)s'
-)
+
+# Check if running in Railway (RAILWAY_ENVIRONMENT or RAILWAY_SERVICE_NAME is set)
+is_railway = os.getenv('RAILWAY_ENVIRONMENT') or os.getenv('RAILWAY_SERVICE_NAME')
+
+if is_railway:
+    # Production (Railway): Use JSON format for proper log parsing
+    handler = logging.StreamHandler()
+    handler.setFormatter(JSONFormatter())
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        handlers=[handler],
+        force=True  # Override any existing configuration
+    )
+else:
+    # Local development: Use human-readable format
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format='%(levelname)s: %(name)s - %(message)s'
+    )
+
 logger = logging.getLogger(__name__)
-logger.info(f"Logging configured at {log_level} level")
+logger.info(f"Logging configured at {log_level} level (JSON={is_railway})")
 
 # Load environment variables from .env file if it exists
 try:
