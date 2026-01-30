@@ -264,7 +264,7 @@ def update_watchlist(watchlist_id: Union[UUID, str], watchlist_name: Optional[st
 
 def delete_watchlist(watchlist_id: Union[UUID, str], account_id: Optional[Union[UUID, str]] = None) -> bool:
     """
-    Delete a watchlist and all its stocks (cascade delete).
+    Delete a watchlist and all its stocks and notes (cascade delete).
 
     Args:
         watchlist_id: UUID or string of the watchlist
@@ -276,6 +276,8 @@ def delete_watchlist(watchlist_id: Union[UUID, str], account_id: Optional[Union[
     Raises:
         ValueError: If watchlist not found or access denied
     """
+    from app.models.watchlist_stock_notes import WatchlistStockNote
+
     wl_id = to_str(watchlist_id)
     acc_id = to_str(account_id)
 
@@ -289,6 +291,12 @@ def delete_watchlist(watchlist_id: Union[UUID, str], account_id: Optional[Union[
             # Convert both to strings for comparison (PostgreSQL returns UUID objects)
             if not acc_id or to_str(watchlist.account_id) != acc_id:
                 raise ValueError("Access denied: You do not own this watchlist")
+
+        # Delete associated notes first (manual cascade for SQLite compatibility)
+        statement = select(WatchlistStockNote).where(WatchlistStockNote.watchlist_id == wl_id)
+        notes = session.exec(statement).all()
+        for note in notes:
+            session.delete(note)
 
         session.delete(watchlist)
         session.commit()

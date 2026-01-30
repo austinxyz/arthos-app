@@ -351,6 +351,10 @@
                     <button class="nav-link" id="risk-reversal-tab" data-bs-toggle="tab" data-bs-target="#risk-reversal"
                         type="button" role="tab" aria-controls="risk-reversal" aria-selected="false">RRR</button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="notes-tab" data-bs-toggle="tab" data-bs-target="#notes"
+                        type="button" role="tab" aria-controls="notes" aria-selected="false">Notes</button>
+                </li>
             </ul>
             <div class="tab-content" id="optionsTabsContent">
                 <!-- Covered Calls Tab -->
@@ -648,6 +652,92 @@
                             No risk reversal strategies found. Risk reversal strategies require LEAPS options (Jan of
                             next year or later) with put strikes within 10% below to 30% above current price and net
                             cost within ±3% of current stock price.
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Notes Tab -->
+                <div class="tab-pane fade" id="notes" role="tabpanel" aria-labelledby="notes-tab">
+                    <div class="mt-3">
+                        {% if stock_watchlists and stock_watchlists|length > 0 %}
+                        <!-- Notes List -->
+                        <div id="notesList">
+                            {% if stock_notes and stock_notes|length > 0 %}
+                            <div class="list-group">
+                                {% for note in stock_notes %}
+                                <div class="list-group-item" id="note-{{ note.watchlist_id }}">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="mb-1">
+                                                <span class="badge bg-secondary">{{ note.watchlist_name }}</span>
+                                            </h6>
+                                            <p class="mb-1 note-text">{{ note.note_text }}</p>
+                                            <small class="text-muted">
+                                                Updated: {{ note.updated_at[:10] if note.updated_at else 'N/A' }}
+                                            </small>
+                                        </div>
+                                        <div class="btn-group btn-group-sm ms-2">
+                                            <button class="btn btn-outline-primary edit-note-btn"
+                                                data-watchlist-id="{{ note.watchlist_id }}"
+                                                data-watchlist-name="{{ note.watchlist_name }}"
+                                                data-note-text="{{ note.note_text }}">
+                                                Edit
+                                            </button>
+                                            <button class="btn btn-outline-danger delete-note-btn"
+                                                data-watchlist-id="{{ note.watchlist_id }}"
+                                                data-watchlist-name="{{ note.watchlist_name }}">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="alert alert-info" id="noNotesAlert">
+                                No notes yet. Add a note for {{ ticker }} in one of your watchlists.
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Add Note Form -->
+                        <div class="card mt-3">
+                            <div class="card-header">
+                                <h6 class="mb-0" id="noteFormTitle">Add Note</h6>
+                            </div>
+                            <div class="card-body">
+                                <form id="noteForm">
+                                    <div class="mb-3">
+                                        <label for="watchlistSelect" class="form-label">Watchlist</label>
+                                        <select class="form-select" id="watchlistSelect" required>
+                                            {% for wl in stock_watchlists %}
+                                            <option value="{{ wl.watchlist_id }}">{{ wl.watchlist_name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="noteText" class="form-label">Note</label>
+                                        <textarea class="form-control" id="noteText" rows="3" maxlength="500"
+                                            placeholder="Enter your note (max 500 characters)" required></textarea>
+                                        <div class="form-text">
+                                            <span id="charCount">0</span>/500 characters
+                                        </div>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button type="submit" class="btn btn-primary" id="saveNoteBtn">Save Note</button>
+                                        <button type="button" class="btn btn-secondary d-none" id="cancelEditBtn">Cancel</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning">
+                            {% if request.session.get('account_id') %}
+                            {{ ticker }} is not in any of your watchlists. Add it to a watchlist first to create notes.
+                            {% else %}
+                            <a href="/auth/login">Log in</a> to add notes for stocks in your watchlists.
+                            {% endif %}
                         </div>
                         {% endif %}
                     </div>
@@ -1096,6 +1186,122 @@
         // Handle Refresh Options button (legacy, if still present)
         $('#refreshOptionsBtn').on('click', function () {
             refreshStockData();
+        });
+
+        // ===== Notes Tab Functionality =====
+        const ticker = "{{ ticker }}";
+        let editingWatchlistId = null;
+
+        // Character counter for note text
+        $('#noteText').on('input', function() {
+            const length = $(this).val().length;
+            $('#charCount').text(length);
+        });
+
+        // Handle note form submission
+        $('#noteForm').on('submit', function(e) {
+            e.preventDefault();
+
+            const watchlistId = $('#watchlistSelect').val();
+            const noteText = $('#noteText').val().trim();
+
+            if (!noteText) {
+                alert('Please enter a note.');
+                return;
+            }
+
+            const btn = $('#saveNoteBtn');
+            const originalText = btn.text();
+            btn.prop('disabled', true).text('Saving...');
+
+            $.ajax({
+                url: `/v1/watchlist/${watchlistId}/stocks/${ticker}/note`,
+                method: 'PUT',
+                contentType: 'application/json',
+                data: JSON.stringify({ note_text: noteText }),
+                success: function(response) {
+                    // Reload page to show updated notes
+                    window.location.reload();
+                },
+                error: function(xhr, status, error) {
+                    let errorMsg = 'Error saving note';
+                    if (xhr.responseJSON && xhr.responseJSON.detail) {
+                        errorMsg = xhr.responseJSON.detail;
+                    }
+                    alert(errorMsg);
+                    btn.prop('disabled', false).text(originalText);
+                }
+            });
+        });
+
+        // Handle Edit Note button clicks
+        $(document).on('click', '.edit-note-btn', function() {
+            const watchlistId = $(this).data('watchlist-id');
+            const watchlistName = $(this).data('watchlist-name');
+            const noteText = $(this).data('note-text');
+
+            // Set form values
+            $('#watchlistSelect').val(watchlistId);
+            $('#noteText').val(noteText);
+            $('#charCount').text(noteText.length);
+
+            // Update form title and buttons
+            $('#noteFormTitle').text('Edit Note for ' + watchlistName);
+            $('#saveNoteBtn').text('Update Note');
+            $('#cancelEditBtn').removeClass('d-none');
+
+            editingWatchlistId = watchlistId;
+
+            // Scroll to form
+            $('#noteForm')[0].scrollIntoView({ behavior: 'smooth' });
+        });
+
+        // Handle Cancel Edit button
+        $('#cancelEditBtn').on('click', function() {
+            // Reset form
+            $('#noteForm')[0].reset();
+            $('#charCount').text('0');
+            $('#noteFormTitle').text('Add Note');
+            $('#saveNoteBtn').text('Save Note');
+            $('#cancelEditBtn').addClass('d-none');
+            editingWatchlistId = null;
+        });
+
+        // Handle Delete Note button clicks
+        $(document).on('click', '.delete-note-btn', function() {
+            const watchlistId = $(this).data('watchlist-id');
+            const watchlistName = $(this).data('watchlist-name');
+
+            if (!confirm(`Are you sure you want to delete the note for ${ticker} in "${watchlistName}"?`)) {
+                return;
+            }
+
+            const btn = $(this);
+            const originalText = btn.text();
+            btn.prop('disabled', true).text('Deleting...');
+
+            $.ajax({
+                url: `/v1/watchlist/${watchlistId}/stocks/${ticker}/note`,
+                method: 'DELETE',
+                success: function(response) {
+                    // Remove the note from the list
+                    $(`#note-${watchlistId}`).fadeOut(300, function() {
+                        $(this).remove();
+                        // Check if no notes left
+                        if ($('.list-group-item').length === 0) {
+                            $('#notesList').html('<div class="alert alert-info" id="noNotesAlert">No notes yet. Add a note for ' + ticker + ' in one of your watchlists.</div>');
+                        }
+                    });
+                },
+                error: function(xhr, status, error) {
+                    let errorMsg = 'Error deleting note';
+                    if (xhr.responseJSON && xhr.responseJSON.detail) {
+                        errorMsg = xhr.responseJSON.detail;
+                    }
+                    alert(errorMsg);
+                    btn.prop('disabled', false).text(originalText);
+                }
+            });
         });
         });
 

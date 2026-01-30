@@ -8,6 +8,7 @@ from app.models.rr_watchlist import RRWatchlist, RRHistory
 from app.models.rr_history_log import RRHistoryLog  # Import to register with metadata
 from app.models.account import Account # New import, fixed typo
 from app.models.options_cache import CachedCoveredCall, CachedRiskReversal  # Options strategy cache
+from app.models.watchlist_stock_notes import WatchlistStockNote  # Watchlist stock notes
 
 # Database URL - supports both SQLite (local dev) and PostgreSQL (production)
 # Railway provides DATABASE_URL environment variable automatically
@@ -70,6 +71,9 @@ def create_db_and_tables():
     # Options Strategy Cache Tables
     _create_options_cache_tables()
     _create_options_cache_indexes()
+
+    # Watchlist Stock Notes Table
+    _create_watchlist_stock_notes_table()
     
 
 
@@ -1165,3 +1169,51 @@ def _create_options_cache_indexes():
 
     except Exception as e:
         print(f"Warning: Could not create options cache indexes: {e}")
+
+
+def _create_watchlist_stock_notes_table():
+    """Create watchlist_stock_notes table if it doesn't exist and add indexes."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            # Check if table exists
+            if is_sqlite:
+                result = session.exec(text(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='watchlist_stock_notes'"
+                )).all()
+                if not result:
+                    SQLModel.metadata.create_all(engine)
+                    print("Created watchlist_stock_notes table")
+            else:
+                result = session.exec(text(
+                    "SELECT tablename FROM pg_tables WHERE tablename = 'watchlist_stock_notes'"
+                )).all()
+                if not result:
+                    SQLModel.metadata.create_all(engine)
+                    print("Created watchlist_stock_notes table")
+
+            # Create index on ticker for faster lookups
+            if is_sqlite:
+                result = session.exec(text(
+                    "SELECT name FROM sqlite_master WHERE type='index' AND name='idx_watchlist_stock_notes_ticker'"
+                )).all()
+                if not result:
+                    session.exec(text(
+                        "CREATE INDEX idx_watchlist_stock_notes_ticker ON watchlist_stock_notes(ticker)"
+                    ))
+                    session.commit()
+                    print("Created index idx_watchlist_stock_notes_ticker")
+            else:
+                result = session.exec(text(
+                    "SELECT indexname FROM pg_indexes WHERE tablename = 'watchlist_stock_notes' AND indexname = 'idx_watchlist_stock_notes_ticker'"
+                )).all()
+                if not result:
+                    session.exec(text(
+                        "CREATE INDEX idx_watchlist_stock_notes_ticker ON watchlist_stock_notes(ticker)"
+                    ))
+                    session.commit()
+                    print("Created index idx_watchlist_stock_notes_ticker")
+
+    except Exception as e:
+        print(f"Warning: Could not create watchlist_stock_notes table: {e}")

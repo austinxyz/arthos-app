@@ -24,6 +24,7 @@ def _cleanup_all_tables(session):
     Respects foreign key constraints by deleting child tables first.
     """
     from app.models.watchlist import WatchList, WatchListStock
+    from app.models.watchlist_stock_notes import WatchlistStockNote
     from app.models.rr_watchlist import RRWatchlist, RRHistory
     from app.models.scheduler_log import SchedulerLog
     from app.models.rr_history_log import RRHistoryLog
@@ -31,6 +32,7 @@ def _cleanup_all_tables(session):
 
     # Delete in order respecting foreign keys
     tables_to_clean = [
+        WatchlistStockNote,  # FK to WatchList
         WatchListStock,  # FK to WatchList
         WatchList,
         RRHistory,       # FK to RRWatchlist
