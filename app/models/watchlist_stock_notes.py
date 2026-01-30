@@ -1,6 +1,5 @@
 """WatchlistStockNote model for storing notes on stocks within watchlists."""
 from sqlmodel import SQLModel, Field
-from sqlalchemy import Column, String, ForeignKey
 from datetime import datetime
 from typing import Optional
 
@@ -16,13 +15,9 @@ class WatchlistStockNote(SQLModel, table=True):
     __tablename__ = "watchlist_stock_notes"
 
     # Composite primary key: watchlist_id + ticker
-    # Use sa_column for explicit ON DELETE CASCADE
     watchlist_id: str = Field(
-        sa_column=Column(
-            String,
-            ForeignKey("watchlist.watchlist_id", ondelete="CASCADE"),
-            primary_key=True
-        ),
+        foreign_key="watchlist.watchlist_id",
+        primary_key=True,
         description="Foreign key to watchlist"
     )
     ticker: str = Field(
