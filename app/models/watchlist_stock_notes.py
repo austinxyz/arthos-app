@@ -1,5 +1,5 @@
 """WatchlistStockNote model for storing notes on stocks within watchlists."""
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, VARCHAR
 from datetime import datetime
 from typing import Optional
 
@@ -15,9 +15,11 @@ class WatchlistStockNote(SQLModel, table=True):
     __tablename__ = "watchlist_stock_notes"
 
     # Composite primary key: watchlist_id + ticker
+    # Use VARCHAR(36) explicitly for PostgreSQL compatibility (watchlist.watchlist_id is stored as UUID in Postgres)
     watchlist_id: str = Field(
         foreign_key="watchlist.watchlist_id",
         primary_key=True,
+        sa_type=VARCHAR(36),
         description="Foreign key to watchlist"
     )
     ticker: str = Field(

@@ -20,9 +20,11 @@ class WatchList(SQLModel, table=True):
     __tablename__ = "watchlist"
 
     # Store UUID as string for SQLite compatibility
+    # Use VARCHAR(36) explicitly for PostgreSQL compatibility
     watchlist_id: str = Field(
         default_factory=generate_uuid_str,
         primary_key=True,
+        sa_type=VARCHAR(36),
         description="Unique watchlist identifier"
     )
     watchlist_name: str = Field(
@@ -67,9 +69,11 @@ class WatchListStock(SQLModel, table=True):
     __tablename__ = "watchlist_stocks"
 
     # Store UUID as string for SQLite compatibility
+    # Use VARCHAR(36) explicitly for PostgreSQL compatibility (watchlist.watchlist_id is stored as UUID in Postgres)
     watchlist_id: str = Field(
         foreign_key="watchlist.watchlist_id",
         primary_key=True,
+        sa_type=VARCHAR(36),
         description="Foreign key to watchlist"
     )
     ticker: str = Field(
