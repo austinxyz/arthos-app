@@ -1220,8 +1220,8 @@
                 contentType: 'application/json',
                 data: JSON.stringify({ note_text: noteText }),
                 success: function(response) {
-                    // Reload page to show updated notes
-                    window.location.reload();
+                    // Reload page to show updated notes, staying on Notes tab
+                    window.location.href = window.location.pathname.split('#')[0] + '#notes';
                 },
                 error: function(xhr, status, error) {
                     let errorMsg = 'Error saving note';
