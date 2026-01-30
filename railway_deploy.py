@@ -36,7 +36,14 @@ def migrate_watchlist_uuid_to_varchar():
     """
     print("  Checking if watchlist.watchlist_id needs type migration...")
 
+    # Use autocommit mode for DDL operations to avoid transaction issues
+    from sqlalchemy.engine import Engine
+    original_isolation_level = engine.execution_options.isolation_level if hasattr(engine.execution_options, 'isolation_level') else None
+
     with engine.connect() as conn:
+        # Set autocommit mode for DDL
+        conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+
         # Check current type of watchlist_id
         result = conn.execute(text("""
             SELECT data_type
@@ -51,16 +58,22 @@ def migrate_watchlist_uuid_to_varchar():
             print("  Migrating watchlist_id from UUID to VARCHAR(36)...")
 
             # Step 1: Drop foreign key constraints that reference watchlist.watchlist_id
+            # Using separate execution blocks to avoid transaction abort issues
             print("    - Dropping foreign key constraints...")
+
+            # Drop watchlist_stocks FK
             try:
                 conn.execute(text("ALTER TABLE watchlist_stocks DROP CONSTRAINT IF EXISTS watchlist_stocks_watchlist_id_fkey"))
+                print("      - Dropped watchlist_stocks foreign key")
             except Exception as e:
-                print(f"      (watchlist_stocks FK may not exist: {e})")
+                print(f"      - watchlist_stocks FK: {e}")
 
+            # Drop watchlist_stock_notes FK (table may not exist yet)
             try:
                 conn.execute(text("ALTER TABLE watchlist_stock_notes DROP CONSTRAINT IF EXISTS watchlist_stock_notes_watchlist_id_fkey"))
+                print("      - Dropped watchlist_stock_notes foreign key")
             except Exception as e:
-                print(f"      (watchlist_stock_notes FK may not exist: {e})")
+                print(f"      - watchlist_stock_notes FK: {e}")
 
             # Step 2: Change watchlist_id type from UUID to VARCHAR(36)
             print("    - Altering watchlist.watchlist_id type to VARCHAR(36)...")
@@ -70,10 +83,9 @@ def migrate_watchlist_uuid_to_varchar():
                 USING watchlist_id::text
             """))
 
-            conn.commit()
             print("  ✓ Migration complete: watchlist_id is now VARCHAR(36)")
             return True
-        elif current_type and 'character varying' in current_type.lower() or current_type == 'varchar':
+        elif current_type and ('character varying' in current_type.lower() or current_type == 'varchar'):
             print(f"  ✓ watchlist_id already VARCHAR(36), skipping migration")
             return False
         else:
