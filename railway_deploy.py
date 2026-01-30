@@ -16,13 +16,69 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app.database import create_db_and_tables, engine
 from app.models.watchlist import WatchListStock
 from app.models.stock_price import StockPrice
-from sqlmodel import Session
+from sqlmodel import Session, text
 
 # Migration flags directory
 MIGRATIONS_DIR = Path("/app/data/migrations") if os.path.exists("/app/data") else Path(".migrations")
 MIGRATIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 BACKFILL_ENTRY_PRICES_FLAG = MIGRATIONS_DIR / "backfill_entry_prices_done"
+FIX_WATCHLIST_UUID_TYPE_FLAG = MIGRATIONS_DIR / "fix_watchlist_uuid_type_done"
+
+
+def migrate_watchlist_uuid_to_varchar():
+    """
+    Migrate existing watchlist.watchlist_id from UUID to VARCHAR(36).
+
+    This is needed because the original table used UUID type but our foreign
+    key references (watchlist_stocks, watchlist_stock_notes) use VARCHAR(36)
+    for SQLite compatibility. PostgreSQL requires exact type matches for FKs.
+    """
+    print("  Checking if watchlist.watchlist_id needs type migration...")
+
+    with engine.connect() as conn:
+        # Check current type of watchlist_id
+        result = conn.execute(text("""
+            SELECT data_type
+            FROM information_schema.columns
+            WHERE table_name = 'watchlist'
+            AND column_name = 'watchlist_id'
+        """))
+        current_type = result.scalar()
+
+        if current_type and 'uuid' in current_type.lower():
+            print(f"  Found watchlist_id type: {current_type}")
+            print("  Migrating watchlist_id from UUID to VARCHAR(36)...")
+
+            # Step 1: Drop foreign key constraints that reference watchlist.watchlist_id
+            print("    - Dropping foreign key constraints...")
+            try:
+                conn.execute(text("ALTER TABLE watchlist_stocks DROP CONSTRAINT IF EXISTS watchlist_stocks_watchlist_id_fkey"))
+            except Exception as e:
+                print(f"      (watchlist_stocks FK may not exist: {e})")
+
+            try:
+                conn.execute(text("ALTER TABLE watchlist_stock_notes DROP CONSTRAINT IF EXISTS watchlist_stock_notes_watchlist_id_fkey"))
+            except Exception as e:
+                print(f"      (watchlist_stock_notes FK may not exist: {e})")
+
+            # Step 2: Change watchlist_id type from UUID to VARCHAR(36)
+            print("    - Altering watchlist.watchlist_id type to VARCHAR(36)...")
+            conn.execute(text("""
+                ALTER TABLE watchlist
+                ALTER COLUMN watchlist_id TYPE VARCHAR(36)
+                USING watchlist_id::text
+            """))
+
+            conn.commit()
+            print("  ✓ Migration complete: watchlist_id is now VARCHAR(36)")
+            return True
+        elif current_type and 'character varying' in current_type.lower() or current_type == 'varchar':
+            print(f"  ✓ watchlist_id already VARCHAR(36), skipping migration")
+            return False
+        else:
+            print(f"  ? Unknown type: {current_type}, skipping migration")
+            return False
 
 
 def unwrap_result(obj):
@@ -146,12 +202,40 @@ def run_backfill_entry_prices_task():
         print("This is not critical - new stocks will still get entry prices")
 
 
+def run_fix_watchlist_uuid_type_migration():
+    """Run watchlist UUID to VARCHAR migration if not already done."""
+    if FIX_WATCHLIST_UUID_TYPE_FLAG.exists():
+        print("✓ Watchlist UUID type migration already completed, skipping...")
+        return
+
+    print("=" * 60)
+    print("Running watchlist UUID to VARCHAR migration...")
+    print("=" * 60)
+
+    try:
+        migrated = migrate_watchlist_uuid_to_varchar()
+
+        if migrated:
+            # Mark as completed
+            FIX_WATCHLIST_UUID_TYPE_FLAG.touch()
+            print("✓ Watchlist UUID type migration completed and marked as done")
+    except Exception as e:
+        print(f"⚠ Watchlist UUID type migration failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
 def main():
     """Run all deployment migrations."""
     print("=" * 60)
     print("RAILWAY DEPLOYMENT SCRIPT")
     print("=" * 60)
-    
+
+    # 0. Run watchlist UUID type migration (must be before create_db_and_tables)
+    print("\n0. Checking watchlist schema compatibility...")
+    run_fix_watchlist_uuid_type_migration()
+
     # 1. Run database migrations
     print("\n1. Running database migrations...")
     create_db_and_tables()
