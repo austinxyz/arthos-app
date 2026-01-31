@@ -123,18 +123,25 @@ def save_rr_to_watchlist(
         
         # Parse expiration date
         exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
-        
+
         # Create RR watchlist entry
         with Session(engine) as session:
-            # Check if entry already exists for this calculation
-            # Logic: If account_id provided, unique per account.
-            
-            statement = select(RRWatchlist).where(RRWatchlist.ticker == ticker.upper())
+            # Check if entry already exists for this exact strategy combination
+            # Unique key: ticker + account_id + expiration + put_strike + call_strike + ratio
+            # This allows multiple different strategies for the same stock
+
+            statement = select(RRWatchlist).where(
+                RRWatchlist.ticker == ticker.upper(),
+                RRWatchlist.expiration == exp_date,
+                RRWatchlist.put_strike == Decimal(str(put_strike)),
+                RRWatchlist.call_strike == Decimal(str(call_strike)),
+                RRWatchlist.ratio == ratio
+            )
             if account_id:
                 statement = statement.where(RRWatchlist.account_id == account_id)
             else:
                 statement = statement.where(RRWatchlist.account_id == None)
-                
+
             existing_entry = session.exec(statement).first()
 
             if existing_entry:
