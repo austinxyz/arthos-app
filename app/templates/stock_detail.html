@@ -628,6 +628,10 @@
                                             <td><strong>{{ strategy.days_to_expiration }}</strong></td>
                                             <td>${{ strategy.put_risk_formatted }}</td>
                                             <td>
+                                                {% set rr_key = expiration ~ "|" ~ strategy.put_strike ~ "|" ~ strategy.call_strike ~ "|" ~ strategy.ratio %}
+                                                {% if rr_key in saved_rr_keys %}
+                                                <span class="badge bg-success">Saved</span>
+                                                {% else %}
                                                 <button class="btn btn-sm btn-primary save-rr-btn"
                                                     data-ticker="{{ ticker }}" data-expiration="{{ expiration }}"
                                                     data-put-strike="{{ strategy.put_strike }}"
@@ -639,6 +643,7 @@
                                                     data-collar-type="{{ strategy.collar_type }}" {% endif %}>
                                                     Save
                                                 </button>
+                                                {% endif %}
                                             </td>
                                         </tr>
                                         {% endfor %}

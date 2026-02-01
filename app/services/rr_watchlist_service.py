@@ -299,3 +299,35 @@ def get_rr_history(rr_uuid: Union[str, UUID]) -> list[RRHistory]:
         ).order_by(RRHistory.history_date.asc())
         entries = session.exec(statement).all()
         return list(entries)
+
+
+def get_saved_rr_keys_for_ticker(ticker: str, account_id: Optional[Union[str, UUID]] = None) -> set:
+    """
+    Get a set of unique keys for saved RR entries for a specific ticker.
+    Key format: "expiration|put_strike|call_strike|ratio"
+
+    Args:
+        ticker: Stock ticker symbol
+        account_id: Optional account ID to filter by
+
+    Returns:
+        Set of keys for O(1) lookup in the template
+    """
+    keys = set()
+    with Session(engine) as session:
+        statement = select(RRWatchlist).where(
+            RRWatchlist.ticker == ticker.upper()
+        )
+        if account_id:
+            statement = statement.where(RRWatchlist.account_id == account_id)
+        else:
+            statement = statement.where(RRWatchlist.account_id == None)
+
+        entries = session.exec(statement).all()
+        for entry in entries:
+            # Format: expiration|put_strike|call_strike|ratio
+            exp_str = entry.expiration.strftime('%Y-%m-%d') if entry.expiration else ''
+            key = f"{exp_str}|{float(entry.put_strike)}|{float(entry.call_strike)}|{entry.ratio}"
+            keys.add(key)
+
+    return keys

@@ -712,6 +712,7 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         # Get stock notes for user
         stock_notes = []
         stock_watchlists = []
+        saved_rr_keys = set()
         account_id_str = request.session.get('account_id')
         if account_id_str:
             try:
@@ -722,6 +723,14 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
                 print(f"Error fetching notes for {ticker}: {str(e)}")
                 stock_notes = []
                 stock_watchlists = []
+
+            # Get saved RR combinations for this ticker
+            try:
+                from app.services.rr_watchlist_service import get_saved_rr_keys_for_ticker
+                saved_rr_keys = get_saved_rr_keys_for_ticker(ticker, account_id_str)
+            except Exception as e:
+                print(f"Error fetching saved RR keys for {ticker}: {str(e)}")
+                saved_rr_keys = set()
 
         return templates.TemplateResponse("stock_detail.html", {
             "request": request,
@@ -734,7 +743,8 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
             "min_distance_rr": min_distance_rr,
             "options_updated_at": options_updated_at,
             "stock_notes": stock_notes,
-            "stock_watchlists": stock_watchlists
+            "stock_watchlists": stock_watchlists,
+            "saved_rr_keys": saved_rr_keys
         })
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
