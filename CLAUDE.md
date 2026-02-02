@@ -64,8 +64,16 @@ The app uses an abstraction layer for stock data providers:
 - `app/models/account.py` - User accounts (OIDC/Google auth)
 
 ### Database
-- SQLite (`arthos.db`) for local development (auto-created on first run)
-- PostgreSQL in production (set `DATABASE_URL` environment variable)
+- **PostgreSQL for both local development and production** (consistency is critical)
+- Local dev: `docker-compose -f docker-compose.dev.yml up -d` then set `DATABASE_URL=postgresql://arthos:arthos_dev@localhost:5432/arthos`
+- Production: Railway PostgreSQL (set `DATABASE_URL` environment variable)
+
+### UUID Handling
+- **Always use UUID type consistently** - both in models and database columns
+- All ID fields (watchlist_id, account_id, rr_uuid) should use UUID type in PostgreSQL
+- When accepting UUID parameters in service functions, use `Union[UUID, str]` type hints
+- Always convert to string using `to_str()` from `app/utils/type_helpers.py` before database operations
+- This prevents "operator does not exist: character varying = uuid" errors in PostgreSQL
 
 ## Testing Guidelines
 

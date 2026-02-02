@@ -130,6 +130,8 @@ def save_rr_to_watchlist(
             # Unique key: ticker + account_id + expiration + put_strike + call_strike + ratio
             # This allows multiple different strategies for the same stock
 
+            acc_id = to_str(account_id)
+
             statement = select(RRWatchlist).where(
                 RRWatchlist.ticker == ticker.upper(),
                 RRWatchlist.expiration == exp_date,
@@ -137,8 +139,8 @@ def save_rr_to_watchlist(
                 RRWatchlist.call_strike == Decimal(str(call_strike)),
                 RRWatchlist.ratio == ratio
             )
-            if account_id:
-                statement = statement.where(RRWatchlist.account_id == account_id)
+            if acc_id:
+                statement = statement.where(RRWatchlist.account_id == acc_id)
             else:
                 statement = statement.where(RRWatchlist.account_id == None)
 
@@ -213,23 +215,25 @@ def save_rr_to_watchlist(
 def get_all_rr_watchlist_entries(account_id: Optional[Union[str, UUID]] = None, fetch_all: bool = False) -> List[RRWatchlist]:
     """
     Get all Risk Reversal watchlist entries.
-    
+
     Args:
         account_id: Optional ID of the account to filter by
         fetch_all: If True, returns all entries regardless of account_id (for scheduler)
-        
+
     Returns:
         List of RRWatchlist objects.
     """
+    acc_id = to_str(account_id)
+
     with Session(engine) as session:
         statement = select(RRWatchlist)
         if fetch_all:
             pass  # No filter, return all
-        elif account_id:
-            statement = statement.where(RRWatchlist.account_id == account_id)
+        elif acc_id:
+            statement = statement.where(RRWatchlist.account_id == acc_id)
         else:
-             statement = statement.where(RRWatchlist.account_id == None)
-             
+            statement = statement.where(RRWatchlist.account_id == None)
+
         entries = session.exec(statement).all()
         return list(entries)
 
@@ -313,13 +317,15 @@ def get_saved_rr_keys_for_ticker(ticker: str, account_id: Optional[Union[str, UU
     Returns:
         Set of keys for O(1) lookup in the template
     """
+    acc_id = to_str(account_id)
     keys = set()
+
     with Session(engine) as session:
         statement = select(RRWatchlist).where(
             RRWatchlist.ticker == ticker.upper()
         )
-        if account_id:
-            statement = statement.where(RRWatchlist.account_id == account_id)
+        if acc_id:
+            statement = statement.where(RRWatchlist.account_id == acc_id)
         else:
             statement = statement.where(RRWatchlist.account_id == None)
 
