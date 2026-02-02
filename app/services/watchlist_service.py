@@ -724,90 +724,96 @@ def get_all_public_watchlists() -> List[WatchList]:
         return watchlists
 
 
-def get_public_watchlist(watchlist_id: UUID) -> WatchList:
+def get_public_watchlist(watchlist_id: Union[UUID, str]) -> WatchList:
     """
     Get a public watchlist by ID. Does not require authentication.
-    
+
     Args:
-        watchlist_id: WatchList UUID
-        
+        watchlist_id: WatchList UUID or string
+
     Returns:
         WatchList object
-        
+
     Raises:
         ValueError: If watchlist not found or is not public
     """
     from sqlalchemy.orm import selectinload
-    
+
+    wl_id = to_str(watchlist_id)
+
     with Session(engine) as session:
         statement = (
             select(WatchList)
             .where(
-                WatchList.watchlist_id == watchlist_id,
+                WatchList.watchlist_id == wl_id,
                 WatchList.is_public == True
             )
             .options(selectinload(WatchList.account))
         )
         watchlist = session.exec(statement).first()
-        
+
         if not watchlist:
             raise ValueError(f"Public watchlist not found: {watchlist_id}")
-        
+
         return watchlist
 
 
-def update_watchlist_visibility(watchlist_id: UUID, is_public: bool, account_id: UUID) -> WatchList:
+def update_watchlist_visibility(watchlist_id: Union[UUID, str], is_public: bool, account_id: Union[UUID, str]) -> WatchList:
     """
     Update a watchlist's public/private visibility.
-    
+
     Args:
-        watchlist_id: UUID of the watchlist
+        watchlist_id: UUID or string of the watchlist
         is_public: True to make public, False for private
         account_id: ID of the requesting account to verify ownership
-        
+
     Returns:
         Updated WatchList object
-        
+
     Raises:
         ValueError: If watchlist not found or access denied
     """
+    wl_id = to_str(watchlist_id)
+
     # Verify ownership
-    watchlist = get_watchlist(watchlist_id, account_id)
-    
+    watchlist = get_watchlist(wl_id, account_id)
+
     with Session(engine) as session:
         # Re-fetch within session
-        db_watchlist = session.get(WatchList, watchlist_id)
+        db_watchlist = session.get(WatchList, wl_id)
         if not db_watchlist:
             raise ValueError(f"Watchlist not found: {watchlist_id}")
-        
+
         db_watchlist.is_public = is_public
         db_watchlist.date_modified = datetime.now()
         session.add(db_watchlist)
         session.commit()
         session.refresh(db_watchlist)
-        
+
         return db_watchlist
 
 
-def get_public_watchlist_stocks(watchlist_id: UUID) -> List[WatchListStock]:
+def get_public_watchlist_stocks(watchlist_id: Union[UUID, str]) -> List[WatchListStock]:
     """
     Get all stocks in a PUBLIC watchlist (no auth required).
-    
+
     Args:
-        watchlist_id: WatchList UUID
-        
+        watchlist_id: WatchList UUID or string
+
     Returns:
         List of WatchListStock objects
-        
+
     Raises:
         ValueError: If watchlist not found or is not public
     """
+    wl_id = to_str(watchlist_id)
+
     # Verify it's a public watchlist
-    watchlist = get_public_watchlist(watchlist_id)
-    
+    watchlist = get_public_watchlist(wl_id)
+
     with Session(engine) as session:
         statement = select(WatchListStock).where(
-            WatchListStock.watchlist_id == watchlist_id
+            WatchListStock.watchlist_id == wl_id
         )
         stocks = session.exec(statement).all()
         return stocks
