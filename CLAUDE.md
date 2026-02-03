@@ -145,7 +145,10 @@ Required environment variables for production:
 - `DATABASE_URL` - PostgreSQL connection string
 - `SECRET_KEY` - Session secret for authentication
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - OAuth for Google login
-- `GOOGLE_AI_API_KEY` - For LLM-powered stock insights (Gemini API)
+- `LLM_PROVIDER` - LLM provider for stock insights: `groq` (default) or `gemini`
+- `GROQ_API_KEY` - API key for Groq (required if LLM_PROVIDER=groq)
+- `GROQ_MODEL` - (optional) Groq model to use, defaults to `llama-3.3-70b-versatile`
+- `GOOGLE_AI_API_KEY` - API key for Gemini (required if LLM_PROVIDER=gemini)
 - `GOOGLE_AI_MODEL` - (optional) Gemini model to use, defaults to `gemini-2.0-flash`
 - `SENTRY_DSN` - (optional) Error tracking
 

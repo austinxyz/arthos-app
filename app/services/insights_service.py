@@ -12,8 +12,11 @@ from app.models.stock_price import StockAttributes
 logger = logging.getLogger(__name__)
 
 # Configuration
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")  # "groq" or "gemini"
 GOOGLE_AI_API_KEY = os.getenv("GOOGLE_AI_API_KEY")
 GOOGLE_AI_MODEL = os.getenv("GOOGLE_AI_MODEL", "gemini-2.0-flash")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 INSIGHTS_STALE_HOURS = 24
 LLM_TIMEOUT_SECONDS = 30
 
@@ -67,16 +70,48 @@ def is_insights_stale(updated_at: Optional[datetime]) -> bool:
     return updated_at < stale_threshold
 
 
-def fetch_insights_from_llm(ticker: str) -> Optional[Dict[str, Any]]:
+def _parse_llm_response(response_text: str, ticker: str) -> Optional[Dict[str, Any]]:
     """
-    Fetch insights from Google AI Studio (Gemini) for a given ticker.
+    Parse and validate LLM response text into insights dictionary.
 
     Args:
-        ticker: Stock ticker symbol
+        response_text: Raw text response from LLM
+        ticker: Stock ticker symbol (for logging)
 
     Returns:
         Dictionary with 'going_right' and 'going_wrong' lists, or None on failure
     """
+    try:
+        # Remove markdown code blocks if present
+        text = response_text.strip()
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        text = text.strip()
+
+        insights = json.loads(text)
+
+        # Validate structure
+        if "going_right" not in insights or "going_wrong" not in insights:
+            logger.error(f"Invalid insights structure for {ticker}: missing required keys")
+            return None
+
+        if not isinstance(insights["going_right"], list) or not isinstance(insights["going_wrong"], list):
+            logger.error(f"Invalid insights structure for {ticker}: values must be lists")
+            return None
+
+        return insights
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse LLM response as JSON for {ticker}: {e}")
+        return None
+
+
+def _fetch_insights_from_gemini(ticker: str, prompt: str) -> Optional[str]:
+    """Fetch insights using Google Gemini API."""
     if not GOOGLE_AI_API_KEY:
         logger.error("GOOGLE_AI_API_KEY not configured")
         return None
@@ -86,8 +121,6 @@ def fetch_insights_from_llm(ticker: str) -> Optional[Dict[str, Any]]:
         from google.genai import types
 
         client = genai.Client(api_key=GOOGLE_AI_API_KEY)
-
-        prompt = INSIGHTS_PROMPT.format(ticker=ticker.upper())
 
         response = client.models.generate_content(
             model=GOOGLE_AI_MODEL,
@@ -99,41 +132,81 @@ def fetch_insights_from_llm(ticker: str) -> Optional[Dict[str, Any]]:
         )
 
         if not response or not response.text:
-            logger.error(f"Empty response from LLM for {ticker}")
+            logger.error(f"Empty response from Gemini for {ticker}")
             return None
 
-        # Parse JSON from response
-        response_text = response.text.strip()
+        return response.text
 
-        # Remove markdown code blocks if present
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        if response_text.startswith("```"):
-            response_text = response_text[3:]
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
-        response_text = response_text.strip()
-
-        insights = json.loads(response_text)
-
-        # Validate structure
-        if "going_right" not in insights or "going_wrong" not in insights:
-            logger.error(f"Invalid insights structure for {ticker}: missing required keys")
-            return None
-
-        if not isinstance(insights["going_right"], list) or not isinstance(insights["going_wrong"], list):
-            logger.error(f"Invalid insights structure for {ticker}: values must be lists")
-            return None
-
-        logger.info(f"Successfully fetched insights for {ticker}")
-        return insights
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM response as JSON for {ticker}: {e}")
-        return None
     except Exception as e:
-        logger.error(f"Error fetching insights from LLM for {ticker}: {e}")
+        logger.error(f"Error fetching insights from Gemini for {ticker}: {e}")
         return None
+
+
+def _fetch_insights_from_groq(ticker: str, prompt: str) -> Optional[str]:
+    """Fetch insights using Groq API."""
+    if not GROQ_API_KEY:
+        logger.error("GROQ_API_KEY not configured")
+        return None
+
+    try:
+        from groq import Groq
+
+        client = Groq(api_key=GROQ_API_KEY)
+
+        response = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
+            model=GROQ_MODEL,
+            temperature=0.7,
+            max_tokens=2048,
+        )
+
+        if not response or not response.choices or not response.choices[0].message.content:
+            logger.error(f"Empty response from Groq for {ticker}")
+            return None
+
+        return response.choices[0].message.content
+
+    except Exception as e:
+        logger.error(f"Error fetching insights from Groq for {ticker}: {e}")
+        return None
+
+
+def fetch_insights_from_llm(ticker: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch insights from configured LLM provider for a given ticker.
+
+    Uses LLM_PROVIDER environment variable to select between 'groq' and 'gemini'.
+
+    Args:
+        ticker: Stock ticker symbol
+
+    Returns:
+        Dictionary with 'going_right' and 'going_wrong' lists, or None on failure
+    """
+    prompt = INSIGHTS_PROMPT.format(ticker=ticker.upper())
+
+    # Select provider based on configuration
+    if LLM_PROVIDER == "gemini":
+        logger.info(f"Fetching insights for {ticker} using Gemini ({GOOGLE_AI_MODEL})")
+        response_text = _fetch_insights_from_gemini(ticker, prompt)
+    else:  # Default to groq
+        logger.info(f"Fetching insights for {ticker} using Groq ({GROQ_MODEL})")
+        response_text = _fetch_insights_from_groq(ticker, prompt)
+
+    if not response_text:
+        return None
+
+    insights = _parse_llm_response(response_text, ticker)
+
+    if insights:
+        logger.info(f"Successfully fetched insights for {ticker}")
+
+    return insights
 
 
 def save_insights(ticker: str, insights: Dict[str, Any]) -> bool:
@@ -219,9 +292,14 @@ def get_insights(ticker: str, force_refresh: bool = False) -> Dict[str, Any]:
                     logger.error(f"Failed to parse cached insights for {ticker_upper}")
 
             # Need to fetch fresh insights (either missing, stale, or force_refresh)
-            if not GOOGLE_AI_API_KEY:
+            # Check if the configured provider has an API key
+            if LLM_PROVIDER == "gemini" and not GOOGLE_AI_API_KEY:
                 result["status"] = "unavailable"
-                result["error"] = "API key not configured"
+                result["error"] = "GOOGLE_AI_API_KEY not configured"
+                return result
+            elif LLM_PROVIDER != "gemini" and not GROQ_API_KEY:
+                result["status"] = "unavailable"
+                result["error"] = "GROQ_API_KEY not configured"
                 return result
 
             # Fetch from LLM
@@ -263,8 +341,12 @@ def refresh_insights_for_watchlist_tickers() -> Dict[str, int]:
 
     results = {"success": 0, "failed": 0, "skipped": 0}
 
-    if not GOOGLE_AI_API_KEY:
+    # Check if the configured provider has an API key
+    if LLM_PROVIDER == "gemini" and not GOOGLE_AI_API_KEY:
         logger.warning("GOOGLE_AI_API_KEY not configured, skipping insights refresh")
+        return results
+    elif LLM_PROVIDER != "gemini" and not GROQ_API_KEY:
+        logger.warning("GROQ_API_KEY not configured, skipping insights refresh")
         return results
 
     try:
