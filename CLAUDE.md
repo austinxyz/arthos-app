@@ -95,6 +95,7 @@ Use correct attribute names from model definitions:
 ### Common Pitfalls
 - `pd.isinf()` doesn't exist - use `np.isinf()` from numpy
 - Normalize timestamps to timezone-naive: `df.index.tz_localize(None)`
+- **Template conditionals with enums/ratios**: When displaying badges or labels based on enum-like values (e.g., RR ratios: '1:1', '1:2', '1:3', 'Collar'), ensure ALL valid values are handled. Don't use `else` as a catch-all assuming only one default - explicitly check each value to avoid incorrect displays.
 
 ### Database Migrations
 **CRITICAL**: When adding new columns to existing SQLModel models:
