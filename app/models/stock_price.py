@@ -1,7 +1,7 @@
 """Stock price models for storing historical price data."""
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import Numeric, UniqueConstraint
-from datetime import date
+from sqlalchemy import Numeric, UniqueConstraint, Text
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -139,4 +139,14 @@ class StockAttributes(SQLModel, table=True):
         default=None,
         sa_column=Column(Numeric(12, 4)),
         description="50-day standard deviation of close prices"
+    )
+    # LLM-generated insights
+    insights_json: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text),
+        description="JSON string with LLM-generated insights (going_right/going_wrong)"
+    )
+    insights_updated_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp when insights were last fetched from LLM"
     )

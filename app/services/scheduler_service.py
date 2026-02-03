@@ -665,6 +665,69 @@ def cleanup_old_scheduler_logs():
         traceback.print_exc()
 
 
+def update_insights_for_all_watchlists():
+    """
+    Refresh LLM-generated insights for all unique tickers across all watchlists.
+    Scheduled to run daily at 5:00 AM ET.
+    Creates a log entry in scheduler_log table.
+    """
+    start_time = datetime.now()
+    log_id = None
+
+    logger.info("="*80)
+    logger.info("SCHEDULER JOB: update_insights_for_all_watchlists()")
+    logger.info(f"Start time: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info("="*80)
+
+    try:
+        # Create log entry
+        with Session(engine) as session:
+            log_entry = SchedulerLog(
+                start_time=start_time,
+                end_time=None,
+                notes="LLM insights update job started"
+            )
+            session.add(log_entry)
+            session.commit()
+            session.refresh(log_entry)
+            log_id = log_entry.id
+        logger.info(f"✓ Created scheduler_log entry with ID: {log_id}")
+
+        # Call the insights service to refresh
+        from app.services.insights_service import refresh_insights_for_watchlist_tickers
+        results = refresh_insights_for_watchlist_tickers()
+
+        # Update log entry
+        end_time = datetime.now()
+        notes = f"Insights refresh: Success={results['success']}, Failed={results['failed']}, Skipped={results['skipped']}"
+
+        with Session(engine) as session:
+            log_entry = session.get(SchedulerLog, log_id)
+            if log_entry:
+                log_entry.end_time = end_time
+                log_entry.notes = notes
+                session.add(log_entry)
+                session.commit()
+
+        logger.info(f"✓ Insights update job completed. {notes}")
+
+    except Exception as e:
+        logger.error(f"Error in update_insights_for_all_watchlists: {str(e)}")
+        if log_id:
+            try:
+                with Session(engine) as session:
+                    log_entry = session.get(SchedulerLog, log_id)
+                    if log_entry:
+                        log_entry.end_time = datetime.now()
+                        log_entry.notes = f"FAILED: {str(e)}"
+                        session.add(log_entry)
+                        session.commit()
+            except Exception as log_error:
+                logger.error(f"Could not update log entry: {log_error}")
+        import traceback
+        traceback.print_exc()
+
+
 def start_scheduler():
     """
     Start the background scheduler to fetch stock data and update options cache.
@@ -750,6 +813,16 @@ def start_scheduler():
         trigger=CronTrigger(hour=5, minute=0, timezone=ET_TIMEZONE),
         id='cleanup_old_scheduler_logs',
         name='Cleanup old scheduler logs (daily 05:00 ET)',
+        replace_existing=True
+    )
+
+    # 7. LLM Insights Update: Daily at 5:30 AM ET
+    logger.info("Registering job: update_insights (daily 05:30 ET)")
+    scheduler.add_job(
+        func=update_insights_for_all_watchlists,
+        trigger=CronTrigger(hour=5, minute=30, timezone=ET_TIMEZONE),
+        id='update_insights',
+        name='Update LLM insights (daily 05:30 ET)',
         replace_existing=True
     )
 

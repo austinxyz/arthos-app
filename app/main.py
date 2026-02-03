@@ -1516,6 +1516,36 @@ async def delete_stock_note(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# Stock Insights API Endpoints
+@app.get("/v1/stock/{ticker}/insights")
+async def get_stock_insights(
+    request: Request,
+    ticker: str = FPath(...),
+    refresh: bool = Query(False, description="Force refresh insights from LLM")
+):
+    """
+    Get LLM-generated insights for a stock.
+
+    Returns AI-generated analysis with top 5 things going right and wrong for the stock.
+    Insights are cached for 24 hours. Use refresh=true to force a fresh fetch.
+
+    Args:
+        request: Request object
+        ticker: Stock ticker symbol
+        refresh: If true, force refresh from LLM regardless of cache
+
+    Returns:
+        JSON response with insights data
+    """
+    from app.services import insights_service
+
+    try:
+        result = insights_service.get_insights(ticker, force_refresh=refresh)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching insights: {str(e)}")
+
+
 @app.get("/debug/stock-price")
 async def debug_stock_price_page(request: Request, ticker: str = Query("", description="Stock ticker symbol")):
     """
