@@ -191,18 +191,21 @@ app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
 @app.get("/")
 async def home(request: Request):
     """Homepage route."""
-    from app.services.watchlist_service import get_public_watchlist_top_movers
+    from app.services.watchlist_service import get_top_movers
+
+    account_id_str = request.session.get('account_id')
 
     try:
-        top_movers = get_public_watchlist_top_movers(limit=5)
+        top_movers = get_top_movers(limit=5, account_id=account_id_str)
     except Exception as e:
         print(f"Error fetching top movers: {e}")
-        top_movers = {'winners': [], 'losers': []}
+        top_movers = {'winners': [], 'losers': [], 'is_user_data': False}
 
     return templates.TemplateResponse("index.html", {
         "request": request,
         "winners": top_movers['winners'],
-        "losers": top_movers['losers']
+        "losers": top_movers['losers'],
+        "is_user_data": top_movers.get('is_user_data', False)
     })
 
 

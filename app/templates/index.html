@@ -177,6 +177,14 @@
             text-align: center;
             padding: 20px;
         }
+
+        .movers-caption {
+            color: #888;
+            font-size: 13px;
+            text-align: center;
+            margin-top: 20px;
+            width: 100%;
+        }
     </style>
 </head>
 
@@ -224,7 +232,21 @@
                             <td>${{ "%.2f"|format(stock.entry_price) }}</td>
                             <td>${{ "%.2f"|format(stock.current_price) }}</td>
                             <td class="positive">+{{ "%.2f"|format(stock.change_pct) }}%</td>
-                            <td>{{ stock.signal or 'N/A' }}</td>
+                            <td>
+                                {% if stock.signal == "Extreme Oversold" %}
+                                <span class="badge bg-success">Extreme OS</span>
+                                {% elif stock.signal == "Oversold" %}
+                                <span class="badge bg-info text-dark">Oversold</span>
+                                {% elif stock.signal == "Neutral" %}
+                                <span class="badge bg-secondary">Neutral</span>
+                                {% elif stock.signal == "Overbought" %}
+                                <span class="badge bg-warning text-dark">Overbought</span>
+                                {% elif stock.signal == "Extreme Overbought" %}
+                                <span class="badge bg-danger">Extreme OB</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ stock.signal or 'N/A' }}</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -255,7 +277,21 @@
                             <td>${{ "%.2f"|format(stock.entry_price) }}</td>
                             <td>${{ "%.2f"|format(stock.current_price) }}</td>
                             <td class="negative">{{ "%.2f"|format(stock.change_pct) }}%</td>
-                            <td>{{ stock.signal or 'N/A' }}</td>
+                            <td>
+                                {% if stock.signal == "Extreme Oversold" %}
+                                <span class="badge bg-success">Extreme OS</span>
+                                {% elif stock.signal == "Oversold" %}
+                                <span class="badge bg-info text-dark">Oversold</span>
+                                {% elif stock.signal == "Neutral" %}
+                                <span class="badge bg-secondary">Neutral</span>
+                                {% elif stock.signal == "Overbought" %}
+                                <span class="badge bg-warning text-dark">Overbought</span>
+                                {% elif stock.signal == "Extreme Overbought" %}
+                                <span class="badge bg-danger">Extreme OB</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ stock.signal or 'N/A' }}</span>
+                                {% endif %}
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -265,6 +301,14 @@
                 {% endif %}
             </div>
         </div>
+        <!-- Explanatory text below tables -->
+        <p class="movers-caption">
+            {% if is_user_data %}
+            Top 5 winners and losers from your watchlists
+            {% else %}
+            Top 5 winners and losers from all public watchlists
+            {% endif %}
+        </p>
     </div>
 
     <!-- Bootstrap JS -->

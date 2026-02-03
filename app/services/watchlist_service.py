@@ -819,44 +819,58 @@ def get_public_watchlist_stocks(watchlist_id: Union[UUID, str]) -> List[WatchLis
         return stocks
 
 
-def get_public_watchlist_top_movers(limit: int = 5) -> Dict[str, List[Dict[str, Any]]]:
+def get_top_movers(limit: int = 5, account_id: Optional[Union[str, UUID]] = None) -> Dict[str, Any]:
     """
-    Get top winners and losers from all public watchlists.
+    Get top winners and losers from watchlists.
+
+    If account_id is provided, returns from that user's watchlists (public or private).
+    If account_id is None, returns from all public watchlists.
 
     Args:
         limit: Number of stocks to return for each category (default 5)
+        account_id: Optional account ID to filter watchlists by owner
 
     Returns:
-        Dictionary with 'winners' and 'losers' lists, each containing:
-        - ticker: Stock symbol
-        - entry_price: Price when added to watchlist
-        - current_price: Latest stock price
-        - change_pct: Percentage change
+        Dictionary with:
+        - winners: List of top gaining stocks
+        - losers: List of top losing stocks
+        - is_user_data: Boolean indicating if data is from user's watchlists
     """
     from app.models.stock_price import StockPrice, StockAttributes
     from sqlalchemy import func
 
+    acc_id = to_str(account_id)
+
     with Session(engine) as session:
-        # Get all public watchlists
-        public_watchlists = session.exec(
-            select(WatchList).where(WatchList.is_public == True)
-        ).all()
+        # Get watchlists based on whether user is logged in
+        if acc_id:
+            # Logged in: get user's own watchlists (public or private)
+            watchlists = session.exec(
+                select(WatchList).where(WatchList.account_id == acc_id)
+            ).all()
+            is_user_data = True
+        else:
+            # Not logged in: get all public watchlists
+            watchlists = session.exec(
+                select(WatchList).where(WatchList.is_public == True)
+            ).all()
+            is_user_data = False
 
-        if not public_watchlists:
-            return {'winners': [], 'losers': []}
+        if not watchlists:
+            return {'winners': [], 'losers': [], 'is_user_data': is_user_data}
 
-        public_watchlist_ids = [wl.watchlist_id for wl in public_watchlists]
+        watchlist_ids = [wl.watchlist_id for wl in watchlists]
 
-        # Get all stocks from public watchlists with entry prices
+        # Get all stocks from these watchlists with entry prices
         stocks = session.exec(
             select(WatchListStock).where(
-                WatchListStock.watchlist_id.in_(public_watchlist_ids),
+                WatchListStock.watchlist_id.in_(watchlist_ids),
                 WatchListStock.entry_price != None
             )
         ).all()
 
         if not stocks:
-            return {'winners': [], 'losers': []}
+            return {'winners': [], 'losers': [], 'is_user_data': is_user_data}
 
         # Get unique tickers and their entry prices
         ticker_entries = {}
@@ -908,5 +922,5 @@ def get_public_watchlist_top_movers(limit: int = 5) -> Dict[str, List[Dict[str, 
         winners = movers[:limit]
         losers = sorted(movers, key=lambda x: x['change_pct'])[:limit]
 
-        return {'winners': winners, 'losers': losers}
+        return {'winners': winners, 'losers': losers, 'is_user_data': is_user_data}
 
