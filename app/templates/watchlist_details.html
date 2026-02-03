@@ -103,8 +103,9 @@
 </head>
 
 <body>
+    {% set current_page = 'watchlists' %}
+    {% include 'partials/navbar.html' %}
     <div class="container-fluid px-4">
-        {% include 'partials/auth_header.html' %}
         <div class="header mb-4">
             {% if is_public_view %}
             <a href="/public-watchlists" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Public

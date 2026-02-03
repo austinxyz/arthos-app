@@ -174,10 +174,10 @@
 </head>
 
 <body>
+    {% set current_page = 'stock' %}
+    {% include 'partials/navbar.html' %}
     <div class="container">
-        {% include 'partials/auth_header.html' %}
         <div class="header mb-4">
-            <a href="/" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Home</a>
             <div class="d-flex align-items-center gap-3">
                 <h1 class="mb-0">{{ ticker }} - Stock Details</h1>
                 <button id="refreshBtn" class="btn btn-outline-primary btn-sm" onclick="refreshStockData()" title="Force refresh all data">

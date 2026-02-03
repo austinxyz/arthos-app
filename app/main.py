@@ -194,11 +194,22 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
+@app.get("/portfolios", response_class=HTMLResponse)
+async def portfolios_page(request: Request):
+    """
+    Display portfolios page (placeholder).
+
+    Returns:
+        HTML page for portfolios (coming soon)
+    """
+    return templates.TemplateResponse("portfolios.html", {"request": request})
+
+
 @app.get("/watchlists", response_class=HTMLResponse)
 async def watchlists_page(request: Request):
     """
     Display list of all watchlists.
-    
+
     Returns:
         HTML page with list of watchlists
     """

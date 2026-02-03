@@ -81,10 +81,10 @@
 </head>
 
 <body>
+    {% set current_page = 'results' %}
+    {% include 'partials/navbar.html' %}
     <div class="container">
-        {% include 'partials/auth_header.html' %}
         <div class="header mb-4">
-            <a href="/" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Home</a>
             <h1>Stock Metrics Results</h1>
         </div>
 

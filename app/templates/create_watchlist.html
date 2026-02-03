@@ -30,8 +30,9 @@
 </head>
 
 <body>
+    {% set current_page = 'watchlists' %}
+    {% include 'partials/navbar.html' %}
     <div class="container">
-        {% include 'partials/auth_header.html' %}
         <div class="header mb-4">
             <a href="/watchlists" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to WatchLists</a>
             <h1>Create New WatchList</h1>

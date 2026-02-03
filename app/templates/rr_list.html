@@ -62,10 +62,10 @@
 </head>
 
 <body>
+    {% set current_page = 'options' %}
+    {% include 'partials/navbar.html' %}
     <div class="container-fluid px-4">
-        {% include 'partials/auth_header.html' %}
         <div class="header mb-4">
-            <a href="/" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Home</a>
             <h1>RR Watchlist</h1>
         </div>
 
