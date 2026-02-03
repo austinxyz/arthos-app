@@ -1,8 +1,8 @@
 <!-- Navigation Bar -->
-<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom mb-4">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container">
         <!-- Brand -->
-        <a class="navbar-brand fw-bold" href="/" style="color: #4285f4; font-size: 1.5rem;">Arthos</a>
+        <a class="navbar-brand fw-bold" href="/" style="font-size: 1.5rem;">Arthos</a>
 
         <!-- Mobile toggle button -->
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
@@ -23,7 +23,7 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link {% if current_page == 'portfolios' %}active fw-bold{% endif %}"
-                        href="/portfolios">Portfolios</a>
+                        href="/portfolios">Portfolios <span class="badge bg-warning text-dark ms-1" style="font-size: 0.65rem;">Coming Soon</span></a>
                 </li>
             </ul>
 
@@ -36,16 +36,16 @@
                     <img src="{{ request.session.get('user', {}).get('picture') }}" alt="Profile"
                         class="rounded-circle" style="width: 32px; height: 32px;">
                     {% endif %}
-                    <span class="text-dark fw-medium d-none d-md-inline">
+                    <span class="text-light fw-medium d-none d-md-inline">
                         {{ request.session.get('user', {}).get('name', 'User') }}
                     </span>
-                    <a href="/logout" class="btn btn-outline-danger btn-sm ms-2">Sign Out</a>
+                    <a href="/logout" class="btn btn-outline-light btn-sm ms-2">Sign Out</a>
                 </div>
                 {% else %}
                 <!-- Not logged in: show login/signup -->
                 <div class="d-flex gap-2">
-                    <a href="/login" class="btn btn-outline-primary btn-sm">Login</a>
-                    <a href="/login" class="btn btn-primary btn-sm">Sign Up</a>
+                    <a href="/login" class="btn btn-outline-light btn-sm">Login</a>
+                    <a href="/login" class="btn btn-light btn-sm">Sign Up</a>
                 </div>
                 {% endif %}
             </div>
