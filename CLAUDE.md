@@ -138,3 +138,24 @@ def add_new_columns():
 - `GET /debug/stock-price?ticker={ticker}` - View stock price data
 - `GET /debug/scheduler-log` - View scheduler logs
 - `POST /debug/scheduler-log/trigger` - Manually trigger scheduler
+
+## Environment Variables
+
+Required environment variables for production:
+- `DATABASE_URL` - PostgreSQL connection string
+- `SECRET_KEY` - Session secret for authentication
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - OAuth for Google login
+- `GOOGLE_AI_API_KEY` - For LLM-powered stock insights (Gemini API)
+- `SENTRY_DSN` - (optional) Error tracking
+
+## Deployment Notes
+
+### Railway Deployment
+- Deploy script: `railway_deploy.py` runs migrations before app starts
+- Logs: `railway logs --json` to view deployment/runtime logs
+- Redeploy: `railway redeploy --yes` (may fail if build in progress)
+- Cache issues: Add a cache bust comment to `requirements.txt` if Railway uses stale builds
+
+### Python Dependencies
+- **Google Generative AI SDK**: Don't pin `protobuf` version - let pip resolve it automatically. The SDK has specific protobuf requirements (`<6.0.0`) that conflict with newer versions.
+- Always test dependency changes locally before deploying
