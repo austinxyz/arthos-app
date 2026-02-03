@@ -23,9 +23,8 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            min-height: calc(100vh - 200px);
-            padding: 20px;
+            justify-content: flex-start;
+            padding: 40px 20px 20px;
         }
 
         .logo-container {
@@ -101,6 +100,83 @@
             text-align: center;
             display: none;
         }
+
+        .movers-section {
+            display: flex;
+            gap: 40px;
+            margin-top: 50px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .movers-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            min-width: 320px;
+        }
+
+        .movers-card h3 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .movers-card.winners h3 {
+            color: #198754;
+        }
+
+        .movers-card.losers h3 {
+            color: #dc3545;
+        }
+
+        .movers-table {
+            width: 100%;
+            font-size: 14px;
+        }
+
+        .movers-table th {
+            text-align: left;
+            padding: 8px 12px;
+            color: #666;
+            font-weight: 500;
+            border-bottom: 1px solid #eee;
+        }
+
+        .movers-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f5f5f5;
+        }
+
+        .movers-table .ticker-link {
+            color: #4285f4;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .movers-table .ticker-link:hover {
+            text-decoration: underline;
+        }
+
+        .movers-table .positive {
+            color: #198754;
+            font-weight: 600;
+        }
+
+        .movers-table .negative {
+            color: #dc3545;
+            font-weight: 600;
+        }
+
+        .no-data {
+            color: #999;
+            font-size: 14px;
+            text-align: center;
+            padding: 20px;
+        }
     </style>
 </head>
 
@@ -123,6 +199,67 @@
                 <div class="hint-text">Enter comma-separated stock tickers (e.g., AAPL, MSFT, GOOGL)</div>
                 <div class="error-message" id="errorMessage"></div>
             </form>
+        </div>
+
+        <!-- Winners and Losers Section -->
+        <div class="movers-section">
+            <!-- Winners -->
+            <div class="movers-card winners">
+                <h3>Winners</h3>
+                {% if winners and winners|length > 0 %}
+                <table class="movers-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Entry Price</th>
+                            <th>Current Price</th>
+                            <th>Change %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in winners %}
+                        <tr>
+                            <td><a href="/stock/{{ stock.ticker }}" class="ticker-link">{{ stock.ticker }}</a></td>
+                            <td>${{ "%.2f"|format(stock.entry_price) }}</td>
+                            <td>${{ "%.2f"|format(stock.current_price) }}</td>
+                            <td class="positive">+{{ "%.2f"|format(stock.change_pct) }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="no-data">No data available</p>
+                {% endif %}
+            </div>
+
+            <!-- Losers -->
+            <div class="movers-card losers">
+                <h3>Losers</h3>
+                {% if losers and losers|length > 0 %}
+                <table class="movers-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Entry Price</th>
+                            <th>Current Price</th>
+                            <th>Change %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in losers %}
+                        <tr>
+                            <td><a href="/stock/{{ stock.ticker }}" class="ticker-link">{{ stock.ticker }}</a></td>
+                            <td>${{ "%.2f"|format(stock.entry_price) }}</td>
+                            <td>${{ "%.2f"|format(stock.current_price) }}</td>
+                            <td class="negative">{{ "%.2f"|format(stock.change_pct) }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="no-data">No data available</p>
+                {% endif %}
+            </div>
         </div>
     </div>
 

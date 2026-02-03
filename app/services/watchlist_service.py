@@ -819,3 +819,87 @@ def get_public_watchlist_stocks(watchlist_id: Union[UUID, str]) -> List[WatchLis
         return stocks
 
 
+def get_public_watchlist_top_movers(limit: int = 5) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Get top winners and losers from all public watchlists.
+
+    Args:
+        limit: Number of stocks to return for each category (default 5)
+
+    Returns:
+        Dictionary with 'winners' and 'losers' lists, each containing:
+        - ticker: Stock symbol
+        - entry_price: Price when added to watchlist
+        - current_price: Latest stock price
+        - change_pct: Percentage change
+    """
+    from app.models.stock_price import StockPrice, StockAttributes
+    from sqlalchemy import func
+
+    with Session(engine) as session:
+        # Get all public watchlists
+        public_watchlists = session.exec(
+            select(WatchList).where(WatchList.is_public == True)
+        ).all()
+
+        if not public_watchlists:
+            return {'winners': [], 'losers': []}
+
+        public_watchlist_ids = [wl.watchlist_id for wl in public_watchlists]
+
+        # Get all stocks from public watchlists with entry prices
+        stocks = session.exec(
+            select(WatchListStock).where(
+                WatchListStock.watchlist_id.in_(public_watchlist_ids),
+                WatchListStock.entry_price != None
+            )
+        ).all()
+
+        if not stocks:
+            return {'winners': [], 'losers': []}
+
+        # Get unique tickers and their entry prices
+        ticker_entries = {}
+        for stock in stocks:
+            ticker = stock.ticker.upper()
+            if ticker not in ticker_entries:
+                ticker_entries[ticker] = float(stock.entry_price)
+
+        tickers = list(ticker_entries.keys())
+
+        # Get latest prices for all tickers
+        subquery = (
+            select(StockPrice.ticker, func.max(StockPrice.price_date).label('max_date'))
+            .where(StockPrice.ticker.in_(tickers))
+            .group_by(StockPrice.ticker)
+            .subquery()
+        )
+
+        latest_prices = session.exec(
+            select(StockPrice)
+            .join(subquery, (StockPrice.ticker == subquery.c.ticker) & (StockPrice.price_date == subquery.c.max_date))
+        ).all()
+
+        price_lookup = {p.ticker: float(p.close_price) for p in latest_prices}
+
+        # Calculate change percentages
+        movers = []
+        for ticker, entry_price in ticker_entries.items():
+            if ticker in price_lookup and entry_price and entry_price > 0:
+                current_price = price_lookup[ticker]
+                change_pct = ((current_price - entry_price) / entry_price) * 100
+                movers.append({
+                    'ticker': ticker,
+                    'entry_price': entry_price,
+                    'current_price': current_price,
+                    'change_pct': round(change_pct, 2)
+                })
+
+        # Sort and split into winners/losers
+        movers.sort(key=lambda x: x['change_pct'], reverse=True)
+
+        winners = movers[:limit]
+        losers = sorted(movers, key=lambda x: x['change_pct'])[:limit]
+
+        return {'winners': winners, 'losers': losers}
+

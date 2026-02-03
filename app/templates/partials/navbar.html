@@ -1,8 +1,10 @@
 <!-- Navigation Bar -->
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
     <div class="container-fluid px-3">
-        <!-- Brand (left) -->
+        <!-- Brand (left) - hidden on home page -->
+        {% if current_page != 'home' %}
         <a class="navbar-brand" href="/" style="font-size: 1.5rem; font-weight: 400; color: #4285f4 !important;">Arthos</a>
+        {% endif %}
 
         <!-- Mobile toggle button -->
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
