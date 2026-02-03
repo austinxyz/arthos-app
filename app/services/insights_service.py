@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 GOOGLE_AI_API_KEY = os.getenv("GOOGLE_AI_API_KEY")
+GOOGLE_AI_MODEL = os.getenv("GOOGLE_AI_MODEL", "gemini-2.0-flash")
 INSIGHTS_STALE_HOURS = 24
 LLM_TIMEOUT_SECONDS = 30
 
@@ -84,7 +85,7 @@ def fetch_insights_from_llm(ticker: str) -> Optional[Dict[str, Any]]:
         import google.generativeai as genai
 
         genai.configure(api_key=GOOGLE_AI_API_KEY)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel(GOOGLE_AI_MODEL)
 
         prompt = INSIGHTS_PROMPT.format(ticker=ticker.upper())
 

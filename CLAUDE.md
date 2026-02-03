@@ -146,6 +146,7 @@ Required environment variables for production:
 - `SECRET_KEY` - Session secret for authentication
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - OAuth for Google login
 - `GOOGLE_AI_API_KEY` - For LLM-powered stock insights (Gemini API)
+- `GOOGLE_AI_MODEL` - (optional) Gemini model to use, defaults to `gemini-2.0-flash`
 - `SENTRY_DSN` - (optional) Error tracking
 
 ## Deployment Notes
