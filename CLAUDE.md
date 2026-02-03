@@ -96,6 +96,25 @@ Use correct attribute names from model definitions:
 - `pd.isinf()` doesn't exist - use `np.isinf()` from numpy
 - Normalize timestamps to timezone-naive: `df.index.tz_localize(None)`
 
+### Database Migrations
+**CRITICAL**: When adding new columns to existing SQLModel models:
+- `create_db_and_tables()` only creates NEW tables, it does NOT add columns to existing tables
+- You MUST add an explicit migration in `railway_deploy.py` for any new columns
+- Example pattern for adding columns:
+```python
+def add_new_columns():
+    with engine.connect() as conn:
+        conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+        # Check if column exists
+        result = conn.execute(text("""
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'your_table' AND column_name = 'new_column'
+        """))
+        if not result.scalar():
+            conn.execute(text("ALTER TABLE your_table ADD COLUMN new_column TEXT"))
+```
+- Always test migrations locally with PostgreSQL before pushing to production
+
 ## UI Standards
 
 ### Color Coding for Financial Data
