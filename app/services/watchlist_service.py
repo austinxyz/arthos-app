@@ -882,6 +882,12 @@ def get_public_watchlist_top_movers(limit: int = 5) -> Dict[str, List[Dict[str, 
 
         price_lookup = {p.ticker: float(p.close_price) for p in latest_prices}
 
+        # Get signals from stock_attributes
+        attributes = session.exec(
+            select(StockAttributes).where(StockAttributes.ticker.in_(tickers))
+        ).all()
+        signal_lookup = {attr.ticker: attr.signal for attr in attributes}
+
         # Calculate change percentages
         movers = []
         for ticker, entry_price in ticker_entries.items():
@@ -892,7 +898,8 @@ def get_public_watchlist_top_movers(limit: int = 5) -> Dict[str, List[Dict[str, 
                     'ticker': ticker,
                     'entry_price': entry_price,
                     'current_price': current_price,
-                    'change_pct': round(change_pct, 2)
+                    'change_pct': round(change_pct, 2),
+                    'signal': signal_lookup.get(ticker, 'N/A')
                 })
 
         # Sort and split into winners/losers

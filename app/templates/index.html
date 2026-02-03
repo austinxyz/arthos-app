@@ -214,6 +214,7 @@
                             <th>Entry Price</th>
                             <th>Current Price</th>
                             <th>Change %</th>
+                            <th>Signal</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -223,6 +224,7 @@
                             <td>${{ "%.2f"|format(stock.entry_price) }}</td>
                             <td>${{ "%.2f"|format(stock.current_price) }}</td>
                             <td class="positive">+{{ "%.2f"|format(stock.change_pct) }}%</td>
+                            <td>{{ stock.signal or 'N/A' }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -243,6 +245,7 @@
                             <th>Entry Price</th>
                             <th>Current Price</th>
                             <th>Change %</th>
+                            <th>Signal</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -252,6 +255,7 @@
                             <td>${{ "%.2f"|format(stock.entry_price) }}</td>
                             <td>${{ "%.2f"|format(stock.current_price) }}</td>
                             <td class="negative">{{ "%.2f"|format(stock.change_pct) }}%</td>
+                            <td>{{ stock.signal or 'N/A' }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
