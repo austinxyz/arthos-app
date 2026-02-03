@@ -78,4 +78,4 @@ psycopg2-binary==2.9.9
 playwright==1.48.0
 Authlib==1.4.0
 itsdangerous==2.2.0
-google-generativeai==0.8.0
+google-generativeai==0.8.6
