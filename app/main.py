@@ -125,8 +125,51 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Admin Access Control Middleware
+# Protects /debug/* endpoints - only allows access to ADMIN_EMAIL
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
+
+
+class AdminAccessMiddleware(BaseHTTPMiddleware):
+    """Middleware to protect admin-only routes like /debug/*."""
+
+    async def dispatch(self, request: Request, call_next):
+        # Check if this is a protected route
+        if request.url.path.startswith("/debug"):
+            # Get user from session
+            user = request.session.get("user") if hasattr(request, "session") else None
+
+            # Check if user is logged in and has admin email
+            if not user:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Admin access required. Please log in."}
+                )
+
+            user_email = user.get("email")
+            if not ADMIN_EMAIL:
+                # If ADMIN_EMAIL not configured, deny all access to debug
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Admin access not configured."}
+                )
+
+            if user_email != ADMIN_EMAIL:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Admin access required. You are not authorized."}
+                )
+
+        return await call_next(request)
+
+
+# Add Admin Access Middleware (must be added before SessionMiddleware)
+app.add_middleware(AdminAccessMiddleware)
+
 # Add Session Middleware
-import os
 from starlette.middleware.sessions import SessionMiddleware
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, max_age=86400*30, same_site='lax', https_only=False)
