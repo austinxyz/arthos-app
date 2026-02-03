@@ -82,16 +82,17 @@ def fetch_insights_from_llm(ticker: str) -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
 
-        genai.configure(api_key=GOOGLE_AI_API_KEY)
-        model = genai.GenerativeModel(GOOGLE_AI_MODEL)
+        client = genai.Client(api_key=GOOGLE_AI_API_KEY)
 
         prompt = INSIGHTS_PROMPT.format(ticker=ticker.upper())
 
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
+        response = client.models.generate_content(
+            model=GOOGLE_AI_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
                 temperature=0.7,
                 max_output_tokens=2048,
             )
