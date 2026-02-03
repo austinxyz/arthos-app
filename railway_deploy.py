@@ -24,6 +24,47 @@ MIGRATIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 BACKFILL_ENTRY_PRICES_FLAG = MIGRATIONS_DIR / "backfill_entry_prices_done"
 FIX_WATCHLIST_UUID_TYPE_FLAG = MIGRATIONS_DIR / "fix_watchlist_uuid_type_done"
+ADD_INSIGHTS_COLUMNS_FLAG = MIGRATIONS_DIR / "add_insights_columns_done"
+
+
+def add_insights_columns():
+    """
+    Add insights_json and insights_updated_at columns to stock_attributes table.
+    These columns store LLM-generated stock insights.
+    """
+    print("  Checking if stock_attributes needs insights columns...")
+
+    with engine.connect() as conn:
+        conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+
+        # Check if insights_json column exists
+        result = conn.execute(text("""
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_name = 'stock_attributes'
+            AND column_name = 'insights_json'
+        """))
+        existing_column = result.scalar()
+
+        if existing_column:
+            print("  ✓ insights_json column already exists, skipping migration")
+            return False
+
+        # Add the columns
+        print("  Adding insights_json column...")
+        conn.execute(text("""
+            ALTER TABLE stock_attributes
+            ADD COLUMN insights_json TEXT
+        """))
+
+        print("  Adding insights_updated_at column...")
+        conn.execute(text("""
+            ALTER TABLE stock_attributes
+            ADD COLUMN insights_updated_at TIMESTAMP
+        """))
+
+        print("  ✓ Migration complete: insights columns added to stock_attributes")
+        return True
 
 
 def migrate_watchlist_uuid_to_varchar():
@@ -238,6 +279,30 @@ def run_fix_watchlist_uuid_type_migration():
         raise
 
 
+def run_add_insights_columns_migration():
+    """Run insights columns migration if not already done."""
+    if ADD_INSIGHTS_COLUMNS_FLAG.exists():
+        print("✓ Insights columns migration already completed, skipping...")
+        return
+
+    print("=" * 60)
+    print("Running insights columns migration...")
+    print("=" * 60)
+
+    try:
+        migrated = add_insights_columns()
+
+        if migrated:
+            # Mark as completed
+            ADD_INSIGHTS_COLUMNS_FLAG.touch()
+            print("✓ Insights columns migration completed and marked as done")
+    except Exception as e:
+        print(f"⚠ Insights columns migration failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
+
+
 def main():
     """Run all deployment migrations."""
     print("=" * 60)
@@ -252,11 +317,15 @@ def main():
     print("\n1. Running database migrations...")
     create_db_and_tables()
     print("✓ Database migrations complete")
-    
-    # 2. Run one-time backfill
-    print("\n2. Checking one-time migrations...")
+
+    # 2. Add insights columns to stock_attributes
+    print("\n2. Checking insights columns migration...")
+    run_add_insights_columns_migration()
+
+    # 3. Run one-time backfill
+    print("\n3. Checking one-time migrations...")
     run_backfill_entry_prices_task()
-    
+
     print("\n" + "=" * 60)
     print("DEPLOYMENT COMPLETE")
     print("=" * 60)
