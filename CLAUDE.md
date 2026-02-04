@@ -68,6 +68,15 @@ The app uses an abstraction layer for stock data providers:
 - Local dev: `docker-compose -f docker-compose.dev.yml up -d` then set `DATABASE_URL=postgresql://arthos:arthos_dev@localhost:5432/arthos`
 - Production: Railway PostgreSQL (set `DATABASE_URL` environment variable)
 
+### Table Naming
+- **Always verify table names from model `__tablename__`** - don't assume based on patterns
+- Table names are inconsistent: `watchlist_stocks` (plural) vs `stock_price` (singular)
+- When writing raw SQL, check the model definition first:
+  - `StockPrice` → `stock_price`
+  - `StockAttributes` → `stock_attributes`
+  - `WatchListStock` → `watchlist_stocks`
+  - `WatchList` → `watchlist`
+
 ### UUID Handling
 - **Always use UUID type consistently** - both in models and database columns
 - All ID fields (watchlist_id, account_id, rr_uuid) should use UUID type in PostgreSQL
