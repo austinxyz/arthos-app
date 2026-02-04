@@ -38,9 +38,21 @@ if is_railway:
     )
 else:
     # Local development: Use human-readable format
+    handlers = [logging.StreamHandler()]
+
+    # Add file handler if LOG_FILE is set
+    log_file = os.getenv('LOG_FILE')
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s %(levelname)s: %(name)s - %(message)s'
+        ))
+        handlers.append(file_handler)
+
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(levelname)s: %(name)s - %(message)s'
+        level=logging.DEBUG if os.getenv('LOG_LEVEL') == 'DEBUG' else logging.INFO,
+        format='%(levelname)s: %(name)s - %(message)s',
+        handlers=handlers
     )
 
 if __name__ == "__main__":
