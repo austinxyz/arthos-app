@@ -665,23 +665,14 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
                 get_cached_risk_reversals
             )
 
-            # Try to get cached covered calls
+            # Try to get cached covered calls (no auto-compute on cache miss to save API calls)
             try:
                 covered_calls = get_cached_covered_calls(ticker)
-                
-                if not covered_calls:
-                    print(f"Cache miss for covered calls on {ticker}. Computing and caching...")
-                    # Fallback: compute and populate cache
-                    from app.services.options_strategy_cache_service import compute_and_cache_covered_calls
-                    compute_and_cache_covered_calls(ticker, metrics['current_price'])
-                    
-                    # Retrieve newly cached data
-                    covered_calls = get_cached_covered_calls(ticker)
-                    
+
                 if covered_calls:
-                     print(f"Using {len(covered_calls)} cached covered calls for {ticker}")
+                    print(f"Using {len(covered_calls)} cached covered calls for {ticker}")
                 else:
-                    print(f"No covered calls found/computed for {ticker}")
+                    print(f"No cached covered calls for {ticker} - use Force Refresh or wait for scheduled update")
                     
             except Exception as e:
                 print(f"Error getting covered call returns for {ticker}: {str(e)}")
@@ -689,23 +680,14 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
                 traceback.print_exc()
                 covered_calls = []
 
-            # Try to get cached risk reversals
+            # Try to get cached risk reversals (no auto-compute on cache miss to save API calls)
             try:
                 risk_reversals = get_cached_risk_reversals(ticker)
-                
-                if not risk_reversals:
-                     print(f"Cache miss for risk reversals on {ticker}. Computing and caching...")
-                     # Fallback: compute and populate cache
-                     from app.services.options_strategy_cache_service import compute_and_cache_risk_reversals
-                     compute_and_cache_risk_reversals(ticker, metrics['current_price'])
-                     
-                     # Retrieve newly cached data
-                     risk_reversals = get_cached_risk_reversals(ticker)
-                
+
                 if risk_reversals:
                     print(f"Using cached risk reversals for {ticker} ({len(risk_reversals)} expirations)")
                 else:
-                    print(f"No risk reversals found/computed for {ticker}")
+                    print(f"No cached risk reversals for {ticker} - use Force Refresh or wait for scheduled update")
 
                 # Determine last updated timestamp
                 if covered_calls and len(covered_calls) > 0:
