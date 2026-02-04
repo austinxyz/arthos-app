@@ -1,5 +1,4 @@
-"""LLM-powered stock insights service using Google AI Studio (Gemini)."""
-import os
+"""LLM-powered stock insights service."""
 import json
 import logging
 import re
@@ -9,17 +8,12 @@ from sqlmodel import Session, select
 
 from app.database import engine
 from app.models.stock_price import StockAttributes
+from app.providers.llm import LLMProviderFactory
 
 logger = logging.getLogger(__name__)
 
 # Configuration
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")  # "groq" or "gemini"
-GOOGLE_AI_API_KEY = os.getenv("GOOGLE_AI_API_KEY")
-GOOGLE_AI_MODEL = os.getenv("GOOGLE_AI_MODEL", "gemini-2.0-flash")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 INSIGHTS_STALE_HOURS = 24
-LLM_TIMEOUT_SECONDS = 30
 
 # LLM Prompt template
 INSIGHTS_PROMPT = """You are an experienced stock market analyst. Analyze the stock {ticker} and provide insights.
@@ -115,77 +109,12 @@ def _parse_llm_response(response_text: str, ticker: str) -> Optional[Dict[str, A
         return None
 
 
-def _fetch_insights_from_gemini(ticker: str, prompt: str) -> Optional[str]:
-    """Fetch insights using Google Gemini API."""
-    if not GOOGLE_AI_API_KEY:
-        logger.error("GOOGLE_AI_API_KEY not configured")
-        return None
-
-    try:
-        from google import genai
-        from google.genai import types
-
-        client = genai.Client(api_key=GOOGLE_AI_API_KEY)
-
-        response = client.models.generate_content(
-            model=GOOGLE_AI_MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                temperature=0.7,
-                max_output_tokens=2048,
-            )
-        )
-
-        if not response or not response.text:
-            logger.error(f"Empty response from Gemini for {ticker}")
-            return None
-
-        return response.text
-
-    except Exception as e:
-        logger.error(f"Error fetching insights from Gemini for {ticker}: {e}")
-        return None
-
-
-def _fetch_insights_from_groq(ticker: str, prompt: str) -> Optional[str]:
-    """Fetch insights using Groq API."""
-    if not GROQ_API_KEY:
-        logger.error("GROQ_API_KEY not configured")
-        return None
-
-    try:
-        from groq import Groq
-
-        client = Groq(api_key=GROQ_API_KEY)
-
-        response = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            model=GROQ_MODEL,
-            temperature=0.7,
-            max_tokens=2048,
-        )
-
-        if not response or not response.choices or not response.choices[0].message.content:
-            logger.error(f"Empty response from Groq for {ticker}")
-            return None
-
-        return response.choices[0].message.content
-
-    except Exception as e:
-        logger.error(f"Error fetching insights from Groq for {ticker}: {e}")
-        return None
-
-
 def fetch_insights_from_llm(ticker: str) -> Optional[Dict[str, Any]]:
     """
     Fetch insights from configured LLM provider for a given ticker.
 
-    Uses LLM_PROVIDER environment variable to select between 'groq' and 'gemini'.
+    Uses LLM_PROVIDER environment variable to select provider.
+    Default is 'openrouter', also supports 'gemini'.
 
     Args:
         ticker: Stock ticker symbol
@@ -195,13 +124,16 @@ def fetch_insights_from_llm(ticker: str) -> Optional[Dict[str, Any]]:
     """
     prompt = INSIGHTS_PROMPT.format(ticker=ticker.upper())
 
-    # Select provider based on configuration
-    if LLM_PROVIDER == "gemini":
-        logger.info(f"Fetching insights for {ticker} using Gemini ({GOOGLE_AI_MODEL})")
-        response_text = _fetch_insights_from_gemini(ticker, prompt)
-    else:  # Default to groq
-        logger.info(f"Fetching insights for {ticker} using Groq ({GROQ_MODEL})")
-        response_text = _fetch_insights_from_groq(ticker, prompt)
+    # Get the configured LLM provider
+    provider = LLMProviderFactory.get_default_provider()
+
+    if not provider.is_configured():
+        logger.error(f"{provider.get_provider_name()} is not configured (missing API key)")
+        return None
+
+    logger.info(f"Fetching insights for {ticker} using {provider.get_provider_name()} ({provider.get_model_name()})")
+
+    response_text = provider.generate(prompt)
 
     if not response_text:
         return None
@@ -297,14 +229,11 @@ def get_insights(ticker: str, force_refresh: bool = False) -> Dict[str, Any]:
                     logger.error(f"Failed to parse cached insights for {ticker_upper}")
 
             # Need to fetch fresh insights (either missing, stale, or force_refresh)
-            # Check if the configured provider has an API key
-            if LLM_PROVIDER == "gemini" and not GOOGLE_AI_API_KEY:
+            # Check if the provider is configured
+            provider = LLMProviderFactory.get_default_provider()
+            if not provider.is_configured():
                 result["status"] = "unavailable"
-                result["error"] = "GOOGLE_AI_API_KEY not configured"
-                return result
-            elif LLM_PROVIDER != "gemini" and not GROQ_API_KEY:
-                result["status"] = "unavailable"
-                result["error"] = "GROQ_API_KEY not configured"
+                result["error"] = f"{provider.get_provider_name()} API key not configured"
                 return result
 
             # Fetch from LLM
@@ -346,12 +275,10 @@ def refresh_insights_for_watchlist_tickers() -> Dict[str, int]:
 
     results = {"success": 0, "failed": 0, "skipped": 0}
 
-    # Check if the configured provider has an API key
-    if LLM_PROVIDER == "gemini" and not GOOGLE_AI_API_KEY:
-        logger.warning("GOOGLE_AI_API_KEY not configured, skipping insights refresh")
-        return results
-    elif LLM_PROVIDER != "gemini" and not GROQ_API_KEY:
-        logger.warning("GROQ_API_KEY not configured, skipping insights refresh")
+    # Check if the provider is configured
+    provider = LLMProviderFactory.get_default_provider()
+    if not provider.is_configured():
+        logger.warning(f"{provider.get_provider_name()} not configured, skipping insights refresh")
         return results
 
     try:
