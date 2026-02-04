@@ -25,6 +25,7 @@ MIGRATIONS_DIR.mkdir(parents=True, exist_ok=True)
 BACKFILL_ENTRY_PRICES_FLAG = MIGRATIONS_DIR / "backfill_entry_prices_done"
 FIX_WATCHLIST_UUID_TYPE_FLAG = MIGRATIONS_DIR / "fix_watchlist_uuid_type_done"
 ADD_INSIGHTS_COLUMNS_FLAG = MIGRATIONS_DIR / "add_insights_columns_done"
+CLEANUP_INVALID_TICKERS_FLAG = MIGRATIONS_DIR / "cleanup_invalid_tickers_done"
 
 
 def add_insights_columns():
@@ -65,6 +66,75 @@ def add_insights_columns():
 
         print("  ✓ Migration complete: insights columns added to stock_attributes")
         return True
+
+
+def cleanup_invalid_tickers():
+    """
+    Remove invalid/test tickers from the database.
+
+    These tickers were added before proper validation was in place:
+    - AAPK: Invalid ticker
+    - APPL: Misspelled Apple (should be AAPL)
+    - SDSK: Invalid ticker
+    - SDK: Invalid ticker
+    """
+    # Tickers to remove - these have no valid price data
+    INVALID_TICKERS = ['AAPK', 'APPL', 'SDSK', 'SDK']
+
+    print(f"  Cleaning up invalid tickers: {INVALID_TICKERS}")
+
+    with engine.connect() as conn:
+        conn = conn.execution_options(isolation_level="AUTOCOMMIT")
+
+        for ticker in INVALID_TICKERS:
+            # Delete from watchlist_stocks
+            result = conn.execute(text(
+                "DELETE FROM watchlist_stocks WHERE ticker = :ticker"
+            ), {"ticker": ticker})
+            ws_count = result.rowcount
+
+            # Delete from stock_prices
+            result = conn.execute(text(
+                "DELETE FROM stock_prices WHERE ticker = :ticker"
+            ), {"ticker": ticker})
+            sp_count = result.rowcount
+
+            # Delete from stock_attributes
+            result = conn.execute(text(
+                "DELETE FROM stock_attributes WHERE ticker = :ticker"
+            ), {"ticker": ticker})
+            sa_count = result.rowcount
+
+            if ws_count or sp_count or sa_count:
+                print(f"    - {ticker}: removed {ws_count} watchlist entries, {sp_count} prices, {sa_count} attributes")
+            else:
+                print(f"    - {ticker}: not found (already clean)")
+
+    print("  ✓ Invalid tickers cleanup complete")
+    return True
+
+
+def run_cleanup_invalid_tickers():
+    """Run invalid tickers cleanup if not already done."""
+    if CLEANUP_INVALID_TICKERS_FLAG.exists():
+        print("✓ Invalid tickers cleanup already completed, skipping...")
+        return
+
+    print("=" * 60)
+    print("Running invalid tickers cleanup...")
+    print("=" * 60)
+
+    try:
+        cleanup_invalid_tickers()
+
+        # Mark as completed
+        CLEANUP_INVALID_TICKERS_FLAG.touch()
+        print("✓ Invalid tickers cleanup completed and marked as done")
+    except Exception as e:
+        print(f"⚠ Invalid tickers cleanup failed: {e}")
+        import traceback
+        traceback.print_exc()
+        # Not critical - don't raise
 
 
 def migrate_watchlist_uuid_to_varchar():
@@ -325,6 +395,10 @@ def main():
     # 3. Run one-time backfill
     print("\n3. Checking one-time migrations...")
     run_backfill_entry_prices_task()
+
+    # 4. Cleanup invalid tickers
+    print("\n4. Checking invalid tickers cleanup...")
+    run_cleanup_invalid_tickers()
 
     print("\n" + "=" * 60)
     print("DEPLOYMENT COMPLETE")

@@ -2,6 +2,7 @@
 import os
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from sqlmodel import Session, select
@@ -91,6 +92,10 @@ def _parse_llm_response(response_text: str, ticker: str) -> Optional[Dict[str, A
         if text.endswith("```"):
             text = text[:-3]
         text = text.strip()
+
+        # Fix trailing commas (common LLM issue - valid in JS but not JSON)
+        # Remove trailing commas before ] or }
+        text = re.sub(r',(\s*[}\]])', r'\1', text)
 
         insights = json.loads(text)
 
