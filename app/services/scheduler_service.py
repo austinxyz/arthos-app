@@ -766,37 +766,17 @@ def start_scheduler():
         replace_existing=True
     )
 
-    # 2. Options Cache Update: 7:00 AM PT (10:00 AM ET)
-    logger.info("Registering job: update_options_cache_morning (10:00 ET)")
-    scheduler.add_job(
-        func=update_options_cache_for_all_watchlists,
-        trigger=CronTrigger(hour=10, minute=0, timezone=ET_TIMEZONE),
-        id='update_options_cache_morning',
-        name='Update options cache (Morning 10:00 ET)',
-        replace_existing=True
-    )
-
-    # 3. Options Cache Update: 11:00 AM PT (2:00 PM ET)
-    logger.info("Registering job: update_options_cache_midday (14:00 ET)")
-    scheduler.add_job(
-        func=update_options_cache_for_all_watchlists,
-        trigger=CronTrigger(hour=14, minute=0, timezone=ET_TIMEZONE),
-        id='update_options_cache_midday',
-        name='Update options cache (Midday 14:00 ET)',
-        replace_existing=True
-    )
-
-    # 4. Options Cache Update: After Market Close (4:05 PM ET)
-    logger.info("Registering job: update_options_cache_post_close (16:05 ET)")
+    # 2. Options Cache Update: After Market Close (4:05 PM ET / 1:05 PM PT)
+    logger.info("Registering job: update_options_cache (16:05 ET)")
     scheduler.add_job(
         func=update_options_cache_for_all_watchlists,
         trigger=CronTrigger(hour=16, minute=5, timezone=ET_TIMEZONE),
-        id='update_options_cache_post_close',
-        name='Update options cache (Post-close 16:05 ET)',
+        id='update_options_cache',
+        name='Update options cache (daily 16:05 ET)',
         replace_existing=True
     )
 
-    # 5. RR History Update: Every 60 minutes (with market hours check inside)
+    # 3. RR History Update: Every 60 minutes (with market hours check inside)
     logger.info("Registering job: update_rr_history (interval=60min)")
     scheduler.add_job(
         func=update_rr_history,
@@ -806,7 +786,7 @@ def start_scheduler():
         replace_existing=True
     )
 
-    # 6. Cleanup old scheduler logs: Daily at 5:00 AM ET
+    # 4. Cleanup old scheduler logs: Daily at 5:00 AM ET
     logger.info("Registering job: cleanup_old_scheduler_logs (daily 05:00 ET)")
     scheduler.add_job(
         func=cleanup_old_scheduler_logs,
@@ -816,7 +796,7 @@ def start_scheduler():
         replace_existing=True
     )
 
-    # 7. LLM Insights Update: Daily at 5:30 AM ET
+    # 5. LLM Insights Update: Daily at 5:30 AM ET
     logger.info("Registering job: update_insights (daily 05:30 ET)")
     scheduler.add_job(
         func=update_insights_for_all_watchlists,
