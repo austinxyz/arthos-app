@@ -93,9 +93,9 @@ def cleanup_invalid_tickers():
             ), {"ticker": ticker})
             ws_count = result.rowcount
 
-            # Delete from stock_prices
+            # Delete from stock_price
             result = conn.execute(text(
-                "DELETE FROM stock_prices WHERE ticker = :ticker"
+                "DELETE FROM stock_price WHERE ticker = :ticker"
             ), {"ticker": ticker})
             sp_count = result.rowcount
 
