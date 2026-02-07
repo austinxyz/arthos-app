@@ -64,7 +64,7 @@ class LLMProviderFactory:
 
     @staticmethod
     def reset_provider():
-        """Reset the cached provider (called after admin changes model/tier)."""
+        """Reset the cached provider (called after admin changes model)."""
         global _cached_provider, _cached_at
         _cached_provider = None
         _cached_at = 0

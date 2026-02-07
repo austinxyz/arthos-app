@@ -1552,18 +1552,13 @@ class LLMModelCreate(BaseModel):
     tier: str
 
 
-class TierUpdate(BaseModel):
-    tier: str
-
-
 @app.get("/v1/llm-models")
 async def list_llm_models(request: Request):
-    """List all LLM models and active tier (admin-only)."""
+    """List all LLM models (admin-only)."""
     _require_admin(request)
     from app.services import llm_model_service
 
     models = llm_model_service.get_all_models()
-    active_tier = llm_model_service.get_active_tier()
     current_model = llm_model_service.get_current_active_model()
 
     return {
@@ -1577,7 +1572,6 @@ async def list_llm_models(request: Request):
             }
             for m in models
         ],
-        "active_tier": active_tier,
         "current_model": current_model.model_name if current_model else None,
     }
 
@@ -1633,25 +1627,10 @@ async def delete_llm_model(request: Request, model_id: int):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.put("/v1/llm-models/tier")
-async def update_llm_tier(request: Request, body: TierUpdate):
-    """Switch active tier (free/paid) and reset provider cache (admin-only)."""
-    _require_admin(request)
-    from app.services import llm_model_service
-    from app.providers.llm import LLMProviderFactory
-
-    try:
-        llm_model_service.set_active_tier(body.tier)
-        LLMProviderFactory.reset_provider()
-        return {"active_tier": body.tier}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
 @app.get("/debug/llm-models")
 async def debug_llm_models_page(request: Request):
     """
-    Debug page for managing LLM models and active tier.
+    Debug page for managing LLM models.
 
     Returns:
         HTML page with LLM model management UI
@@ -1659,13 +1638,11 @@ async def debug_llm_models_page(request: Request):
     from app.services import llm_model_service
 
     models = llm_model_service.get_all_models()
-    active_tier = llm_model_service.get_active_tier()
     current_model = llm_model_service.get_current_active_model()
 
     return templates.TemplateResponse("debug_llm_models.html", {
         "request": request,
         "models": models,
-        "active_tier": active_tier,
         "current_model": current_model,
     })
 
