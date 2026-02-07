@@ -88,11 +88,13 @@ git push origin main
 - Wait for deployment to complete before verification
 
 ### 6. Verify in Production
+**Production URL:** `https://my.arthos.app`
+
 **Required verification steps (automated by Claude):**
 
 a. **Check Railway logs for errors**
    ```bash
-   # Claude will automatically run this:
+   # Automatically check logs after deployment
    /opt/homebrew/bin/railway logs --json | tail -100
    ```
    - Scan for errors that only appear in production
@@ -100,15 +102,24 @@ a. **Check Railway logs for errors**
    - Check for any unexpected warnings
    - Report any issues found
 
-b. **Functional verification** (User confirms)
-   - Test the changed functionality in production browser
-   - For authenticated features: User manually tests (Google OAuth)
-   - For public pages: Claude can run Playwright tests against production
-   - User confirms changes work as expected
+b. **Run Playwright tests against production**
+   ```bash
+   # Run browser tests against production URL
+   TEST_SERVER_URL=https://my.arthos.app pytest tests/test_*_browser.py -v
+   ```
+   - Test all user-facing functionality works in production
+   - Use dedicated test account credentials (stored in environment/config)
+   - Verify changed pages/flows work correctly
+   - Report any failures or UI issues
 
 c. **Monitor error tracking**
    - Check Sentry (if configured) for new errors
    - Verify no new exceptions were introduced
+
+**Test Account Setup:**
+- Dedicated Google test account with known credentials
+- Store credentials securely (environment variables or config)
+- Used for automated Playwright testing against production
 
 ### 7. Fix Production Issues (if any)
 If errors are found:
