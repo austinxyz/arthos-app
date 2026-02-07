@@ -101,6 +101,11 @@ Examples:
   - New API endpoints with UI: Add Playwright browser tests
   - Backend-only API endpoints: Add API/integration tests only
   - UI changes (new pages, interactions, styling): Add/update/remove Playwright tests
+- **When modifying existing behavior:**
+  - **CRITICAL**: If you change UI behavior (tab order, default values, element visibility, text content, etc.), you MUST update ALL tests that verify the old behavior
+  - Example: Changing default active tab from "Covered Calls" to "Insights" requires updating every test that assumes "Covered Calls" is default
+  - Example: Changing button text from "View My WatchLists" to "WatchLists" requires updating all tests checking for that text
+  - **Don't assume tests will pass** - UI changes almost always require test updates
 - **Review code for simplicity**: Before writing tests, refactor code to make it testable and simple
   - Simpler code = simpler tests = easier maintenance
 
@@ -112,7 +117,12 @@ Examples:
 - **Why all tests?** Backend changes can affect UI, so we always run the full suite
 - **Why Docker?** Uses PostgreSQL (same as production), not SQLite - ensures migrations work
 - Tests MUST pass 100% before proceeding to commit
-- If tests fail, fix the issues and re-run until all pass
+- **When tests fail after your changes:**
+  1. **Analyze the failure**: Is it a bug in your code or expected due to intentional behavior change?
+  2. **If it's a bug**: Fix your code and re-run tests
+  3. **If it's expected** (you changed UI behavior): Update the failing tests to match new expected behavior
+  4. **Search for similar tests**: If you changed "Covered Calls" tab behavior, search codebase for all tests mentioning "covered-calls" and update them
+  5. **Re-run ALL tests** after fixing to ensure no other tests broke
 - **Never run pytest directly** - always use Docker for consistency with production
 
 ### 3. Commit Changes
