@@ -16,24 +16,53 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Testing
-```bash
-# CRITICAL: Always run tests in Docker before pushing to main
-./scripts/run-tests-local.sh unit
 
-# Run all tests including browser tests
-./scripts/run-tests-local.sh all
+**CRITICAL: ALWAYS use Docker for local testing. Do NOT run pytest directly.**
+
+#### Why Docker Only?
+- **Database consistency**: Docker uses PostgreSQL (same as production), not SQLite
+- **Migrations tested**: Ensures all migrations work with PostgreSQL
+- **Environment parity**: Matches production environment exactly
+- **Prevents "works on my machine"**: SQLite vs PostgreSQL differences won't surprise you in production
+
+#### Running Tests
+```bash
+# MANDATORY: Run ALL tests in Docker before committing
+./scripts/test/run-tests-local.sh all
+
+# Run unit tests only (faster, skips browser tests)
+./scripts/test/run-tests-local.sh unit
 
 # Run specific test file in Docker
-./scripts/run-tests-local.sh tests/test_specific.py
+./scripts/test/run-tests-local.sh tests/test_specific.py
+```
 
-# Quick local test (non-Docker, for fast iteration)
+#### ❌ DO NOT DO THIS (Direct pytest without Docker)
+```bash
+# ❌ WRONG - Uses SQLite, not PostgreSQL
 pytest tests/test_specific.py -v
 
-# Run tests excluding browser/e2e
+# ❌ WRONG - Migrations may not match production
 pytest tests/ -v -k "not browser and not e2e"
 
+# ❌ WRONG - Local environment differs from production
+python -m pytest tests/
+```
+
+#### When to Use Direct pytest (Rare Exceptions)
+Only use direct pytest for:
+- Quick syntax checks during development
+- Debugging a specific test failure (after Docker tests fail)
+- **BUT**: Always re-run in Docker before committing
+
+#### Docker Test Commands
+```bash
+# Clean start (removes old containers/volumes)
+docker-compose -f docker-compose.test.yml down -v
+./scripts/test/run-tests-local.sh all
+
 # Run with random order to detect test dependencies
-pytest --random-order
+./scripts/test/run-tests-local.sh all --random-order
 ```
 
 ### Pre-Push Workflow
@@ -44,6 +73,26 @@ docker-compose -f docker-compose.test.yml up test-runner --abort-on-container-ex
 ## Development Workflow
 
 **CRITICAL**: All code changes MUST follow this workflow. No exceptions.
+
+### Core Principle: Finish What You Start
+
+**As a good developer, when you run into issues, you must finish your task and go back and figure out the issues and fix it.**
+
+- When tests fail, **fix them immediately** before moving on
+- When scripts encounter errors, **debug and resolve them** before proceeding
+- **Bring tasks to logical conclusion** - don't leave the repo in a dirty state
+- If you discover issues during implementation:
+  1. Fix the issue
+  2. Update tests if needed
+  3. Re-run full test suite
+  4. Only then commit and push
+- **Never skip issues** with a note to "fix later" - fix them now
+
+Examples:
+- ✅ Test fails → Fix test → Re-run all tests → Verify pass → Commit
+- ❌ Test fails → Comment it out → Commit (leaves broken tests)
+- ✅ Script error → Debug script → Fix root cause → Verify → Commit
+- ❌ Script error → "We'll fix that later" → Move on (leaves broken tooling)
 
 ### 1. Make Changes & Add Tests
 - **All code changes require test cases** (excludes documentation/config files)
@@ -58,11 +107,13 @@ docker-compose -f docker-compose.test.yml up test-runner --abort-on-container-ex
 ### 2. Run Tests in Docker
 ```bash
 # MANDATORY: Run ALL tests in a fresh Docker container before committing
-./scripts/run-tests-local.sh all
+./scripts/test/run-tests-local.sh all
 ```
 - **Why all tests?** Backend changes can affect UI, so we always run the full suite
+- **Why Docker?** Uses PostgreSQL (same as production), not SQLite - ensures migrations work
 - Tests MUST pass 100% before proceeding to commit
 - If tests fail, fix the issues and re-run until all pass
+- **Never run pytest directly** - always use Docker for consistency with production
 
 ### 3. Commit Changes
 ```bash
@@ -171,7 +222,7 @@ If errors are found:
 ### Quick Reference
 ```bash
 # Complete workflow in one go:
-./scripts/run-tests-local.sh all && \
+./scripts/test/run-tests-local.sh all && \
 git add -A && \
 git commit -m "Your message" && \
 git push origin main && \

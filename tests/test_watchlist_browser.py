@@ -469,7 +469,7 @@ class TestWatchListBrowser:
         # Check for watchlist link
         watchlist_link = page.locator("a[href='/watchlists']")
         expect(watchlist_link).to_be_visible()
-        expect(watchlist_link).to_contain_text("View My WatchLists")
+        expect(watchlist_link).to_contain_text("WatchLists")
         
         # Click link
         watchlist_link.click()

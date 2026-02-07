@@ -96,10 +96,10 @@ class TestStockDetailAPI:
 
         # Check for covered calls data or empty state message
         assert "Strike" in response.text or "No enhanced covered call data available" in response.text
-        
-        # Check that page rendered without errors
+
+        # Check that page rendered without server errors (not checking for JS error handling code)
         assert "Internal Server Error" not in response.text
-        assert "Error" not in response.text or "Error fetching" not in response.text
+        assert "500 Internal Server Error" not in response.text
     
     def test_stock_detail_page_ticker_case_insensitive(self, client):
         """Test that ticker is case-insensitive."""

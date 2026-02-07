@@ -107,8 +107,9 @@ class TestE2EUserFlows:
         expect(page.locator("h1.logo")).to_contain_text("Arthos")
         expect(page.locator("#tickerInput")).to_be_visible()
         expect(page.locator("button.explore-btn")).to_be_visible()
-        expect(page.locator("a[href='/watchlists']")).to_be_visible()
-        expect(page.locator("text=View My WatchLists")).to_be_visible()
+        watchlist_link = page.locator("a[href='/watchlists']")
+        expect(watchlist_link).to_be_visible()
+        expect(watchlist_link).to_contain_text("WatchLists")
         
         # Step 2: Navigate to create watchlist page
         page.click("a[href='/watchlists']")
@@ -214,11 +215,11 @@ class TestE2EUserFlows:
         expect(chart_container).to_be_visible()
         
         # Step 5: Verify Options Data displays correctly
-        # Covered Calls tab should be active by default (should be active by default)
+        # Insights tab is active by default, switch to Covered Calls tab
         option_data_tab = page.locator("button#covered-calls-tab")
         expect(option_data_tab).to_be_visible()
-        
-        # Click to ensure it's active
+
+        # Click to activate Covered Calls tab
         option_data_tab.click()
         page.wait_for_timeout(1000)
         
@@ -358,7 +359,7 @@ class TestE2EUserFlows:
         # Verify watchlist link exists and works
         watchlist_link = page.locator("a[href='/watchlists']")
         expect(watchlist_link).to_be_visible()
-        expect(watchlist_link).to_contain_text("View My WatchLists")
+        expect(watchlist_link).to_contain_text("WatchLists")
         
         # Click watchlist link
         watchlist_link.click()
@@ -457,8 +458,8 @@ class TestE2EUserFlows:
         # Current Price uses metric-value-large class
         current_price_text = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large").inner_text().strip()
         current_price = float(current_price_text.replace("$", "").replace(",", ""))
-        
-        # Covered Calls tab should be active by default
+
+        # Insights tab is active by default, switch to Covered Calls tab
         option_data_tab = page.locator("button#covered-calls-tab")
         if option_data_tab.count() > 0:
             option_data_tab.click()

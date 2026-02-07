@@ -103,22 +103,28 @@ class TestStockDetailBrowser:
         
         # Check that tabs exist
         expect(page.locator("ul.nav-tabs")).to_be_visible(timeout=15000)
+        expect(page.locator("button#insights-tab")).to_be_visible()
         expect(page.locator("button#covered-calls-tab")).to_be_visible()
         expect(page.locator("button#risk-reversal-tab")).to_be_visible()
 
-        # Check Covered Calls tab is active by default
+        # Check Insights tab is active by default
+        insights_tab = page.locator("button#insights-tab")
+        insights_tab_classes = insights_tab.get_attribute("class") or ""
+        assert "active" in insights_tab_classes, f"Insights tab should be active by default, but has classes: {insights_tab_classes}"
+
+        # Check Insights tab content is visible
+        insights_pane = page.locator("#insights.tab-pane")
+        expect(insights_pane).to_be_visible()
+        insights_pane_classes = insights_pane.get_attribute("class") or ""
+        assert "active" in insights_pane_classes and "show" in insights_pane_classes, \
+            f"Insights pane should have 'active' and 'show' classes, but has: {insights_pane_classes}"
+
+        # Switch to Covered Calls tab to check it exists
         covered_calls_tab = page.locator("button#covered-calls-tab")
-        covered_calls_tab_classes = covered_calls_tab.get_attribute("class") or ""
-        assert "active" in covered_calls_tab_classes, f"Covered Calls tab should be active, but has classes: {covered_calls_tab_classes}"
+        covered_calls_tab.click()
+        page.wait_for_timeout(500)
 
-        # Check Covered Calls tab content is visible
-        covered_calls_pane = page.locator("#covered-calls.tab-pane")
-        expect(covered_calls_pane).to_be_visible()
-        covered_calls_pane_classes = covered_calls_pane.get_attribute("class") or ""
-        assert "active" in covered_calls_pane_classes and "show" in covered_calls_pane_classes, \
-            f"Covered Calls pane should have 'active' and 'show' classes, but has: {covered_calls_pane_classes}"
-
-        # Check that covered calls table exists (should be visible since it's the active tab)
+        # Check that covered calls table exists after switching tabs
         covered_calls_table = page.locator("#coveredCallsTable")
         if covered_calls_table.count() > 0:
             expect(covered_calls_table).to_be_visible(timeout=5000)
@@ -234,7 +240,11 @@ class TestStockDetailBrowser:
             page.goto(f"{live_server_url}/stock/{ticker}")
             page.wait_for_load_state("networkidle", timeout=30000)
 
-            # Covered Calls tab should be active by default
+            # Insights tab is active by default, switch to Covered Calls tab
+            covered_calls_tab = page.locator("button#covered-calls-tab")
+            covered_calls_tab.click()
+            page.wait_for_timeout(500)
+
             covered_calls_pane = page.locator("#covered-calls.tab-pane")
             expect(covered_calls_pane).to_be_visible()
 
@@ -301,7 +311,11 @@ class TestStockDetailBrowser:
         except ValueError:
             pytest.skip("Could not parse current price")
 
-        # Covered Calls tab should be active by default
+        # Insights tab is active by default, switch to Covered Calls tab
+        covered_calls_tab = page.locator("button#covered-calls-tab")
+        covered_calls_tab.click()
+        page.wait_for_timeout(500)
+
         covered_calls_pane = page.locator("#covered-calls.tab-pane")
         expect(covered_calls_pane).to_be_visible()
 
@@ -356,14 +370,21 @@ class TestStockDetailBrowser:
         expect(covered_calls_tab).to_be_visible()
         expect(risk_reversal_tab).to_be_visible()
 
-        # Check Covered Calls tab is active by default
-        covered_calls_tab_classes = covered_calls_tab.get_attribute("class") or ""
-        assert "active" in covered_calls_tab_classes, f"Covered Calls tab should be active, but has classes: {covered_calls_tab_classes}"
+        # Check Insights tab is active by default
+        insights_tab = page.locator("button#insights-tab")
+        insights_tab_classes = insights_tab.get_attribute("class") or ""
+        assert "active" in insights_tab_classes, f"Insights tab should be active by default, but has classes: {insights_tab_classes}"
 
+        insights_pane = page.locator("#insights.tab-pane")
+        insights_pane_classes = insights_pane.get_attribute("class") or ""
+        assert "active" in insights_pane_classes and "show" in insights_pane_classes, \
+            f"Insights pane should have 'active' and 'show' classes, but has: {insights_pane_classes}"
+
+        # Check Covered Calls tab is not active initially
         covered_calls_pane = page.locator("#covered-calls.tab-pane")
-        covered_calls_pane_classes = covered_calls_pane.get_attribute("class") or ""
-        assert "active" in covered_calls_pane_classes and "show" in covered_calls_pane_classes, \
-            f"Covered Calls pane should have 'active' and 'show' classes, but has: {covered_calls_pane_classes}"
+        classes = covered_calls_pane.get_attribute("class") or ""
+        has_both = "show" in classes and "active" in classes
+        assert not has_both, f"Covered Calls should not be active initially, but has classes: {classes}"
 
         # Check Risk Reversal tab is not active initially
         risk_reversal_pane = page.locator("#risk-reversal.tab-pane")
@@ -411,14 +432,17 @@ class TestStockDetailBrowser:
         page.goto(f"{live_server_url}/stock/{ticker}")
         page.wait_for_load_state("networkidle", timeout=30000)
 
-        # Initially, Covered Calls content should be visible (it's the default tab)
-        covered_calls_pane = page.locator("#covered-calls.tab-pane")
-        expect(covered_calls_pane).to_be_visible()
+        # Initially, Insights content should be visible (it's the default tab)
+        insights_pane = page.locator("#insights.tab-pane")
+        expect(insights_pane).to_be_visible()
 
-        # Check if Covered Calls table exists and is visible
-        covered_calls_table = page.locator("#covered-calls table, #coveredCallsTable")
-        if covered_calls_table.count() > 0:
-            expect(covered_calls_table.first).to_be_visible()
+        # Covered Calls content should exist but not be visible initially
+        covered_calls_pane = page.locator("#covered-calls.tab-pane")
+        expect(covered_calls_pane).to_be_attached()  # Element exists in DOM
+        # Initially it should not be visible (Bootstrap hides inactive tabs)
+        classes = covered_calls_pane.get_attribute("class") or ""
+        has_both = "show" in classes and "active" in classes
+        assert not has_both, f"Covered Calls should not be visible initially, but has classes: {classes}"
 
         # Risk Reversal content should exist but not be visible initially
         risk_reversal_pane = page.locator("#risk-reversal.tab-pane")
@@ -984,6 +1008,12 @@ class TestStockDetailBrowser:
 
         # Wait for page to load
         page.wait_for_load_state("networkidle", timeout=30000)
+
+        # Check that Insights tab is active by default
+        insights_tab = page.locator("button#insights-tab")
+        expect(insights_tab).to_be_visible(timeout=10000)
+        insights_tab_classes = insights_tab.get_attribute("class") or ""
+        assert "active" in insights_tab_classes, f"Insights tab should be active by default, but has classes: {insights_tab_classes}"
 
         # Check that Covered Calls tab exists
         cc_v2_tab = page.locator("button#covered-calls-tab")
