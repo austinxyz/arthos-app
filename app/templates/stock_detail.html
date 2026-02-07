@@ -1265,10 +1265,9 @@
                 data: JSON.stringify(data),
                 success: function (response) {
                     if (response.success) {
-                        btn.removeClass('btn-primary').addClass('btn-success').text('Saved!');
-                        setTimeout(function () {
-                            btn.prop('disabled', false).removeClass('btn-success').addClass('btn-primary').text(originalText);
-                        }, 2000);
+                        // Replace button with "Saved" badge (consistent with page load state)
+                        const savedBadge = $('<span class="badge bg-success" style="font-size: 0.875rem;">Saved</span>');
+                        btn.replaceWith(savedBadge);
                     } else {
                         alert('Error: ' + (response.error || 'Failed to save Risk Reversal'));
                         btn.prop('disabled', false).text(originalText);
