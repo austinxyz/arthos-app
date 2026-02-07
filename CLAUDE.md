@@ -90,9 +90,21 @@ git push origin main
 ### 6. Verify in Production
 **Production URL:** `https://my.arthos.app`
 
+**Quick automated verification:**
+```bash
+# Run automated verification script
+./scripts/verify_production.sh
+```
+
 **Required verification steps (automated by Claude):**
 
-a. **Check Railway logs for errors**
+a. **Run automated verification script**
+   - Checks site accessibility (https://my.arthos.app)
+   - Scans Railway logs for errors
+   - Verifies critical endpoints (home, watchlists, etc.)
+   - Reports all issues found
+
+b. **Check Railway logs for errors**
    ```bash
    # Automatically check logs after deployment
    /opt/homebrew/bin/railway logs --json | tail -100
@@ -102,17 +114,15 @@ a. **Check Railway logs for errors**
    - Check for any unexpected warnings
    - Report any issues found
 
-b. **Run Playwright tests against production**
-   ```bash
-   # Run browser tests against production URL
-   TEST_SERVER_URL=https://my.arthos.app pytest tests/test_*_browser.py -v
-   ```
-   - Test all user-facing functionality works in production
-   - Use dedicated test account credentials (stored in environment/config)
-   - Verify changed pages/flows work correctly
-   - Report any failures or UI issues
+c. **Manual functional verification** (User or Claude with Playwright)
+   - For UI changes: Manually test changed functionality
+   - For backend changes: Verify API endpoints work
+   - For Playwright automation (future):
+     ```bash
+     TEST_SERVER_URL=https://my.arthos.app pytest tests/test_*_browser.py -v
+     ```
 
-c. **Monitor error tracking**
+d. **Monitor error tracking**
    - Check Sentry (if configured) for new errors
    - Verify no new exceptions were introduced
 
