@@ -88,25 +88,23 @@ git push origin main
 - Wait for deployment to complete before verification
 
 ### 6. Verify in Production
-**Required verification steps:**
+**Required verification steps (automated by Claude):**
 
-a. **Functional verification**
-   - Manually test the changed functionality in production
-   - Create test user if needed (Google OAuth)
-   - Click through affected pages/flows
-   - Verify changes work as expected
-
-b. **Check logs for errors**
+a. **Check Railway logs for errors**
    ```bash
-   # View recent logs
-   railway logs --json | tail -100
-
-   # Or use Railway CLI
-   /opt/homebrew/bin/railway logs
+   # Claude will automatically run this:
+   /opt/homebrew/bin/railway logs --json | tail -100
    ```
    - Scan for errors that only appear in production
    - Look for stack traces, 500 errors, database errors
    - Check for any unexpected warnings
+   - Report any issues found
+
+b. **Functional verification** (User confirms)
+   - Test the changed functionality in production browser
+   - For authenticated features: User manually tests (Google OAuth)
+   - For public pages: Claude can run Playwright tests against production
+   - User confirms changes work as expected
 
 c. **Monitor error tracking**
    - Check Sentry (if configured) for new errors
