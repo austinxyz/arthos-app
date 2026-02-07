@@ -41,6 +41,100 @@ pytest --random-order
 docker-compose -f docker-compose.test.yml up test-runner --abort-on-container-exit
 ```
 
+## Development Workflow
+
+**CRITICAL**: All code changes MUST follow this workflow. No exceptions.
+
+### 1. Make Changes & Add Tests
+- **All code changes require test cases** (excludes documentation/config files)
+- When adding new functionality:
+  - Backend changes: Add unit/integration tests
+  - New API endpoints with UI: Add Playwright browser tests
+  - Backend-only API endpoints: Add API/integration tests only
+  - UI changes (new pages, interactions, styling): Add/update/remove Playwright tests
+- **Review code for simplicity**: Before writing tests, refactor code to make it testable and simple
+  - Simpler code = simpler tests = easier maintenance
+
+### 2. Run Tests in Docker
+```bash
+# MANDATORY: Run ALL tests in a fresh Docker container before committing
+./scripts/run-tests-local.sh all
+```
+- **Why all tests?** Backend changes can affect UI, so we always run the full suite
+- Tests MUST pass 100% before proceeding to commit
+- If tests fail, fix the issues and re-run until all pass
+
+### 3. Commit Changes
+```bash
+git add <files>
+git commit -m "Descriptive message
+
+Details about the change...
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+- Bundle related changes into a single commit (implementation + tests + fixes)
+- Use descriptive commit messages with context
+
+### 4. Push to Main
+```bash
+git push origin main
+```
+- Push immediately after local commit
+- Never leave commits unpushed
+
+### 5. Wait for Deployment
+- Monitor Railway deployment status
+- Wait for deployment to complete before verification
+
+### 6. Verify in Production
+**Required verification steps:**
+
+a. **Functional verification**
+   - Manually test the changed functionality in production
+   - Create test user if needed (Google OAuth)
+   - Click through affected pages/flows
+   - Verify changes work as expected
+
+b. **Check logs for errors**
+   ```bash
+   # View recent logs
+   railway logs --json | tail -100
+
+   # Or use Railway CLI
+   /opt/homebrew/bin/railway logs
+   ```
+   - Scan for errors that only appear in production
+   - Look for stack traces, 500 errors, database errors
+   - Check for any unexpected warnings
+
+c. **Monitor error tracking**
+   - Check Sentry (if configured) for new errors
+   - Verify no new exceptions were introduced
+
+### 7. Fix Production Issues (if any)
+If errors are found:
+1. Investigate and fix locally
+2. Test the fix locally (Docker tests must pass)
+3. Commit and push to main
+4. Verify fix in production
+5. Repeat until production is clean
+
+### Exceptions
+- **Documentation-only changes**: Skip testing, push directly
+- **Config files outside code**: Skip testing (e.g., `.gitignore`, `README.md`)
+- **Emergency hotfixes**: Follow same workflow (will revisit fast-track process in future)
+
+### Quick Reference
+```bash
+# Complete workflow in one go:
+./scripts/run-tests-local.sh all && \
+git add -A && \
+git commit -m "Your message" && \
+git push origin main && \
+echo "Now verify in production!"
+```
+
 ## Architecture
 
 ### Data Provider Pattern
