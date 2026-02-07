@@ -129,13 +129,31 @@ Examples:
   - Simpler code = simpler tests = easier maintenance
 
 ### 2. Run Tests in Docker
+
+#### Fast Iteration (During Development)
 ```bash
-# MANDATORY: Run ALL tests in a fresh Docker container before committing
+# Run smart test runner - automatically selects affected tests based on changes
+./scripts/test/smart-test-runner.sh
+
+# Or run specific test file you're working on
+docker-compose -f docker-compose.test.yml run --rm test-runner pytest tests/test_watchlist_service.py -v
+```
+
+**Smart test runner benefits:**
+- **Fast feedback**: ~40s to 2 min (vs 3.5 min full suite)
+- **Intelligent selection**: Analyzes git changes to run affected tests
+- **Always includes smoke tests**: Catches critical regressions
+- **Use during active development** for rapid iteration
+
+#### Full Suite (Before Commit - MANDATORY)
+```bash
+# MANDATORY: Run ALL tests before pushing to main
 ./scripts/test/run-tests-local.sh all
 ```
-- **Why all tests?** Backend changes can affect UI, so we always run the full suite
+
+- **Why all tests?** Backend changes can affect UI, so we always run the full suite before commit
 - **Why Docker?** Uses PostgreSQL (same as production), not SQLite - ensures migrations work
-- Tests MUST pass 100% before proceeding to commit
+- Tests MUST pass 100% before proceeding to push
 - **When tests fail after your changes:**
   1. **Analyze the failure**: Is it a bug in your code or expected due to intentional behavior change?
   2. **If it's a bug**: Fix your code and re-run tests
@@ -143,6 +161,12 @@ Examples:
   4. **Search for similar tests**: If you changed "Covered Calls" tab behavior, search codebase for all tests mentioning "covered-calls" and update them
   5. **Re-run ALL tests** after fixing to ensure no other tests broke
 - **Never run pytest directly** - always use Docker for consistency with production
+
+#### Recommended Workflow
+1. **During development**: Run smart test runner frequently (~every 15 min)
+2. **Before committing**: Run full suite once
+3. **Before pushing**: Ensure full suite passed
+4. **If time-constrained**: Run smart test runner, but re-run full suite ASAP
 
 ### 3. Commit Changes
 ```bash
