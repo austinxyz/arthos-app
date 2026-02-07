@@ -76,6 +76,8 @@ The app uses an abstraction layer for stock data providers:
   - `StockAttributes` → `stock_attributes`
   - `WatchListStock` → `watchlist_stocks`
   - `WatchList` → `watchlist`
+  - `LLMModel` → `llm_model`
+  - `AppSettings` → `app_settings`
 
 ### UUID Handling
 - **Always use UUID type consistently** - both in models and database columns
@@ -156,11 +158,8 @@ Required environment variables for production:
 - `DATABASE_URL` - PostgreSQL connection string
 - `SECRET_KEY` - Session secret for authentication
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - OAuth for Google login
-- `LLM_PROVIDER` - LLM provider for stock insights: `openrouter` (default) or `gemini`
-- `OPENROUTER_API_KEY` - API key for OpenRouter (required if LLM_PROVIDER=openrouter)
-- `OPENROUTER_MODEL` - (optional) OpenRouter model to use, defaults to `anthropic/claude-3.5-sonnet`
-- `GOOGLE_AI_API_KEY` - API key for Gemini (required if LLM_PROVIDER=gemini)
-- `GOOGLE_AI_MODEL` - (optional) Gemini model to use, defaults to `gemini-2.0-flash`
+- `OPENROUTER_API_KEY` - API key for OpenRouter (required for LLM insights)
+- `OPENROUTER_MODEL` - (optional) Fallback model if DB has no models configured, defaults to `anthropic/claude-3.5-sonnet`
 - `SENTRY_DSN` - (optional) Error tracking
 
 ## Deployment Notes

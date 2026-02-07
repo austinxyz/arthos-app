@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Models - Arthos Debug</title>
+    <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <style>
+        body { background-color: #f5f5f5; padding: 20px 0; }
+        .header h1 { color: #4285f4; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header mb-4">
+            <a href="/debug" class="text-decoration-none text-primary mb-2 d-inline-block">&larr; Back to Debug Tools</a>
+            <h1>LLM Model Management</h1>
+            <p class="text-muted">Configure which OpenRouter model is used for stock insights</p>
+        </div>
+
+        <!-- Status alert -->
+        <div id="statusAlert" class="alert d-none" role="alert"></div>
+
+        <!-- Active Tier Toggle -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Active Tier</h5>
+                <p class="card-text text-muted mb-3">Select which tier of model to use for insights generation.</p>
+                <div class="btn-group" role="group">
+                    <input type="radio" class="btn-check" name="tierRadio" id="tierFree" value="free"
+                           {{ 'checked' if active_tier == 'free' else '' }} onchange="switchTier('free')">
+                    <label class="btn btn-outline-success" for="tierFree">Free</label>
+
+                    <input type="radio" class="btn-check" name="tierRadio" id="tierPaid" value="paid"
+                           {{ 'checked' if active_tier == 'paid' else '' }} onchange="switchTier('paid')">
+                    <label class="btn btn-outline-primary" for="tierPaid">Paid</label>
+                </div>
+
+                {% if current_model %}
+                <div class="mt-3">
+                    <strong>Current active model:</strong>
+                    <span class="badge bg-{{ 'success' if active_tier == 'free' else 'primary' }}">{{ active_tier }}</span>
+                    <code>{{ current_model.model_name }}</code>
+                </div>
+                {% else %}
+                <div class="mt-3 text-warning">No active model configured for the <strong>{{ active_tier }}</strong> tier.</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Models Table -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Models</h5>
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Model Name</th>
+                            <th>Tier</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for model in models %}
+                        <tr>
+                            <td>{{ model.id }}</td>
+                            <td><code>{{ model.model_name }}</code></td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if model.tier == 'free' else 'primary' }}">
+                                    {{ model.tier }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if model.is_active %}
+                                <span class="badge bg-warning text-dark">Active</span>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ model.created_at.strftime('%Y-%m-%d %H:%M') if model.created_at else '' }}</td>
+                            <td>
+                                {% if not model.is_active %}
+                                <button class="btn btn-sm btn-outline-warning" onclick="activateModel({{ model.id }})">Activate</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteModel({{ model.id }})">Delete</button>
+                                {% else %}
+                                <span class="text-muted">In use</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not models %}
+                        <tr><td colspan="6" class="text-center text-muted">No models configured</td></tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Add Model Form -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Add Model</h5>
+                <form id="addModelForm" onsubmit="addModel(event)">
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-6">
+                            <label for="modelName" class="form-label">Model Name (OpenRouter format)</label>
+                            <input type="text" class="form-control" id="modelName" placeholder="e.g. google/gemini-2.5-flash-preview-05-20" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="modelTier" class="form-label">Tier</label>
+                            <select class="form-select" id="modelTier">
+                                <option value="free">Free</option>
+                                <option value="paid">Paid</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="submit" class="btn btn-primary w-100">Add Model</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <script>
+        function showAlert(message, type) {
+            const el = document.getElementById('statusAlert');
+            el.className = `alert alert-${type}`;
+            el.textContent = message;
+            el.classList.remove('d-none');
+            setTimeout(() => el.classList.add('d-none'), 4000);
+        }
+
+        async function switchTier(tier) {
+            try {
+                const res = await fetch('/v1/llm-models/tier', {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({tier})
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showAlert(`Switched to ${tier} tier`, 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    showAlert(data.detail || 'Error switching tier', 'danger');
+                }
+            } catch(e) {
+                showAlert('Network error', 'danger');
+            }
+        }
+
+        async function activateModel(id) {
+            try {
+                const res = await fetch(`/v1/llm-models/${id}/activate`, {method: 'PUT'});
+                if (res.ok) {
+                    showAlert('Model activated', 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const data = await res.json();
+                    showAlert(data.detail || 'Error activating model', 'danger');
+                }
+            } catch(e) {
+                showAlert('Network error', 'danger');
+            }
+        }
+
+        async function deleteModel(id) {
+            if (!confirm('Delete this model?')) return;
+            try {
+                const res = await fetch(`/v1/llm-models/${id}`, {method: 'DELETE'});
+                if (res.ok) {
+                    showAlert('Model deleted', 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const data = await res.json();
+                    showAlert(data.detail || 'Error deleting model', 'danger');
+                }
+            } catch(e) {
+                showAlert('Network error', 'danger');
+            }
+        }
+
+        async function addModel(e) {
+            e.preventDefault();
+            const model_name = document.getElementById('modelName').value.trim();
+            const tier = document.getElementById('modelTier').value;
+            if (!model_name) return;
+            try {
+                const res = await fetch('/v1/llm-models', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({model_name, tier})
+                });
+                if (res.ok) {
+                    showAlert('Model added', 'success');
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    const data = await res.json();
+                    showAlert(data.detail || 'Error adding model', 'danger');
+                }
+            } catch(e) {
+                showAlert('Network error', 'danger');
+            }
+        }
+    </script>
+</body>
+</html>

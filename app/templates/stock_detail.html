@@ -20,6 +20,8 @@
     <script src="https://code.highcharts.com/highcharts-more.js"></script>
     <script src="https://code.highcharts.com/modules/dumbbell.js"></script>
     <script src="https://code.highcharts.com/modules/exporting.js"></script>
+    <!-- Marked.js for markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         body {
             background-color: #f5f5f5;
@@ -172,6 +174,56 @@
 
         .risk-reversal-table tbody td {
             vertical-align: middle;
+        }
+
+        /* Insights markdown styling */
+        .insights-markdown {
+            line-height: 1.6;
+        }
+
+        .insights-markdown h2 {
+            color: #0d6efd;
+            font-size: 1.3rem;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .insights-markdown h2:first-child {
+            margin-top: 0;
+        }
+
+        .insights-markdown h3 {
+            font-size: 1.1rem;
+            color: #495057;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .insights-markdown p {
+            margin-bottom: 0.75rem;
+        }
+
+        .insights-markdown ul, .insights-markdown ol {
+            margin-bottom: 0.75rem;
+            padding-left: 1.5rem;
+        }
+
+        .insights-markdown li {
+            margin-bottom: 0.25rem;
+        }
+
+        .insights-markdown strong {
+            color: #212529;
+        }
+
+        .insights-markdown blockquote {
+            border-left: 4px solid #0d6efd;
+            padding-left: 1rem;
+            margin: 1rem 0;
+            color: #6c757d;
+            font-style: italic;
         }
     </style>
 </head>
@@ -384,30 +436,12 @@
                             </div>
                             <!-- Insights content -->
                             <div id="insights-content" style="display: none;">
-                                <div class="row">
-                                    <!-- What's Going Right -->
-                                    <div class="col-md-6 mb-4">
-                                        <div class="card h-100 border-success">
-                                            <div class="card-header bg-success text-white">
-                                                <h5 class="mb-0"><i class="bi bi-graph-up-arrow me-2"></i>What's Going Right</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <ul class="list-group list-group-flush" id="going-right-list">
-                                                </ul>
-                                            </div>
-                                        </div>
+                                <div class="card">
+                                    <div class="card-header bg-primary text-white">
+                                        <h5 class="mb-0"><i class="bi bi-lightbulb me-2"></i>Investment Analysis</h5>
                                     </div>
-                                    <!-- What's Going Wrong -->
-                                    <div class="col-md-6 mb-4">
-                                        <div class="card h-100 border-danger">
-                                            <div class="card-header bg-danger text-white">
-                                                <h5 class="mb-0"><i class="bi bi-graph-down-arrow me-2"></i>What's Going Wrong</h5>
-                                            </div>
-                                            <div class="card-body">
-                                                <ul class="list-group list-group-flush" id="going-wrong-list">
-                                                </ul>
-                                            </div>
-                                        </div>
+                                    <div class="card-body">
+                                        <div id="insights-analysis" class="insights-markdown"></div>
                                     </div>
                                 </div>
                                 <p class="text-muted text-center small mt-2" id="insights-timestamp"></p>
@@ -1406,8 +1440,7 @@
             const errorMsgEl = document.getElementById('insights-error-message');
             const contentEl = document.getElementById('insights-content');
             const timestampEl = document.getElementById('insights-timestamp');
-            const goingRightList = document.getElementById('going-right-list');
-            const goingWrongList = document.getElementById('going-wrong-list');
+            const analysisEl = document.getElementById('insights-analysis');
 
             // Show loading state
             loadingEl.style.display = 'block';
@@ -1421,24 +1454,9 @@
 
                     if (data.status === 'available' || data.status === 'stale') {
                         // Display insights
-                        if (data.insights) {
-                            // Populate going right list
-                            goingRightList.innerHTML = '';
-                            data.insights.going_right.forEach(item => {
-                                const li = document.createElement('li');
-                                li.className = 'list-group-item';
-                                li.innerHTML = `<strong>${item.title}</strong><br><small class="text-muted">${item.description}</small>`;
-                                goingRightList.appendChild(li);
-                            });
-
-                            // Populate going wrong list
-                            goingWrongList.innerHTML = '';
-                            data.insights.going_wrong.forEach(item => {
-                                const li = document.createElement('li');
-                                li.className = 'list-group-item';
-                                li.innerHTML = `<strong>${item.title}</strong><br><small class="text-muted">${item.description}</small>`;
-                                goingWrongList.appendChild(li);
-                            });
+                        if (data.insights && data.insights.analysis) {
+                            // Render markdown analysis
+                            analysisEl.innerHTML = marked.parse(data.insights.analysis);
 
                             // Show timestamp
                             if (data.updated_at) {

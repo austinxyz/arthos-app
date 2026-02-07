@@ -9,6 +9,8 @@ from app.models.rr_history_log import RRHistoryLog  # Import to register with me
 from app.models.account import Account # New import, fixed typo
 from app.models.options_cache import CachedCoveredCall, CachedRiskReversal  # Options strategy cache
 from app.models.watchlist_stock_notes import WatchlistStockNote  # Watchlist stock notes
+from app.models.llm_model import LLMModel  # LLM model configuration
+from app.models.app_settings import AppSettings  # Application settings
 
 # Database URL - supports both SQLite (local dev) and PostgreSQL (production)
 # Railway provides DATABASE_URL environment variable automatically
@@ -74,7 +76,9 @@ def create_db_and_tables():
 
     # Watchlist Stock Notes Table
     _create_watchlist_stock_notes_table()
-    
+
+    # LLM Model Management Tables + seed data
+    _create_llm_model_tables()
 
 
 def _migrate_stock_price_dma_columns():
@@ -1217,3 +1221,33 @@ def _create_watchlist_stock_notes_table():
 
     except Exception as e:
         print(f"Warning: Could not create watchlist_stock_notes table: {e}")
+
+
+def _create_llm_model_tables():
+    """Create llm_model and app_settings tables if they don't exist, and seed default data."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            # Check if llm_model table exists
+            if is_sqlite:
+                result = session.exec(text(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='llm_model'"
+                )).all()
+                if not result:
+                    SQLModel.metadata.create_all(engine)
+                    print("Created llm_model and app_settings tables")
+            else:
+                result = session.exec(text(
+                    "SELECT tablename FROM pg_tables WHERE tablename = 'llm_model'"
+                )).all()
+                if not result:
+                    SQLModel.metadata.create_all(engine)
+                    print("Created llm_model and app_settings tables")
+
+        # Seed default models
+        from app.services.llm_model_service import seed_default_models
+        seed_default_models()
+
+    except Exception as e:
+        print(f"Warning: Could not create LLM model tables: {e}")

@@ -1516,7 +1516,8 @@ async def get_stock_insights(
     """
     Get LLM-generated insights for a stock.
 
-    Returns AI-generated analysis with top 5 things going right and wrong for the stock.
+    Returns AI-generated comprehensive investment analysis covering strategic narrative,
+    fundamentals, debt/cash flow, price action, future scenarios, and investment verdict.
     Insights are cached for 24 hours. Use refresh=true to force a fresh fetch.
 
     Args:
@@ -1525,7 +1526,7 @@ async def get_stock_insights(
         refresh: If true, force refresh from LLM regardless of cache
 
     Returns:
-        JSON response with insights data
+        JSON response with insights data containing 'analysis' markdown text
     """
     from app.services import insights_service
 
@@ -1534,6 +1535,139 @@ async def get_stock_insights(
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching insights: {str(e)}")
+
+
+def _require_admin(request: Request):
+    """Check that the request comes from an admin user. Raises HTTPException if not."""
+    user = request.session.get("user") if hasattr(request, "session") else None
+    if not user:
+        raise HTTPException(status_code=403, detail="Admin access required. Please log in.")
+    if not ADMIN_EMAIL or user.get("email") != ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Admin access required.")
+
+
+# LLM Model Management API Endpoints
+class LLMModelCreate(BaseModel):
+    model_name: str
+    tier: str
+
+
+class TierUpdate(BaseModel):
+    tier: str
+
+
+@app.get("/v1/llm-models")
+async def list_llm_models(request: Request):
+    """List all LLM models and active tier (admin-only)."""
+    _require_admin(request)
+    from app.services import llm_model_service
+
+    models = llm_model_service.get_all_models()
+    active_tier = llm_model_service.get_active_tier()
+    current_model = llm_model_service.get_current_active_model()
+
+    return {
+        "models": [
+            {
+                "id": m.id,
+                "model_name": m.model_name,
+                "tier": m.tier,
+                "is_active": m.is_active,
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in models
+        ],
+        "active_tier": active_tier,
+        "current_model": current_model.model_name if current_model else None,
+    }
+
+
+@app.post("/v1/llm-models")
+async def create_llm_model(request: Request, body: LLMModelCreate):
+    """Add a new LLM model (admin-only)."""
+    _require_admin(request)
+    from app.services import llm_model_service
+
+    try:
+        model = llm_model_service.add_model(body.model_name, body.tier)
+        return {
+            "id": model.id,
+            "model_name": model.model_name,
+            "tier": model.tier,
+            "is_active": model.is_active,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put("/v1/llm-models/{model_id}/activate")
+async def activate_llm_model(request: Request, model_id: int):
+    """Activate an LLM model and reset provider cache (admin-only)."""
+    _require_admin(request)
+    from app.services import llm_model_service
+    from app.providers.llm import LLMProviderFactory
+
+    try:
+        model = llm_model_service.activate_model(model_id)
+        LLMProviderFactory.reset_provider()
+        return {
+            "id": model.id,
+            "model_name": model.model_name,
+            "tier": model.tier,
+            "is_active": model.is_active,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.delete("/v1/llm-models/{model_id}")
+async def delete_llm_model(request: Request, model_id: int):
+    """Delete an LLM model (admin-only). Cannot delete the active model."""
+    _require_admin(request)
+    from app.services import llm_model_service
+
+    try:
+        llm_model_service.delete_model(model_id)
+        return {"message": "Model deleted"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.put("/v1/llm-models/tier")
+async def update_llm_tier(request: Request, body: TierUpdate):
+    """Switch active tier (free/paid) and reset provider cache (admin-only)."""
+    _require_admin(request)
+    from app.services import llm_model_service
+    from app.providers.llm import LLMProviderFactory
+
+    try:
+        llm_model_service.set_active_tier(body.tier)
+        LLMProviderFactory.reset_provider()
+        return {"active_tier": body.tier}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/debug/llm-models")
+async def debug_llm_models_page(request: Request):
+    """
+    Debug page for managing LLM models and active tier.
+
+    Returns:
+        HTML page with LLM model management UI
+    """
+    from app.services import llm_model_service
+
+    models = llm_model_service.get_all_models()
+    active_tier = llm_model_service.get_active_tier()
+    current_model = llm_model_service.get_current_active_model()
+
+    return templates.TemplateResponse("debug_llm_models.html", {
+        "request": request,
+        "models": models,
+        "active_tier": active_tier,
+        "current_model": current_model,
+    })
 
 
 @app.get("/debug/stock-price")

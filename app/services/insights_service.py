@@ -1,7 +1,6 @@
 """LLM-powered stock insights service."""
 import json
 import logging
-import re
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from sqlmodel import Session, select
@@ -16,36 +15,59 @@ logger = logging.getLogger(__name__)
 INSIGHTS_STALE_HOURS = 24
 
 # LLM Prompt template
-INSIGHTS_PROMPT = """You are an experienced stock market analyst. Analyze the stock {ticker} and provide insights.
+INSIGHTS_PROMPT = """Role: Act as a Senior Equity Research Analyst with a focus on deep fundamental valuation and strategic capital allocation.
 
-Return a JSON object with exactly this structure:
-{{
-  "going_right": [
-    {{"title": "Brief headline", "description": "1-2 sentence explanation"}},
-    {{"title": "Brief headline", "description": "1-2 sentence explanation"}},
-    {{"title": "Brief headline", "description": "1-2 sentence explanation"}},
-    {{"title": "Brief headline", "description": "1-2 sentence explanation"}},
-    {{"title": "Brief headline", "description": "1-2 sentence explanation"}}
-  ],
-  "going_wrong": [
-    {{"title": "Brief headline", "description": "1-2 sentence explanation"}},
-    {{"title": "Brief headline", "description": "1-2 sentence explanation"}},
-    {{"title": "Brief headline", "description": "1-2 sentence explanation"}},
-    {{"title": "Brief headline", "description": "1-2 sentence explanation"}},
-    {{"title": "Brief headline", "description": "1-2 sentence explanation"}}
-  ]
-}}
+Task: Conduct a comprehensive, multi-layered investment analysis of {ticker}. The goal is to determine if the current stock price represents a fundamental opportunity or a "value trap."
 
-Consider these factors:
-- Fundamentals (revenue, earnings, margins, debt)
-- Technical indicators (price trends, moving averages, volume)
-- Market conditions and sector performance
-- Business developments (products, partnerships, management)
-- Competitive positioning
-- Macroeconomic factors
+Please structure the analysis into the following 6 distinct sections:
 
-Be specific and actionable. Use recent data and developments.
-Return ONLY the JSON object, no additional text or markdown formatting."""
+1. The Strategic Narrative & Pivot
+
+What is the core story management is selling right now? (e.g., Transition to AI, shifting from license to SaaS, etc.).
+
+Requirement: Include specific quotes or stated goals from recent earnings calls or analyst days (CEO/CTO) that validate this strategy.
+
+Are they a "First Mover" or a "Late Mover" playing catch-up?
+
+2. Fundamental "Health Check" (The Numbers)
+
+Revenue Mix: Break down the quality of revenue (Recurring vs. One-time). Is the "growth" segment actually moving the needle?
+
+DuPont Analysis: Break down their ROE (Return on Equity). Is it driven by high margins, asset efficiency, or just massive leverage (Debt)?
+
+Capital Intensity: Calculate the "Capex/Revenue" ratio. Are they burning cash to buy growth? How does this compare to their historical average?
+
+3. The Debt & Cash Flow Stress Test
+
+Leverage: What is their Debt-to-EBITDA ratio? Is it dangerously high (>3x)?
+
+Maturity Profile: Do they have a "wall of debt" coming due in the next 2-3 years?
+
+Cash Flow Dynamics: Analyze the trend of Free Cash Flow over the last 4 quarters. Are they funding operations from cash flow or by issuing new debt/equity?
+
+4. Anatomy of Recent Price Action
+
+The stock has moved significantly recently. Dissect why beyond the headlines.
+
+Was the move driven by a "valuation reset" (multiple compression), a fundamental broken promise (earnings miss), or macro factors?
+
+Identify key technical support/resistance levels that matter right now.
+
+5. Future Pathways & Watchlist
+
+Bull Case: What must go right for the stock to double?
+
+Bear Case: What is the specific "failure mode"? (e.g., AI adoption slows, margins compress).
+
+Leading Indicators: Give me 2-3 specific metrics to watch in the next earnings report (e.g., RPO conversion, Gross Margin stability) that will signal which scenario is playing out.
+
+6. The Investment Verdict
+
+Synthesize the above into a clear stance: Buy, Sell, or Wait?
+
+Provide a "Buy Zone" price level where the risk/reward becomes favorable.
+
+Format the response using Markdown with clear section headers (## for each section)."""
 
 
 def is_insights_stale(updated_at: Optional[datetime]) -> bool:
@@ -67,60 +89,42 @@ def is_insights_stale(updated_at: Optional[datetime]) -> bool:
 
 def _parse_llm_response(response_text: str, ticker: str) -> Optional[Dict[str, Any]]:
     """
-    Parse and validate LLM response text into insights dictionary.
+    Parse LLM response text into insights dictionary.
 
     Args:
-        response_text: Raw text response from LLM
+        response_text: Raw text response from LLM (markdown format)
         ticker: Stock ticker symbol (for logging)
 
     Returns:
-        Dictionary with 'going_right' and 'going_wrong' lists, or None on failure
+        Dictionary with 'analysis' key containing the markdown text, or None on failure
     """
-    try:
-        # Remove markdown code blocks if present
-        text = response_text.strip()
-        if text.startswith("```json"):
-            text = text[7:]
-        if text.startswith("```"):
-            text = text[3:]
-        if text.endswith("```"):
-            text = text[:-3]
-        text = text.strip()
-
-        # Fix trailing commas (common LLM issue - valid in JS but not JSON)
-        # Remove trailing commas before ] or }
-        text = re.sub(r',(\s*[}\]])', r'\1', text)
-
-        insights = json.loads(text)
-
-        # Validate structure
-        if "going_right" not in insights or "going_wrong" not in insights:
-            logger.error(f"Invalid insights structure for {ticker}: missing required keys")
-            return None
-
-        if not isinstance(insights["going_right"], list) or not isinstance(insights["going_wrong"], list):
-            logger.error(f"Invalid insights structure for {ticker}: values must be lists")
-            return None
-
-        return insights
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM response as JSON for {ticker}: {e}")
+    if not response_text or not response_text.strip():
+        logger.error(f"Empty LLM response for {ticker}")
         return None
+
+    text = response_text.strip()
+
+    # Basic validation - check for expected section headers
+    expected_sections = ["Strategic Narrative", "Fundamental", "Debt", "Price Action", "Future", "Verdict"]
+    found_sections = sum(1 for section in expected_sections if section.lower() in text.lower())
+
+    if found_sections < 3:
+        logger.warning(f"LLM response for {ticker} may be incomplete (found {found_sections}/6 expected sections)")
+
+    return {"analysis": text}
 
 
 def fetch_insights_from_llm(ticker: str) -> Optional[Dict[str, Any]]:
     """
-    Fetch insights from configured LLM provider for a given ticker.
+    Fetch insights from the active LLM provider (OpenRouter) for a given ticker.
 
-    Uses LLM_PROVIDER environment variable to select provider.
-    Default is 'openrouter', also supports 'gemini'.
+    The model is configured via the database (admin debug page).
 
     Args:
         ticker: Stock ticker symbol
 
     Returns:
-        Dictionary with 'going_right' and 'going_wrong' lists, or None on failure
+        Dictionary with 'analysis' key containing markdown text, or None on failure
     """
     prompt = INSIGHTS_PROMPT.format(ticker=ticker.upper())
 
@@ -190,7 +194,7 @@ def get_insights(ticker: str, force_refresh: bool = False) -> Dict[str, Any]:
     Returns:
         Dictionary with:
         - ticker: Stock symbol
-        - insights: Dict with going_right/going_wrong lists (or None if unavailable)
+        - insights: Dict with 'analysis' key containing markdown text (or None if unavailable)
         - updated_at: Timestamp string or None
         - is_stale: Boolean indicating if insights need refresh
         - status: 'available', 'stale', 'unavailable', or 'error'

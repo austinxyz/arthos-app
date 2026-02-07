@@ -1,5 +1,6 @@
-"""Factory for creating LLM providers."""
+"""Factory for creating LLM providers using DB-driven model selection."""
 import os
+import time
 import logging
 from typing import Optional
 
@@ -7,62 +8,64 @@ from app.providers.llm.base import LLMProvider
 
 logger = logging.getLogger(__name__)
 
-# Environment variable for selecting provider
-# Options: "openrouter" (default), "gemini"
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openrouter")
+# Cache TTL in seconds
+_CACHE_TTL = 60
+
+# Cached provider and timestamp
+_cached_provider: Optional[LLMProvider] = None
+_cached_at: float = 0
 
 
 class LLMProviderFactory:
-    """Factory for creating LLM provider instances."""
-
-    _instance: Optional[LLMProvider] = None
-
-    @staticmethod
-    def get_provider(provider_name: Optional[str] = None) -> LLMProvider:
-        """
-        Get an LLM provider instance.
-
-        Args:
-            provider_name: Name of provider ('openrouter', 'gemini')
-                          If None, uses LLM_PROVIDER env var (default: 'openrouter')
-
-        Returns:
-            LLMProvider instance
-
-        Raises:
-            ValueError: If provider name is unknown
-        """
-        if provider_name is None:
-            provider_name = LLM_PROVIDER
-
-        provider_name = provider_name.lower()
-
-        if provider_name == "openrouter":
-            from app.providers.llm.openrouter_provider import OpenRouterProvider
-            return OpenRouterProvider()
-        elif provider_name == "gemini":
-            from app.providers.llm.gemini_provider import GeminiProvider
-            return GeminiProvider()
-        else:
-            raise ValueError(f"Unknown LLM provider: {provider_name}")
+    """Factory for creating LLM provider instances from DB configuration."""
 
     @staticmethod
     def get_default_provider() -> LLMProvider:
         """
-        Get or create the default LLM provider instance (singleton pattern).
+        Get the active LLM provider based on DB configuration.
+
+        Uses a 60-second cache to avoid hitting the DB on every call.
+        Falls back to OPENROUTER_MODEL env var if DB has no models.
 
         Returns:
-            Default LLMProvider instance
+            LLMProvider instance
         """
-        if LLMProviderFactory._instance is None:
-            LLMProviderFactory._instance = LLMProviderFactory.get_provider()
-            logger.info(
-                f"Initialized LLM provider: {LLMProviderFactory._instance.get_provider_name()} "
-                f"({LLMProviderFactory._instance.get_model_name()})"
-            )
-        return LLMProviderFactory._instance
+        global _cached_provider, _cached_at
+
+        now = time.time()
+        if _cached_provider is not None and (now - _cached_at) < _CACHE_TTL:
+            return _cached_provider
+
+        # Query DB for the active model
+        model_name = None
+        try:
+            from app.services.llm_model_service import get_current_active_model
+            active_model = get_current_active_model()
+            if active_model:
+                model_name = active_model.model_name
+                logger.info(f"Using DB-configured LLM model: {model_name}")
+        except Exception as e:
+            logger.warning(f"Could not query LLM model from DB: {e}")
+
+        # Fallback to env var
+        if not model_name:
+            model_name = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
+            logger.info(f"Using fallback LLM model from env: {model_name}")
+
+        from app.providers.llm.openrouter_provider import OpenRouterProvider
+        _cached_provider = OpenRouterProvider(model=model_name)
+        _cached_at = now
+
+        logger.info(
+            f"Initialized LLM provider: {_cached_provider.get_provider_name()} "
+            f"({_cached_provider.get_model_name()})"
+        )
+        return _cached_provider
 
     @staticmethod
     def reset_provider():
-        """Reset the cached provider instance (useful for testing)."""
-        LLMProviderFactory._instance = None
+        """Reset the cached provider (called after admin changes model/tier)."""
+        global _cached_provider, _cached_at
+        _cached_provider = None
+        _cached_at = 0
+        logger.info("LLM provider cache reset")

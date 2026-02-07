@@ -7,25 +7,22 @@ from app.providers.llm.base import LLMProvider
 
 logger = logging.getLogger(__name__)
 
-# Environment variables
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 class OpenRouterProvider(LLMProvider):
     """LLM provider using OpenRouter API (OpenAI-compatible)."""
 
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, model: str = "anthropic/claude-3.5-sonnet"):
         """
         Initialize the OpenRouter provider.
 
         Args:
             api_key: OpenRouter API key (defaults to OPENROUTER_API_KEY env var)
-            model: Model to use (defaults to OPENROUTER_MODEL env var)
+            model: Model to use (required, set by factory from DB)
         """
-        self.api_key = api_key or OPENROUTER_API_KEY
-        self.model = model or OPENROUTER_MODEL
+        self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
+        self.model = model
 
     def get_provider_name(self) -> str:
         return "OpenRouter"

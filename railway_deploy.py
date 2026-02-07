@@ -26,6 +26,7 @@ BACKFILL_ENTRY_PRICES_FLAG = MIGRATIONS_DIR / "backfill_entry_prices_done"
 FIX_WATCHLIST_UUID_TYPE_FLAG = MIGRATIONS_DIR / "fix_watchlist_uuid_type_done"
 ADD_INSIGHTS_COLUMNS_FLAG = MIGRATIONS_DIR / "add_insights_columns_done"
 CLEANUP_INVALID_TICKERS_FLAG = MIGRATIONS_DIR / "cleanup_invalid_tickers_done"
+SEED_LLM_MODELS_FLAG = MIGRATIONS_DIR / "seed_llm_models_done"
 
 
 def add_insights_columns():
@@ -373,6 +374,28 @@ def run_add_insights_columns_migration():
         raise
 
 
+def run_seed_llm_models():
+    """Seed LLM models if not already done."""
+    if SEED_LLM_MODELS_FLAG.exists():
+        print("✓ LLM models seed already completed, skipping...")
+        return
+
+    print("=" * 60)
+    print("Seeding LLM models...")
+    print("=" * 60)
+
+    try:
+        from app.services.llm_model_service import seed_default_models
+        seed_default_models()
+
+        SEED_LLM_MODELS_FLAG.touch()
+        print("✓ LLM models seed completed and marked as done")
+    except Exception as e:
+        print(f"⚠ LLM models seed failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     """Run all deployment migrations."""
     print("=" * 60)
@@ -399,6 +422,10 @@ def main():
     # 4. Cleanup invalid tickers
     print("\n4. Checking invalid tickers cleanup...")
     run_cleanup_invalid_tickers()
+
+    # 5. Seed LLM models
+    print("\n5. Checking LLM models seed...")
+    run_seed_llm_models()
 
     print("\n" + "=" * 60)
     print("DEPLOYMENT COMPLETE")

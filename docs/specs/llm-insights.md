@@ -1,7 +1,7 @@
 # LLM Insights
 
 On the stock details page, add a tab called "Insights". This tab should be the left-most tab (before Covered Calls).
-The Insights tab displays AI-generated analysis for the stock using Google AI Studio (Gemini 2.0 Flash).
+The Insights tab displays AI-generated analysis for the stock using OpenRouter (model configured via admin debug page).
 
 ## User Experience
 
@@ -10,13 +10,17 @@ The Insights tab displays AI-generated analysis for the stock using Google AI St
 - When the user lands on the stock details page, the Insights tab should be selected by default
 
 ### Display Format
-Two-column layout with side-by-side cards:
-- **Left card**: "What's Going Right" - green-themed header, lists top 5 positive factors
-- **Right card**: "What's Going Wrong" - red-themed header, lists top 5 negative factors
+Single card layout displaying a comprehensive investment analysis:
+- **Card header**: "Investment Analysis" - blue-themed header with lightbulb icon
+- **Card body**: Renders the 6-section analysis as formatted markdown
 
-Each item should display:
-- A brief title/headline
-- A short explanation (1-2 sentences)
+The analysis includes:
+1. The Strategic Narrative & Pivot
+2. Fundamental "Health Check" (The Numbers)
+3. The Debt & Cash Flow Stress Test
+4. Anatomy of Recent Price Action
+5. Future Pathways & Watchlist
+6. The Investment Verdict
 
 ### Loading & Error States
 - Show a loading spinner while fetching insights
@@ -25,47 +29,75 @@ Each item should display:
 
 ## Technical Implementation
 
-### Google AI Studio Setup
-1. Go to [Google AI Studio](https://aistudio.google.com/)
-2. Create a new API key
-3. Add to environment variables: `GOOGLE_AI_API_KEY`
-4. Add to Railway: `railway variables set GOOGLE_AI_API_KEY=<your-key>`
+### OpenRouter Setup
+1. Go to [OpenRouter](https://openrouter.ai/)
+2. Create an API key
+3. Add to environment variables: `OPENROUTER_API_KEY`
+4. Configure active model via `/debug/llm-models` admin page
 
 ### Model & Prompt
-**Model**: Gemini 2.0 Flash (`gemini-2.0-flash`)
+**Model**: Configured via database (admin debug page). Default: `google/gemini-2.5-flash-preview-05-20` (free tier)
 
 **Prompt**:
 ```
-You are an experienced stock market analyst. Analyze the stock {ticker} ({company_name}) and provide insights.
+Role: Act as a Senior Equity Research Analyst with a focus on deep fundamental valuation and strategic capital allocation.
 
-Return a JSON object with exactly this structure:
-{
-  "going_right": [
-    {"title": "Brief headline", "description": "1-2 sentence explanation"},
-    ... (exactly 5 items)
-  ],
-  "going_wrong": [
-    {"title": "Brief headline", "description": "1-2 sentence explanation"},
-    ... (exactly 5 items)
-  ]
-}
+Task: Conduct a comprehensive, multi-layered investment analysis of [TICKER]. The goal is to determine if the current stock price represents a fundamental opportunity or a "value trap."
 
-Consider these factors:
-- Fundamentals (revenue, earnings, margins, debt)
-- Technical indicators (price trends, moving averages, volume)
-- Market conditions and sector performance
-- Business developments (products, partnerships, management)
-- Competitive positioning
-- Macroeconomic factors
+Please structure the analysis into the following 6 distinct sections:
 
-Be specific and actionable. Use recent data and developments.
-Return ONLY the JSON object, no additional text.
+1. The Strategic Narrative & Pivot
+
+What is the core story management is selling right now? (e.g., Transition to AI, shifting from license to SaaS, etc.).
+
+Requirement: Include specific quotes or stated goals from recent earnings calls or analyst days (CEO/CTO) that validate this strategy.
+
+Are they a "First Mover" or a "Late Mover" playing catch-up?
+
+2. Fundamental "Health Check" (The Numbers)
+
+Revenue Mix: Break down the quality of revenue (Recurring vs. One-time). Is the "growth" segment actually moving the needle?
+
+DuPont Analysis: Break down their ROE (Return on Equity). Is it driven by high margins, asset efficiency, or just massive leverage (Debt)?
+
+Capital Intensity: Calculate the "Capex/Revenue" ratio. Are they burning cash to buy growth? How does this compare to their historical average?
+
+3. The Debt & Cash Flow Stress Test
+
+Leverage: What is their Debt-to-EBITDA ratio? Is it dangerously high (>3x)?
+
+Maturity Profile: Do they have a "wall of debt" coming due in the next 2-3 years?
+
+Cash Flow Dynamics: Analyze the trend of Free Cash Flow over the last 4 quarters. Are they funding operations from cash flow or by issuing new debt/equity?
+
+4. Anatomy of Recent Price Action
+
+The stock has moved significantly recently. Dissect why beyond the headlines.
+
+Was the move driven by a "valuation reset" (multiple compression), a fundamental broken promise (earnings miss), or macro factors?
+
+Identify key technical support/resistance levels that matter right now.
+
+5. Future Pathways & Watchlist
+
+Bull Case: What must go right for the stock to double?
+
+Bear Case: What is the specific "failure mode"? (e.g., AI adoption slows, margins compress).
+
+Leading Indicators: Give me 2-3 specific metrics to watch in the next earnings report (e.g., RPO conversion, Gross Margin stability) that will signal which scenario is playing out.
+
+6. The Investment Verdict
+
+Synthesize the above into a clear stance: Buy, Sell, or Wait?
+
+Provide a "Buy Zone" price level where the risk/reward becomes favorable.
+
 ```
 
 ### Database Changes
 Add two fields to `StockAttributes` model (`app/models/stock_price.py`):
 ```python
-insights_json: Optional[str] = Field(default=None)  # JSON string with going_right/going_wrong
+insights_json: Optional[str] = Field(default=None)  # JSON string with 'analysis' key containing markdown
 insights_updated_at: Optional[datetime] = Field(default=None)  # Last fetch timestamp
 ```
 
@@ -77,11 +109,11 @@ Response:
 {
   "ticker": "AAPL",
   "insights": {
-    "going_right": [...],
-    "going_wrong": [...]
+    "analysis": "## 1. The Strategic Narrative & Pivot\n\n..."
   },
   "updated_at": "2026-02-03T10:30:00Z",
-  "is_stale": false
+  "is_stale": false,
+  "status": "available"
 }
 ```
 
@@ -123,7 +155,7 @@ Create `app/services/insights_service.py`:
 - `app/templates/stock_detail.html` - Add Insights tab (first position, default selected)
 
 ## Environment Variables
-- `GOOGLE_AI_API_KEY` - Required for Google AI Studio API access
+- `OPENROUTER_API_KEY` - Required for OpenRouter API access
 
 ## Testing
 1. Test LLM prompt returns valid JSON
