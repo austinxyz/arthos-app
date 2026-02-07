@@ -168,30 +168,60 @@ docker-compose -f docker-compose.test.yml run --rm test-runner pytest tests/test
 3. **Before pushing**: Ensure full suite passed
 4. **If time-constrained**: Run smart test runner, but re-run full suite ASAP
 
-### 3. Commit Changes
+### 3. Generate Test Metrics Report
+
+**MANDATORY**: Before committing, generate and review test metrics.
+
+```bash
+# Run test metrics reporter with smart test runner
+./scripts/test/test-metrics-reporter.sh
+
+# Or with full suite
+./scripts/test/test-metrics-reporter.sh "all"
+
+# Or with custom command
+./scripts/test/test-metrics-reporter.sh "pytest tests/test_watchlist*.py"
+```
+
+**The reporter automatically provides:**
+1. ✨ New tests added
+2. 📝 Existing tests updated
+3. 🗑️ Tests removed
+4. 🎯 Tests selected for execution
+5. ⏱️ Time taken to run selected tests
+6. 💰 Time saved vs full suite
+
+**Include metrics in commit message** - See `.github/TEST_METRICS_TEMPLATE.md` for format.
+
+### 4. Commit Changes
 ```bash
 git add <files>
 git commit -m "Descriptive message
 
 Details about the change...
 
+Test Metrics:
+- New tests: X, Updated: Y, Removed: Z
+- Ran: N tests in Xs (saved Ys vs full suite)
+
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
 - Bundle related changes into a single commit (implementation + tests + fixes)
 - Use descriptive commit messages with context
+- **ALWAYS include test metrics** in commit message
 
-### 4. Push to Main
+### 5. Push to Main
 ```bash
 git push origin main
 ```
 - Push immediately after local commit
 - Never leave commits unpushed
 
-### 5. Wait for Deployment
+### 6. Wait for Deployment
 - Monitor Railway deployment status
 - Wait for deployment to complete before verification
 
-### 6. Verify in Production
+### 7. Verify in Production
 **Production URL:** `https://my.arthos.app`
 
 **Quick automated verification:**
