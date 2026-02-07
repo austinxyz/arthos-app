@@ -2164,6 +2164,66 @@ async def trigger_cleanup_logs():
         raise HTTPException(status_code=500, detail=f"Error triggering cleanup: {str(e)}")
 
 
+@app.get("/debug/llm-playground")
+async def debug_llm_playground_page(request: Request):
+    """
+    LLM Playground - test different OpenRouter models and prompts.
+
+    Returns:
+        HTML page with model selection, prompt input, and response display
+    """
+    return templates.TemplateResponse("debug_llm_playground.html", {
+        "request": request,
+    })
+
+
+@app.get("/debug/llm-playground/models")
+async def get_openrouter_models():
+    """
+    Fetch available models from OpenRouter API.
+
+    Returns:
+        JSON list of models with pricing and tier information
+    """
+    from app.services import openrouter_service
+
+    try:
+        models = openrouter_service.get_available_models()
+        return models
+    except Exception as e:
+        logger.error(f"Error fetching OpenRouter models: {e}")
+        raise HTTPException(status_code=500, detail=f"Error fetching models: {str(e)}")
+
+
+class TestPromptRequest(BaseModel):
+    model_id: str
+    prompt: str
+
+
+@app.post("/debug/llm-playground/test")
+async def test_llm_prompt(request: Request, body: TestPromptRequest):
+    """
+    Test a prompt with a specific OpenRouter model.
+
+    Args:
+        body: Request containing model_id and prompt
+
+    Returns:
+        JSON response with success status, response text, and metadata
+    """
+    from app.services import openrouter_service
+
+    try:
+        result = openrouter_service.test_prompt_with_model(
+            model_id=body.model_id,
+            prompt=body.prompt
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error testing prompt: {e}")
+        raise HTTPException(status_code=500, detail=f"Error testing prompt: {str(e)}")
+
+
 # TEST ONLY: Endpoint to facilitate browser test authentication
 # This endpoint allows setting the session cookie via a direct request,
 # bypassing the need for manual cookie injection which is brittle across processes.
