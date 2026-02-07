@@ -117,9 +117,33 @@ c. **Monitor error tracking**
    - Verify no new exceptions were introduced
 
 **Test Account Setup:**
-- Dedicated Google test account with known credentials
-- Store credentials securely (environment variables or config)
-- Used for automated Playwright testing against production
+- **Email:** `arthos.test@gmail.com`
+- **Credentials:** Stored in `.env` file (gitignored)
+  - `TEST_GOOGLE_EMAIL=arthos.test@gmail.com`
+  - `TEST_GOOGLE_PASSWORD=<secure-password>`
+- **Initial setup** (one-time):
+  1. Log in manually to https://my.arthos.app with test account
+  2. Complete Google OAuth flow
+  3. Run test data setup script:
+     ```bash
+     # Get production DATABASE_URL from Railway
+     export DATABASE_URL=<production-url>
+     python scripts/setup_production_test_data.py
+     ```
+- **Used for:** Automated Playwright testing against production
+
+**Running Tests Against Production:**
+```bash
+# Run all browser tests against production
+TEST_SERVER_URL=https://my.arthos.app pytest tests/test_*_browser.py -v
+
+# Run specific browser test
+TEST_SERVER_URL=https://my.arthos.app pytest tests/test_watchlist_browser.py::TestWatchListBrowser::test_create_watchlist -v
+
+# Cleanup test data in production
+export DATABASE_URL=<production-url>
+python scripts/setup_production_test_data.py --cleanup
+```
 
 ### 7. Fix Production Issues (if any)
 If errors are found:
