@@ -65,6 +65,25 @@ docker-compose -f docker-compose.test.yml down -v
 ./scripts/test/run-tests-local.sh all --random-order
 ```
 
+#### Test Suite Performance Benchmarks
+**Current performance (as of Feb 2026):**
+- **Full suite**: ~3 minutes 15 seconds (364 tests including browser tests)
+  - Unit tests: ~40 seconds (quick feedback loop)
+  - Integration + API tests: ~1 minute
+  - Browser tests (Playwright): ~1 minute 30 seconds
+- **Test breakdown**: 364 passed, 3 skipped, 28 warnings (deprecations)
+
+**Why this matters:**
+- Sub-4-minute full suite enables rapid iteration
+- Developers can run full suite multiple times per hour
+- Browser tests ensure UI changes don't break existing functionality
+- PostgreSQL in Docker ensures production parity
+
+**Performance regression monitoring:**
+- If full suite exceeds 5 minutes, investigate slow tests
+- Use `pytest --durations=10` to identify slowest tests
+- Consider parallelization if suite grows beyond 500 tests
+
 ### Pre-Push Workflow
 ```bash
 docker-compose -f docker-compose.test.yml up test-runner --abort-on-container-exit
