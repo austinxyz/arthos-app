@@ -54,6 +54,8 @@ def create_db_and_tables():
     _migrate_stock_attributes_trading_metrics_columns()
     # Backfill trading metrics for existing stocks (runs once, skips already computed)
     _backfill_trading_metrics()
+    # Add LLM insights columns to stock_attributes if they don't exist
+    _migrate_stock_attributes_insights_columns()
     # Add description column to watchlist if it doesn't exist
     _migrate_watchlist_description_column()
     # Create indexes on stock_price and stock_attributes for faster queries
@@ -686,6 +688,51 @@ def _migrate_stock_attributes_trading_metrics_columns():
                         print(f"Added {col_name} column to stock_attributes table")
     except Exception as e:
         print(f"Warning: Could not migrate stock_attributes trading metrics columns: {e}")
+
+
+def _migrate_stock_attributes_insights_columns():
+    """Add insights_json and insights_updated_at columns to stock_attributes table if they don't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            # Columns to add: insights_json (TEXT), insights_updated_at (TIMESTAMP)
+            insights_columns = [
+                ('insights_json', 'TEXT'),
+                ('insights_updated_at', 'TIMESTAMP')
+            ]
+
+            if is_sqlite:
+                # SQLite-specific migration
+                for col_name, col_type in insights_columns:
+                    result = session.exec(text(
+                        "PRAGMA table_info(stock_attributes)"
+                    )).all()
+
+                    column_exists = any(row[1] == col_name for row in result)
+
+                    if not column_exists:
+                        session.exec(text(
+                            f"ALTER TABLE stock_attributes ADD COLUMN {col_name} {col_type}"
+                        ))
+                        session.commit()
+                        print(f"Added {col_name} column to stock_attributes table")
+            else:
+                # PostgreSQL-specific migration
+                for col_name, col_type in insights_columns:
+                    result = session.exec(text(
+                        "SELECT column_name FROM information_schema.columns "
+                        f"WHERE table_name = 'stock_attributes' AND column_name = '{col_name}'"
+                    )).first()
+
+                    if not result:
+                        session.exec(text(
+                            f"ALTER TABLE stock_attributes ADD COLUMN {col_name} {col_type}"
+                        ))
+                        session.commit()
+                        print(f"Added {col_name} column to stock_attributes table")
+    except Exception as e:
+        print(f"Warning: Could not migrate stock_attributes insights columns: {e}")
 
 
 def _migrate_watchlist_description_column():

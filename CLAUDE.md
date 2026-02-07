@@ -247,23 +247,63 @@ Use correct attribute names from model definitions:
 - **Consistent styling across related pages**: When the same data (e.g., ratio badges) appears on multiple pages (list view and detail view), ensure colors/styling are consistent. Check existing pages for the established color scheme before adding new styles.
 
 ### Database Migrations
-**CRITICAL**: When adding new columns to existing SQLModel models:
+**CRITICAL**: When adding new columns to existing SQLModel models, you MUST add migrations in BOTH places:
+
+#### 1. Add Migration to `app/database.py` (Required for Local Dev + Docker Tests)
 - `create_db_and_tables()` only creates NEW tables, it does NOT add columns to existing tables
-- You MUST add an explicit migration in `railway_deploy.py` for any new columns
-- Example pattern for adding columns:
+- Add a migration function following existing patterns (e.g., `_migrate_stock_attributes_insights_columns()`)
+- Call the migration in `create_db_and_tables()` in the appropriate order
+- **MUST support both SQLite (local dev) and PostgreSQL (production/Docker tests)**
+
+#### 2. Add Migration to `railway_deploy.py` (Required for Production)
+- Production uses flag files to ensure one-time migrations don't run twice
+- Add migration function with flag file (e.g., `ADD_INSIGHTS_COLUMNS_FLAG`)
+- Add to `main()` function to run on deployment
+- Use `AUTOCOMMIT` mode for DDL operations
+
+#### Migration Pattern Example:
 ```python
-def add_new_columns():
-    with engine.connect() as conn:
-        conn = conn.execution_options(isolation_level="AUTOCOMMIT")
-        # Check if column exists
-        result = conn.execute(text("""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = 'your_table' AND column_name = 'new_column'
-        """))
-        if not result.scalar():
-            conn.execute(text("ALTER TABLE your_table ADD COLUMN new_column TEXT"))
+# In app/database.py - add to create_db_and_tables()
+def _migrate_table_new_columns():
+    """Add new_column to table if it doesn't exist."""
+    try:
+        with Session(engine) as session:
+            is_sqlite = DATABASE_URL.startswith("sqlite")
+
+            if is_sqlite:
+                # SQLite: Check column exists
+                result = session.exec(text("PRAGMA table_info(table_name)")).all()
+                column_exists = any(row[1] == 'new_column' for row in result)
+                if not column_exists:
+                    session.exec(text("ALTER TABLE table_name ADD COLUMN new_column TEXT"))
+                    session.commit()
+                    print("Added new_column to table_name")
+            else:
+                # PostgreSQL: Check column exists
+                result = session.exec(text(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'table_name' AND column_name = 'new_column'"
+                )).first()
+                if not result:
+                    session.exec(text("ALTER TABLE table_name ADD COLUMN new_column TEXT"))
+                    session.commit()
+                    print("Added new_column to table_name")
+    except Exception as e:
+        print(f"Warning: Could not migrate table: {e}")
+
+# Then add to create_db_and_tables():
+    _migrate_table_new_columns()
 ```
-- Always test migrations locally with PostgreSQL before pushing to production
+
+#### Testing Checklist:
+- ✅ Test with SQLite (local dev): Delete `arthos.db` and restart app
+- ✅ Test with Docker PostgreSQL: `./scripts/test/run-tests-local.sh all`
+- ✅ Verify production deployment doesn't break (Railway runs `railway_deploy.py`)
+- ✅ Check that both SQLite and PostgreSQL code paths work
+
+#### Why Two Files?
+- **`app/database.py`**: Called on EVERY app startup (local, Docker, production) - no flag files
+- **`railway_deploy.py`**: Production-only with flag files for expensive one-time operations (backfills, data fixes)
 
 ## UI Standards
 
