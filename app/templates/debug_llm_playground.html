@@ -144,7 +144,7 @@
                 models.forEach(model => {
                     const option = document.createElement('option');
                     option.value = model.id;
-                    option.textContent = `${model.name} [${model.tier}]`;
+                    option.textContent = model.name;
                     option.dataset.tier = model.tier;
                     option.dataset.contextLength = model.context_length;
                     option.dataset.pricing = JSON.stringify(model.pricing);
