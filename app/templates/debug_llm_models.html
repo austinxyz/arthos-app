@@ -87,19 +87,15 @@
         <!-- Add Model Form -->
         <div class="card mb-4">
             <div class="card-body">
-                <h5 class="card-title">Add Model</h5>
+                <h5 class="card-title">Add Model from OpenRouter</h5>
                 <form id="addModelForm" onsubmit="addModel(event)">
                     <div class="row g-3 align-items-end">
-                        <div class="col-md-6">
-                            <label for="modelName" class="form-label">Model Name (OpenRouter format)</label>
-                            <input type="text" class="form-control" id="modelName" placeholder="e.g. google/gemini-2.5-flash" required>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="modelTier" class="form-label">Tier</label>
-                            <select class="form-select" id="modelTier">
-                                <option value="free">Free</option>
-                                <option value="paid">Paid</option>
+                        <div class="col-md-9">
+                            <label for="modelSelect" class="form-label">Select Model</label>
+                            <select class="form-select" id="modelSelect" required>
+                                <option value="">Loading models...</option>
                             </select>
+                            <div class="form-text" id="modelInfo"></div>
                         </div>
                         <div class="col-md-3">
                             <button type="submit" class="btn btn-primary w-100">Add Model</button>
@@ -111,7 +107,55 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    <script src="/static/js/openrouter-models.js"></script>
     <script>
+        // Load models on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadModels();
+        });
+
+        async function loadModels() {
+            try {
+                const selectElement = document.getElementById('modelSelect');
+                await populateModelSelect(selectElement, {
+                    includeTierInName: false,
+                    emptyMessage: 'No models available from OpenRouter',
+                    onLoad: (models) => {
+                        // Set up change listener to update model info
+                        selectElement.addEventListener('change', updateModelInfo);
+                        updateModelInfo();
+                    }
+                });
+            } catch(e) {
+                showAlert('Failed to load models from OpenRouter', 'danger');
+            }
+        }
+
+        function updateModelInfo() {
+            const selectElement = document.getElementById('modelSelect');
+            const infoEl = document.getElementById('modelInfo');
+            const modelInfo = getSelectedModelInfo(selectElement);
+
+            if (!modelInfo) {
+                infoEl.textContent = '';
+                return;
+            }
+
+            const tierBadge = modelInfo.isFree ?
+                '<span class="badge bg-success">Free</span>' :
+                '<span class="badge bg-primary">Paid</span>';
+
+            let info = `${tierBadge} • Context: ${modelInfo.contextLength.toLocaleString()} tokens`;
+
+            if (!modelInfo.isFree) {
+                const promptPrice = (modelInfo.pricing.prompt * 1000000).toFixed(2);
+                const completionPrice = (modelInfo.pricing.completion * 1000000).toFixed(2);
+                info += ` • Cost: $${promptPrice}/$${completionPrice} per 1M tokens`;
+            }
+
+            infoEl.innerHTML = info;
+        }
+
         function showAlert(message, type) {
             const el = document.getElementById('statusAlert');
             el.className = `alert alert-${type}`;
@@ -153,9 +197,17 @@
 
         async function addModel(e) {
             e.preventDefault();
-            const model_name = document.getElementById('modelName').value.trim();
-            const tier = document.getElementById('modelTier').value;
-            if (!model_name) return;
+            const selectElement = document.getElementById('modelSelect');
+            const modelInfo = getSelectedModelInfo(selectElement);
+
+            if (!modelInfo) {
+                showAlert('Please select a model', 'warning');
+                return;
+            }
+
+            const model_name = modelInfo.id;
+            const tier = modelInfo.tier.toLowerCase();
+
             try {
                 const res = await fetch('/v1/llm-models', {
                     method: 'POST',
@@ -163,14 +215,14 @@
                     body: JSON.stringify({model_name, tier})
                 });
                 if (res.ok) {
-                    showAlert('Model added', 'success');
+                    showAlert('Model added successfully', 'success');
                     setTimeout(() => location.reload(), 500);
                 } else {
                     const data = await res.json();
                     showAlert(data.detail || 'Error adding model', 'danger');
                 }
             } catch(e) {
-                showAlert('Network error', 'danger');
+                showAlert('Network error: ' + e.message, 'danger');
             }
         }
     </script>
