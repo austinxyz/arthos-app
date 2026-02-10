@@ -89,6 +89,78 @@ docker-compose -f docker-compose.test.yml down -v
 docker-compose -f docker-compose.test.yml up test-runner --abort-on-container-exit
 ```
 
+## Token Optimization Guidelines
+
+**CRITICAL**: Follow these guidelines to minimize token usage during development.
+
+### General Principles
+- **Read only what you need**: Use targeted file reads instead of reading entire large files
+- **Limit log fetches**: When checking production logs, always use `| tail -N` or `| head -N` (default: 100 lines max)
+- **Run targeted tests**: Run only new/modified tests during development, full suite before commit
+- **Avoid redundant reads**: If you've already read a file in the session, refer to it instead of re-reading
+
+### Production Log Fetching
+```bash
+# ✅ CORRECT - Limit to 100 lines (conserves tokens)
+railway logs --json | tail -100
+
+# ✅ CORRECT - Limit to 50 lines for quick check
+railway logs --json | tail -50
+
+# ❌ WRONG - Fetches all logs (wastes tokens)
+railway logs --json
+```
+
+### Test Running Strategy
+```bash
+# During development - run ONLY new/modified tests
+docker-compose -f docker-compose.test.yml run --rm test-runner pytest tests/test_new_feature.py -v
+
+# Before commit - run full suite (MANDATORY)
+./scripts/test/run-tests-local.sh all
+
+# Smart test runner - automatically selects affected tests
+./scripts/test/smart-test-runner.sh
+```
+
+### File Reading Strategy
+- **Before reading large files**, check line count: `wc -l <file>`
+- **Use `limit` and `offset` parameters** in Read tool for large files
+- **Read specific sections** instead of entire templates (see refactoring plan below)
+
+## Code Refactoring for Token Efficiency
+
+### Large Files Identified for Refactoring
+
+**Priority 1 - Highest Impact:**
+1. **app/main.py (2,264 lines)** → Split into router modules
+   - `app/routers/watchlist_routes.py` (~400 lines)
+   - `app/routers/stock_routes.py` (~300 lines)
+   - `app/routers/rr_routes.py` (~300 lines)
+   - `app/routers/notes_routes.py` (~150 lines)
+   - `app/routers/insights_routes.py` (~100 lines)
+   - `app/routers/llm_routes.py` (~200 lines)
+   - `app/routers/debug_routes.py` (~400 lines)
+
+2. **app/services/stock_service.py (1,412 lines)** → Split by responsibility
+   - `app/services/stock_data_service.py` (~300 lines)
+   - `app/services/stock_metrics_service.py` (~400 lines)
+   - `app/services/options_data_service.py` (~300 lines)
+   - `app/services/covered_call_service.py` (~300 lines)
+
+3. **app/templates/stock_detail.html (1,493 lines)** → Extract components
+   - `app/templates/stock/detail_header.html` (~150 lines)
+   - `app/templates/stock/chart_section.html` (~200 lines)
+   - `app/templates/stock/insights_tab.html` (~250 lines)
+   - `app/templates/stock/covered_calls_tab.html` (~400 lines)
+   - `app/templates/stock/risk_reversal_tab.html` (~400 lines)
+
+**Token Savings Example:**
+- Editing watchlist feature: Read `watchlist_routes.py` (400 lines) instead of `main.py` (2,264 lines) = **82% reduction**
+- Editing options logic: Read `options_data_service.py` (300 lines) instead of `stock_service.py` (1,412 lines) = **78% reduction**
+
+**Note**: Refactoring should be done incrementally when working on related features, not as a separate task.
+
 ## Development Workflow
 
 **CRITICAL**: All code changes MUST follow this workflow. No exceptions.
@@ -103,12 +175,13 @@ docker-compose -f docker-compose.test.yml up test-runner --abort-on-container-ex
 - If you discover issues during implementation:
   1. Fix the issue
   2. Update tests if needed
-  3. Re-run full test suite
-  4. Only then commit and push
+  3. Re-run affected tests (not full suite during development)
+  4. Run full suite before commit
+  5. Only then commit and push
 - **Never skip issues** with a note to "fix later" - fix them now
 
 Examples:
-- ✅ Test fails → Fix test → Re-run all tests → Verify pass → Commit
+- ✅ Test fails → Fix test → Re-run affected tests → Verify pass → Commit (after full suite)
 - ❌ Test fails → Comment it out → Commit (leaves broken tests)
 - ✅ Script error → Debug script → Fix root cause → Verify → Commit
 - ❌ Script error → "We'll fix that later" → Move on (leaves broken tooling)
@@ -156,17 +229,17 @@ docker-compose -f docker-compose.test.yml run --rm test-runner pytest tests/test
 - Tests MUST pass 100% before proceeding to push
 - **When tests fail after your changes:**
   1. **Analyze the failure**: Is it a bug in your code or expected due to intentional behavior change?
-  2. **If it's a bug**: Fix your code and re-run tests
+  2. **If it's a bug**: Fix your code and re-run affected tests only
   3. **If it's expected** (you changed UI behavior): Update the failing tests to match new expected behavior
   4. **Search for similar tests**: If you changed "Covered Calls" tab behavior, search codebase for all tests mentioning "covered-calls" and update them
-  5. **Re-run ALL tests** after fixing to ensure no other tests broke
+  5. **Re-run affected tests** after fixing, then run full suite once before commit
 - **Never run pytest directly** - always use Docker for consistency with production
 
-#### Recommended Workflow
-1. **During development**: Run smart test runner frequently (~every 15 min)
-2. **Before committing**: Run full suite once
-3. **Before pushing**: Ensure full suite passed
-4. **If time-constrained**: Run smart test runner, but re-run full suite ASAP
+#### Recommended Workflow (Token-Optimized)
+1. **During development**: Run ONLY new/modified tests you're actively working on
+2. **After completing feature**: Run smart test runner to catch affected tests
+3. **Before committing**: Run full suite ONCE (mandatory)
+4. **Never run full suite multiple times** unless fixing test failures
 
 ### 3. Generate Test Metrics Report
 
@@ -240,13 +313,17 @@ a. **Run automated verification script**
 
 b. **Check Railway logs for errors**
    ```bash
-   # Automatically check logs after deployment
+   # ALWAYS limit logs to conserve tokens (default: 100 lines)
    /opt/homebrew/bin/railway logs --json | tail -100
+
+   # For quick check, use 50 lines
+   /opt/homebrew/bin/railway logs --json | tail -50
    ```
    - Scan for errors that only appear in production
    - Look for stack traces, 500 errors, database errors
    - Check for any unexpected warnings
    - Report any issues found
+   - **NEVER fetch unlimited logs** - always use tail/head to limit output
 
 c. **Manual functional verification** (User or Claude with Playwright)
    - For UI changes: Manually test changed functionality
