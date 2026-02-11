@@ -329,7 +329,7 @@ def add_stocks_to_watchlist(watchlist_id: Union[UUID, str], tickers: List[str], 
     valid_format_tickers, invalid_format_tickers = validate_ticker_list(tickers)
     
     # Now validate that tickers actually exist in the data provider and fetch/save price data
-    from app.services.stock_service import fetch_stock_data
+    from app.services.stock_data_service import fetch_stock_data
     from app.services.stock_price_service import fetch_and_save_stock_prices, compute_and_save_trading_metrics, get_stock_attributes
 
     valid_tickers = []
