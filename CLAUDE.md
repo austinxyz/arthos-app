@@ -128,38 +128,239 @@ docker-compose -f docker-compose.test.yml run --rm test-runner pytest tests/test
 - **Use `limit` and `offset` parameters** in Read tool for large files
 - **Read specific sections** instead of entire templates (see refactoring plan below)
 
-## Code Refactoring for Token Efficiency
+## Code Organization Patterns
 
-### Large Files Identified for Refactoring
+### Modular Architecture (Completed Feb 2026)
 
-**Priority 1 - Highest Impact:**
-1. **app/main.py (2,264 lines)** → Split into router modules
-   - `app/routers/watchlist_routes.py` (~400 lines)
-   - `app/routers/stock_routes.py` (~300 lines)
-   - `app/routers/rr_routes.py` (~300 lines)
-   - `app/routers/notes_routes.py` (~150 lines)
-   - `app/routers/insights_routes.py` (~100 lines)
-   - `app/routers/llm_routes.py` (~200 lines)
-   - `app/routers/debug_routes.py` (~400 lines)
+**As of Feb 2026, the codebase has been refactored for token efficiency and maintainability:**
 
-2. **app/services/stock_service.py (1,412 lines)** → Split by responsibility
-   - `app/services/stock_data_service.py` (~300 lines)
-   - `app/services/stock_metrics_service.py` (~400 lines)
-   - `app/services/options_data_service.py` (~300 lines)
-   - `app/services/covered_call_service.py` (~300 lines)
+#### Router Organization
+- **Main file**: `app/main.py` (237 lines) - Core FastAPI setup, middleware, includes
+- **Router modules** (in `app/routers/`):
+  - `watchlist_routes.py` - Watchlist CRUD operations
+  - `notes_routes.py` - Stock notes management
+  - `insights_routes.py` - LLM insights and model management
+  - `stock_routes.py` - Stock detail pages and API endpoints
+  - `rr_routes.py` - Risk reversal watchlist management
+  - `debug_routes.py` - Debug tools and admin pages
 
-3. **app/templates/stock_detail.html (1,493 lines)** → Extract components
-   - `app/templates/stock/detail_header.html` (~150 lines)
-   - `app/templates/stock/chart_section.html` (~200 lines)
-   - `app/templates/stock/insights_tab.html` (~250 lines)
-   - `app/templates/stock/covered_calls_tab.html` (~400 lines)
-   - `app/templates/stock/risk_reversal_tab.html` (~400 lines)
+#### Service Organization
+- **Core services** (in `app/services/`):
+  - `stock_data_service.py` - Raw data fetching from providers
+  - `options_data_service.py` - Options chain processing and LEAPS
+  - `covered_call_service.py` - Covered call strategy calculations
+  - `risk_reversal_service.py` - Risk reversal strategy calculations
+  - `stock_service.py` - Metric calculations and signal generation (retained)
 
-**Token Savings Example:**
-- Editing watchlist feature: Read `watchlist_routes.py` (400 lines) instead of `main.py` (2,264 lines) = **82% reduction**
-- Editing options logic: Read `options_data_service.py` (300 lines) instead of `stock_service.py` (1,412 lines) = **78% reduction**
+#### Utility Modules
+- **`app/utils/route_helpers.py`** - Shared utility functions for routes:
+  - `_require_admin()` - Admin access checking
+  - `_format_duration()` - Time formatting for UI
 
-**Note**: Refactoring should be done incrementally when working on related features, not as a separate task.
+### Code Organization Guidelines
+
+#### When to Create New Router Modules
+
+**Create a new router module when:**
+- A feature has 5+ related endpoints
+- Routes serve a distinct domain (watchlists, notes, insights)
+- You want to isolate feature-specific logic for token efficiency
+
+**Pattern:**
+```python
+# app/routers/feature_routes.py
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import HTMLResponse
+from app.utils.route_helpers import _require_admin  # Import shared utilities
+
+router = APIRouter()
+
+@router.get("/v1/feature/{id}")
+async def get_feature(id: str):
+    # Implementation
+    pass
+
+@router.post("/v1/feature")
+async def create_feature(data: FeatureCreate):
+    # Implementation
+    pass
+```
+
+**Then include in main.py:**
+```python
+from app.routers import feature_routes
+app.include_router(feature_routes.router)
+```
+
+#### When to Create New Service Modules
+
+**Create a new service module when:**
+- A service file exceeds 500 lines
+- You can extract a cohesive subset of functionality (e.g., "options data" vs "covered calls")
+- The extracted module has a clear single responsibility
+
+**Pattern:**
+```python
+# app/services/feature_service.py
+from typing import Dict, Any, List
+import logging
+
+logger = logging.getLogger(__name__)
+
+def process_feature_data(input: Any) -> Dict[str, Any]:
+    """
+    Process feature data with clear documentation.
+
+    Args:
+        input: Description of input
+
+    Returns:
+        Dictionary with processed data
+    """
+    # Implementation
+    pass
+```
+
+**Import in dependent services:**
+```python
+# app/services/higher_level_service.py
+from app.services.feature_service import process_feature_data
+
+def higher_level_function():
+    result = process_feature_data(data)
+    # Use result
+```
+
+#### Handling Circular Dependencies
+
+**Problem:** Service A needs Service B, and Service B needs Service A
+
+**Solution: Use late imports inside functions**
+```python
+# app/services/stock_metrics_service.py
+def get_multiple_stock_metrics(tickers: List[str]) -> List[Dict[str, Any]]:
+    """Get metrics for multiple tickers."""
+    # Import only when function is called, not at module load time
+    from app.services.stock_price_service import get_stock_metrics_from_db
+
+    results = []
+    for ticker in tickers:
+        try:
+            metrics = get_stock_metrics_from_db(ticker)
+            results.append(metrics)
+        except ValueError:
+            # Handle error
+            pass
+    return results
+```
+
+**Document circular dependencies:**
+```python
+# At top of file
+"""
+Stock metrics calculation service.
+
+Note: Uses late import of stock_price_service to avoid circular dependency.
+"""
+```
+
+#### Utility Modules for Shared Code
+
+**Create utility modules to avoid code duplication:**
+
+```python
+# app/utils/route_helpers.py
+"""Shared helper functions for route handlers."""
+import os
+from fastapi import HTTPException, Request
+
+def _require_admin(request: Request):
+    """
+    Check that the request comes from an admin user.
+
+    Raises:
+        HTTPException: If user is not admin
+    """
+    user = request.session.get("user") if hasattr(request, "session") else None
+    if not user:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    admin_email = os.getenv("ADMIN_EMAIL")
+    if not admin_email or user.get("email") != admin_email:
+        raise HTTPException(status_code=403, detail="Admin access required")
+```
+
+**When to create utility modules:**
+- Function is used in 3+ different modules
+- Function is truly generic (not domain-specific)
+- Function has no external dependencies (or minimal ones)
+
+#### Template Organization (Future)
+
+**Current state:** `app/templates/stock_detail.html` (1,493 lines) - Not yet extracted
+
+**Recommended pattern when extracting:**
+```
+app/templates/stock/
+├── detail_header.html       # Price metrics cards
+├── chart_section.html       # Plotly chart
+├── insights_tab.html        # AI insights tab
+├── covered_calls_tab.html   # Covered calls table
+├── risk_reversal_tab.html   # RR strategies table
+└── notes_tab.html           # Notes management
+```
+
+**Use Jinja2 includes:**
+```jinja2
+<!-- In stock_detail.html -->
+{% include 'stock/detail_header.html' %}
+{% include 'stock/chart_section.html' %}
+
+<!-- In tab content -->
+<div class="tab-pane fade" id="insights">
+  {% include 'stock/insights_tab.html' %}
+</div>
+```
+
+**Note:** Template extraction is lower priority - templates are edited less frequently than Python code.
+
+### Token Optimization Achieved
+
+**Phase 1 - Router Extraction (Complete):**
+- `main.py`: 1,843 → 237 lines (87% reduction)
+- Token savings: ~80% when reading feature-specific routes
+- Example: Reading notes routes (122 lines) vs old main.py (1,843 lines)
+
+**Phase 2 - Service Extraction (80% Complete):**
+- Extracted: stock_data, options_data, covered_call, risk_reversal services
+- Deferred: stock_metrics (kept in stock_service.py)
+- Token savings: ~75% when reading specific strategy logic
+
+**Phase 3 - Template Extraction (Deferred):**
+- Can be done incrementally when working on UI features
+- Lower priority as templates are edited less frequently
+
+### Guidelines for New Code
+
+**When adding new features:**
+
+1. **For new API endpoints:**
+   - If related to existing router (e.g., watchlists), add to that router
+   - If new domain area, create new router module in `app/routers/`
+
+2. **For new business logic:**
+   - If related to existing service, add to that service
+   - If service exceeds 500 lines after addition, consider extracting
+   - Create new service module if it's a distinct responsibility
+
+3. **For shared utilities:**
+   - Add to `app/utils/route_helpers.py` if route-related
+   - Create new utility module if different domain (e.g., `app/utils/formatting.py`)
+
+4. **For new templates:**
+   - Keep simple templates as single files
+   - Consider extraction if template exceeds 500 lines
+   - Use Jinja2 includes for repeated sections (navbar, footer, etc.)
 
 ## Development Workflow
 
@@ -399,11 +600,24 @@ The app uses an abstraction layer for stock data providers:
 - `app/providers/factory.py` - Factory for getting the configured provider
 
 ### Key Services
-- `app/services/stock_service.py` - Core stock data fetching and metric calculation (SMAs, signals, options analysis)
+
+**Data Layer:**
 - `app/services/stock_price_service.py` - Database-driven stock price storage and retrieval
+- `app/services/stock_data_service.py` - Raw data fetching from providers (yfinance, MarketData)
+
+**Analysis Layer:**
+- `app/services/stock_service.py` - Metric calculations (SMAs, signals, devstep)
+- `app/services/options_data_service.py` - Options chain processing and LEAPS expirations
+- `app/services/covered_call_service.py` - Covered call strategy calculations
+- `app/services/risk_reversal_service.py` - Risk reversal strategy calculations
+
+**Business Logic Layer:**
 - `app/services/watchlist_service.py` - Watchlist CRUD operations
 - `app/services/rr_watchlist_service.py` - Risk reversal watchlist tracking
-- `app/services/scheduler_service.py` - Background job for fetching stock data every 60 minutes
+- `app/services/insights_service.py` - LLM-powered stock insights
+
+**Background Jobs:**
+- `app/services/scheduler_service.py` - Periodic stock data fetching (every 60 minutes)
 
 ### Models (SQLModel)
 - `app/models/stock_price.py` - `StockPrice` (daily OHLC) and `StockAttributes` (ticker metadata, dividends, earnings)
