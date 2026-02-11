@@ -3,6 +3,7 @@ from typing import Dict, Any, Tuple, List, Optional
 from datetime import datetime, timedelta
 import logging
 from app.providers.factory import ProviderFactory
+from app.providers.exceptions import DataNotAvailableError
 from app.services.options_cache_service import get_cached_options_data, cache_options_data
 
 logger = logging.getLogger(__name__)
@@ -347,3 +348,12 @@ def get_leaps_expirations(ticker: str) -> List[str]:
                         # For years beyond next year, include all months
                         leaps.append(exp_str)
             except ValueError:
+                continue
+
+        # Sort by date
+        leaps.sort(key=lambda x: datetime.strptime(x, '%Y-%m-%d'))
+        return leaps
+
+    except Exception as e:
+        logger.error(f"Error fetching LEAPS expirations for {ticker}: {str(e)}")
+        return []

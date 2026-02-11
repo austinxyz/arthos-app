@@ -7,6 +7,8 @@ from app.providers.factory import ProviderFactory
 from app.providers.converters import stock_price_data_to_dataframe, aggregate_intraday_to_daily
 from app.providers.exceptions import TickerNotFoundError, DataNotAvailableError
 from app.services.stock_data_service import separate_daily_intraday, fetch_intraday_data, fetch_stock_data
+from app.services.covered_call_service import calculate_covered_call_returns, calculate_covered_call_returns_v2
+from app.services.risk_reversal_service import calculate_risk_reversal_strategies
 
 logger = logging.getLogger(__name__)
 
