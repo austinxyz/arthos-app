@@ -615,3 +615,49 @@ async def clear_cache_endpoint():
     from app.services.options_cache_service import clear_options_cache
     clear_options_cache()
     return {"status": "cache_cleared"}
+
+
+@router.get("/debug/watchlist-tickers")
+async def get_watchlist_tickers(request: Request):
+    """
+    Admin endpoint to get all unique tickers from watchlists.
+
+    Returns:
+        JSON with list of tickers and counts
+    """
+    from app.utils.route_helpers import _require_admin
+    from sqlmodel import Session, select
+    from app.database import engine
+    from app.models.watchlist import WatchListStock
+    from sqlalchemy import func
+
+    _require_admin(request)
+
+    try:
+        with Session(engine) as session:
+            # Get all unique tickers
+            tickers_stmt = select(WatchListStock.ticker).distinct().order_by(WatchListStock.ticker)
+            tickers = session.exec(tickers_stmt).all()
+
+            # Get count of watchlists per ticker
+            count_stmt = (
+                select(
+                    WatchListStock.ticker,
+                    func.count(func.distinct(WatchListStock.watchlist_id)).label('watchlist_count')
+                )
+                .group_by(WatchListStock.ticker)
+                .order_by(func.count(func.distinct(WatchListStock.watchlist_id)).desc(), WatchListStock.ticker)
+            )
+            ticker_counts = session.exec(count_stmt).all()
+
+            return {
+                "total_unique_tickers": len(tickers),
+                "tickers": list(tickers),
+                "ticker_counts": [
+                    {"ticker": ticker, "watchlist_count": count}
+                    for ticker, count in ticker_counts
+                ]
+            }
+    except Exception as e:
+        logger.error(f"Error fetching watchlist tickers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
