@@ -66,10 +66,8 @@
         <!-- All Tickers (Alphabetical) -->
         <div class="ticker-table mb-4">
             <h4 class="mb-3">All Tickers (Alphabetical)</h4>
-            <div>
-                {% for ticker in all_tickers %}
-                <span class="badge bg-secondary ticker-badge">{{ ticker }}</span>
-                {% endfor %}
+            <div class="p-3" style="background-color: #f8f9fa; border-radius: 4px; font-family: monospace;">
+                {{ all_tickers|join(', ') }}
             </div>
         </div>
 
