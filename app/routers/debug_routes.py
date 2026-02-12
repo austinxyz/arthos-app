@@ -617,10 +617,67 @@ async def clear_cache_endpoint():
     return {"status": "cache_cleared"}
 
 
+@router.get("/debug/watchlist-tickers-page")
+async def watchlist_tickers_page(request: Request):
+    """
+    Debug page for displaying all watchlist tickers.
+
+    Returns:
+        HTML page with ticker list and statistics
+    """
+    from app.utils.route_helpers import _require_admin
+    from sqlmodel import Session, select
+    from app.database import engine
+    from app.models.watchlist import WatchListStock
+    from sqlalchemy import func
+
+    _require_admin(request)
+
+    try:
+        with Session(engine) as session:
+            # Get all unique tickers
+            tickers_stmt = select(WatchListStock.ticker).distinct().order_by(WatchListStock.ticker)
+            tickers = session.exec(tickers_stmt).all()
+
+            # Get count of watchlists per ticker
+            count_stmt = (
+                select(
+                    WatchListStock.ticker,
+                    func.count(func.distinct(WatchListStock.watchlist_id)).label('watchlist_count')
+                )
+                .group_by(WatchListStock.ticker)
+                .order_by(func.count(func.distinct(WatchListStock.watchlist_id)).desc(), WatchListStock.ticker)
+            )
+            ticker_counts_raw = session.exec(count_stmt).all()
+
+            # Calculate stats
+            total_tickers = len(tickers)
+            popular_tickers = sum(1 for _, count in ticker_counts_raw if count >= 2)
+            single_tickers = sum(1 for _, count in ticker_counts_raw if count == 1)
+
+            # Format ticker counts for template
+            ticker_counts = [
+                {"ticker": ticker, "count": count}
+                for ticker, count in ticker_counts_raw
+            ]
+
+            return templates.TemplateResponse("debug_watchlist_tickers.html", {
+                "request": request,
+                "total_tickers": total_tickers,
+                "popular_tickers": popular_tickers,
+                "single_tickers": single_tickers,
+                "all_tickers": list(tickers),
+                "ticker_counts": ticker_counts
+            })
+    except Exception as e:
+        logger.error(f"Error fetching watchlist tickers: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/debug/watchlist-tickers")
 async def get_watchlist_tickers(request: Request):
     """
-    Admin endpoint to get all unique tickers from watchlists.
+    Admin API endpoint to get all unique tickers from watchlists.
 
     Returns:
         JSON with list of tickers and counts

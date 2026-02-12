@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watchlist Tickers - Debug - Arthos</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            padding: 20px 0;
+        }
+        .header h1 {
+            color: #4285f4;
+        }
+        .ticker-badge {
+            display: inline-block;
+            margin: 4px;
+            font-size: 0.9rem;
+        }
+        .stats-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .ticker-table {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header mb-4">
+            <a href="/debug" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Debug Tools</a>
+            <h1>Watchlist Tickers</h1>
+            <p class="text-muted">All stock tickers saved across all watchlists in the production database</p>
+        </div>
+
+        <!-- Summary Stats -->
+        <div class="stats-card">
+            <div class="row text-center">
+                <div class="col-md-4">
+                    <h2 class="text-primary">{{ total_tickers }}</h2>
+                    <p class="text-muted mb-0">Total Unique Tickers</p>
+                </div>
+                <div class="col-md-4">
+                    <h2 class="text-success">{{ popular_tickers }}</h2>
+                    <p class="text-muted mb-0">In 2+ Watchlists</p>
+                </div>
+                <div class="col-md-4">
+                    <h2 class="text-info">{{ single_tickers }}</h2>
+                    <p class="text-muted mb-0">Single Watchlist</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- All Tickers (Alphabetical) -->
+        <div class="ticker-table mb-4">
+            <h4 class="mb-3">All Tickers (Alphabetical)</h4>
+            <div>
+                {% for ticker in all_tickers %}
+                <span class="badge bg-secondary ticker-badge">{{ ticker }}</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Tickers by Popularity -->
+        <div class="ticker-table">
+            <h4 class="mb-3">Tickers by Popularity</h4>
+            <table class="table table-striped table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Number of Watchlists</th>
+                        <th>Popularity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in ticker_counts %}
+                    <tr>
+                        <td><strong>{{ item.ticker }}</strong></td>
+                        <td>{{ item.count }}</td>
+                        <td>
+                            {% if item.count >= 3 %}
+                            <span class="badge bg-success">High</span>
+                            {% elif item.count == 2 %}
+                            <span class="badge bg-info">Medium</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Low</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+</body>
+</html>
