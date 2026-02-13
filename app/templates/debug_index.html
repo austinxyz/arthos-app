@@ -57,6 +57,17 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Option Data Fetch Log -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card debug-card">
+                    <div class="card-body">
+                        <h5 class="card-title">🧩 Option Data Fetch Log</h5>
+                        <p class="card-text">View option data fetch job runs and manually trigger refresh across all watchlist tickers.</p>
+                        <a href="/debug/options-cache-log" class="btn btn-primary">View Runs</a>
+                    </div>
+                </div>
+            </div>
             
             <!-- Stock Price Debug -->
             <div class="col-md-6 col-lg-4">
@@ -134,11 +145,18 @@
                     <code>POST /debug/scheduler-log/trigger?bypass_market_hours=true</code>
                 </div>
             </div>
-            <div class="card">
+            <div class="card mb-3">
                 <div class="card-body">
                     <h5 class="card-title">🔧 Trigger RR History Update</h5>
                     <p class="card-text mb-2">Manually trigger the RR history update to recalculate net costs. Can bypass market hours check for testing.</p>
                     <code>POST /debug/rr-history-log/trigger?bypass_market_hours=true</code>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">🔧 Trigger Option Data Fetch</h5>
+                    <p class="card-text mb-2">Manually trigger the option data fetch job to update cached option strategies for all watchlist tickers.</p>
+                    <code>POST /debug/options-cache-log/trigger</code>
                 </div>
             </div>
         </div>

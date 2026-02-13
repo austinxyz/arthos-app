@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scheduler Log - Arthos</title>
+    <title>{{ page_title or 'Scheduler Log' }} - Arthos</title>
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
     <!-- Bootstrap 5 CSS -->
@@ -50,8 +50,8 @@
     <div class="container">
         <div class="header mb-4">
             <a href="/debug" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to Debug Tools</a>
-            <h1>Scheduler Log</h1>
-            <p class="text-muted">View scheduler execution history and statistics</p>
+            <h1>{{ page_title or 'Scheduler Log' }}</h1>
+            <p class="text-muted">{{ page_description or 'View scheduler execution history and statistics' }}</p>
             <div class="mt-2">
                 <a href="/debug/stock-price" class="btn btn-sm btn-outline-primary me-2">Debug Stock Price</a>
                 <a href="/debug/database-status" class="btn btn-sm btn-outline-primary">Database Status</a>
@@ -66,8 +66,11 @@
         
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Scheduler Execution Log</h5>
-                <form method="get" action="/debug/scheduler-log" class="d-inline-flex align-items-center">
+                <h5 class="mb-0">{{ table_title or 'Scheduler Execution Log' }}</h5>
+                <form method="get" action="{{ request.url.path }}" class="d-inline-flex align-items-center">
+                    {% if job_type and job_type != 'all' %}
+                    <input type="hidden" name="job_type" value="{{ job_type }}">
+                    {% endif %}
                     <label for="limit" class="me-2">Show:</label>
                     <select name="limit" id="limit" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                         <option value="25" {% if limit == 25 %}selected{% endif %}>25</option>
@@ -139,7 +142,7 @@
                 </div>
                 {% else %}
                 <div class="alert alert-info" role="alert">
-                    No scheduler log entries found. The scheduler will create log entries when it runs.
+                    No log entries found for this view.
                 </div>
                 {% endif %}
             </div>
@@ -169,8 +172,9 @@
         <div class="card mt-4">
             <div class="card-body">
                 <h5 class="card-title">Manual Trigger</h5>
-                <p class="text-muted">Manually trigger the scheduler to fetch stock data (bypasses market hours check).</p>
+                <p class="text-muted">{{ trigger_description or 'Manually trigger the scheduler to fetch stock data (bypasses market hours check).' }}</p>
                 <form id="triggerForm" onsubmit="handleTriggerSubmit(event)">
+                    {% if show_bypass_market_hours %}
                     <div class="mb-3">
                         <div class="form-check">
                             <input class="form-check-input" type="checkbox" id="bypassMarketHours" checked>
@@ -179,7 +183,8 @@
                             </label>
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">Trigger Scheduler</button>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary">{{ trigger_button_text or 'Trigger Scheduler' }}</button>
                 </form>
                 <div id="triggerMessage" class="mt-3" style="display: none;"></div>
             </div>
@@ -192,6 +197,10 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
     
     <script>
+        const triggerEndpoint = {{ (trigger_endpoint or '/debug/scheduler-log/trigger') | tojson }};
+        const triggerButtonText = {{ (trigger_button_text or 'Trigger Scheduler') | tojson }};
+        const showBypassMarketHours = {{ show_bypass_market_hours | default(true) | tojson }};
+
         document.addEventListener('DOMContentLoaded', () => {
             initTabulatorFromTable('logTable', {
                 pageSize: {{ limit }},
@@ -207,19 +216,25 @@
         function handleTriggerSubmit(event) {
             event.preventDefault();
             
-            const bypassMarketHours = document.getElementById('bypassMarketHours').checked;
             const messageDiv = document.getElementById('triggerMessage');
             const submitButton = event.target.querySelector('button[type="submit"]');
+            const bypassMarketHoursInput = document.getElementById('bypassMarketHours');
+            const bypassMarketHours = showBypassMarketHours && bypassMarketHoursInput
+                ? bypassMarketHoursInput.checked
+                : null;
+            const requestUrl = bypassMarketHours === null
+                ? triggerEndpoint
+                : `${triggerEndpoint}?bypass_market_hours=${bypassMarketHours}`;
             
             // Disable button and show loading
             submitButton.disabled = true;
             submitButton.textContent = 'Triggering...';
             messageDiv.style.display = 'block';
             messageDiv.className = 'alert alert-info';
-            messageDiv.textContent = 'Triggering scheduler...';
+            messageDiv.textContent = 'Trigger request in progress...';
             
             // Make API call
-            fetch(`/debug/scheduler-log/trigger?bypass_market_hours=${bypassMarketHours}`, {
+            fetch(requestUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -228,7 +243,7 @@
             .then(response => response.json())
             .then(data => {
                 messageDiv.className = 'alert alert-success';
-                messageDiv.innerHTML = `Scheduler triggered successfully!<br>Log ID: ${data.log_id}<br>Status: ${data.status}`;
+                messageDiv.innerHTML = `${data.message || 'Job triggered successfully!'}<br>Log ID: ${data.log_id}<br>Status: ${data.status}`;
                 
                 // Reload page after 2 seconds to show new log entry
                 setTimeout(() => {
@@ -237,11 +252,11 @@
             })
             .catch(error => {
                 messageDiv.className = 'alert alert-danger';
-                messageDiv.textContent = `Error triggering scheduler: ${error.message}`;
+                messageDiv.textContent = `Error triggering job: ${error.message}`;
             })
             .finally(() => {
                 submitButton.disabled = false;
-                submitButton.textContent = 'Trigger Scheduler';
+                submitButton.textContent = triggerButtonText;
             });
         }
     </script>

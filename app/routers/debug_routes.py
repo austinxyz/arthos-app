@@ -248,7 +248,11 @@ async def debug_index(request: Request):
 
 
 @router.get("/debug/scheduler-log")
-async def scheduler_log_page(request: Request, limit: int = Query(50, description="Number of log entries to display")):
+async def scheduler_log_page(
+    request: Request,
+    limit: int = Query(50, description="Number of log entries to display"),
+    job_type: str = Query("all", description="Filter log entries by job type (all, options_cache)")
+):
     """
     Debug page for displaying scheduler log data.
     Dynamically displays all fields from SchedulerLog model.
@@ -259,14 +263,38 @@ async def scheduler_log_page(request: Request, limit: int = Query(50, descriptio
     Returns:
         HTML page with scheduler log data
     """
+    from sqlalchemy import func
     from sqlmodel import Session, select
     from app.database import engine
     from app.models.scheduler_log import SchedulerLog
     from app.helpers.model_helpers import get_table_columns, format_field_value
 
+    normalized_job_type = (job_type or "all").strip().lower()
+    if normalized_job_type not in {"all", "options_cache"}:
+        normalized_job_type = "all"
+
+    is_options_cache_view = normalized_job_type == "options_cache"
+    page_title = "Options Data Fetch Log" if is_options_cache_view else "Scheduler Log"
+    page_description = (
+        "View options data fetch execution history and statistics"
+        if is_options_cache_view
+        else "View scheduler execution history and statistics"
+    )
+    table_title = "Options Data Fetch Execution Log" if is_options_cache_view else "Scheduler Execution Log"
+    trigger_description = (
+        "Manually trigger option data fetch for all watchlist tickers."
+        if is_options_cache_view
+        else "Manually trigger the scheduler to fetch stock data (bypasses market hours check)."
+    )
+    trigger_button_text = "Trigger Option Data Fetch" if is_options_cache_view else "Trigger Scheduler"
+    trigger_endpoint = "/debug/options-cache-log/trigger" if is_options_cache_view else "/debug/scheduler-log/trigger"
+
     try:
         with Session(engine) as session:
-            statement = select(SchedulerLog).order_by(SchedulerLog.id.desc()).limit(limit)
+            statement = select(SchedulerLog)
+            if is_options_cache_view:
+                statement = statement.where(func.lower(SchedulerLog.notes).contains("options cache"))
+            statement = statement.order_by(SchedulerLog.id.desc()).limit(limit)
             log_entries = session.exec(statement).all()
 
         # Get dynamic columns from model + computed columns
@@ -307,11 +335,12 @@ async def scheduler_log_page(request: Request, limit: int = Query(50, descriptio
             row["duration_seconds"] = round(duration, 2) if duration else None
 
             # Determine status from notes
-            # Only mark as error if notes explicitly starts with "Error:" prefix
+            # Mark as error only if notes explicitly starts with failure prefix
             if entry.end_time:
-                if entry.notes and entry.notes.startswith('Error:'):
+                normalized_notes = (entry.notes or "").lower()
+                if normalized_notes.startswith("error:") or normalized_notes.startswith("failed:"):
                     row["status"] = "error"
-                elif entry.notes and ('Skipped' in entry.notes or 'skipped' in entry.notes):
+                elif "skipped" in normalized_notes:
                     row["status"] = "skipped"
                 else:
                     row["status"] = "completed"
@@ -325,6 +354,14 @@ async def scheduler_log_page(request: Request, limit: int = Query(50, descriptio
             "columns": columns,
             "log_entries": log_data,
             "limit": limit,
+            "job_type": normalized_job_type,
+            "page_title": page_title,
+            "page_description": page_description,
+            "table_title": table_title,
+            "trigger_description": trigger_description,
+            "trigger_button_text": trigger_button_text,
+            "trigger_endpoint": trigger_endpoint,
+            "show_bypass_market_hours": not is_options_cache_view,
             "total_count": len(log_data),
             "completed_count": completed_count,
             "in_progress_count": in_progress_count
@@ -335,11 +372,33 @@ async def scheduler_log_page(request: Request, limit: int = Query(50, descriptio
             "columns": [],
             "log_entries": [],
             "limit": limit,
+            "job_type": normalized_job_type,
+            "page_title": page_title,
+            "page_description": page_description,
+            "table_title": table_title,
+            "trigger_description": trigger_description,
+            "trigger_button_text": trigger_button_text,
+            "trigger_endpoint": trigger_endpoint,
+            "show_bypass_market_hours": not is_options_cache_view,
             "total_count": 0,
             "completed_count": 0,
             "in_progress_count": 0,
             "error_message": f"Error fetching log data: {str(e)}"
         })
+
+
+@router.get("/debug/options-cache-log")
+async def options_cache_log_page(request: Request, limit: int = Query(50, description="Number of log entries to display")):
+    """
+    Debug page for displaying option data fetch job run history.
+
+    Args:
+        limit: Number of log entries to display (default: 50)
+
+    Returns:
+        HTML page with options cache job log data
+    """
+    return await scheduler_log_page(request=request, limit=limit, job_type="options_cache")
 
 
 @router.get("/debug/rr-history-log")
