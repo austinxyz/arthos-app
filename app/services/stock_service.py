@@ -315,8 +315,10 @@ def get_multiple_stock_metrics(tickers: list) -> list:
         except ValueError:
             # Data not found in DB, try to fetch it
             try:
-                # Fetch data (this will also calculate/save IV and update attributes)
-                fetch_and_save_stock_prices(ticker)
+                # Results page only needs stock metrics, not options IV.
+                # Skip options-chain fetches here to keep requests fast and
+                # avoid unnecessary MarketData API credit usage.
+                fetch_and_save_stock_prices(ticker, include_options_iv=False)
                 # Try getting metrics again
                 metrics = get_stock_metrics_from_db(ticker)
                 results.append(metrics)
@@ -338,157 +340,82 @@ def get_multiple_stock_metrics(tickers: list) -> list:
     return results
 
 
-def get_options_data(ticker: str, current_price: float) -> Tuple[Optional[str], Dict[float, Dict[str, Any]]]:
-    """
-    Fetch options data for a stock with expiration within 90 days and strikes within 10% of current price.
-    Returns data organized by strike price for straddle display.
-    
-    Uses the options provider (MarketData.app if configured) to get Greeks with the data.
-    Implements caching to reduce API calls (free tier has 100 calls/day limit).
-    
-    Args:
-        ticker: Stock ticker symbol
-        current_price: Current stock price
-        
-    Returns:
-        Tuple of (expiration_date, options_by_strike)
-        - expiration_date: The last expiration date within 90 days (or None)
-        - options_by_strike: Dictionary mapping strike prices to dict with 'put' and 'call' data
-    """
-    from app.services.options_cache_service import (
-        get_cached_options_data, cache_options_data, 
-        calculate_atm_iv, update_stock_iv_metrics
-    )
-    
+def _build_strike_window(current_price: float, window_pct: float = 0.50) -> Tuple[float, float]:
+    """Return a symmetric strike window around current price."""
+    if current_price <= 0:
+        return (0.0, 0.0)
+    lower = max(0.01, current_price * (1 - window_pct))
+    upper = current_price * (1 + window_pct)
+    return (round(lower, 2), round(upper, 2))
+
+
+def _parse_expiration(expiration: str) -> Optional[datetime]:
+    """Parse YYYY-MM-DD expiration strings safely."""
     try:
-        # Use options provider for Greeks support (MarketData if configured, else yfinance)
-        # Fallback to default provider if get_options_provider doesn't exist (for backwards compatibility)
-        if hasattr(ProviderFactory, 'get_options_provider'):
-            provider = ProviderFactory.get_options_provider()
-        else:
-            provider = ProviderFactory.get_default_provider()
-        
-        # Track if we need to fallback to yfinance due to rate limits
-        use_fallback = False
-        
-        # Get all available expiration dates
-        try:
-            expirations = provider.fetch_options_expirations(ticker)
-        except DataNotAvailableError as e:
-            # Check if this is a rate limit error
-            if "rate limit" in str(e).lower():
-                logger.warning(f"MarketData rate limit hit for {ticker}, falling back to yfinance")
-                use_fallback = True
-                # Retry with yfinance
-                from app.providers.yfinance_provider import YFinanceProvider
-                provider = YFinanceProvider()
-                try:
-                    expirations = provider.fetch_options_expirations(ticker)
-                except DataNotAvailableError:
-                    return (None, {})
-            else:
-                return (None, {})
-        
-        if not expirations:
-            return (None, {})
-        
-        # Find the last expiration date within 90 days
-        now = datetime.now()
-        max_date = now + timedelta(days=90)
-        last_expiration = None
-        
-        for exp_str in expirations:
-            try:
-                exp_date = datetime.strptime(exp_str, '%Y-%m-%d')
-                # Must be in the future and within 90 days
-                if now < exp_date <= max_date:
-                    if last_expiration is None or exp_date > datetime.strptime(last_expiration, '%Y-%m-%d'):
-                        last_expiration = exp_str
-            except ValueError:
-                continue
-        
-        if not last_expiration:
-            return (None, {})
-        
-        # Check cache first
-        cached = get_cached_options_data(ticker, last_expiration)
-        if cached:
-            expiration, options_data = cached
-            # Still update IV metrics from cached data
-            atm_iv = calculate_atm_iv(options_data, current_price)
-            if atm_iv is not None:
-                update_stock_iv_metrics(ticker, atm_iv)
-            return (expiration, options_data)
-        
-        # Get options chain for the last expiration within 90 days
-        try:
-            opt_chain = provider.fetch_options_chain(ticker, last_expiration)
-        except DataNotAvailableError as e:
-            # Check if this is a rate limit error and we haven't already fallen back
-            if "rate limit" in str(e).lower() and not use_fallback:
-                logger.warning(f"MarketData rate limit hit for {ticker} options chain, falling back to yfinance")
-                use_fallback = True
-                # Retry with yfinance
-                from app.providers.yfinance_provider import YFinanceProvider
-                provider = YFinanceProvider()
-                try:
-                    opt_chain = provider.fetch_options_chain(ticker, last_expiration)
-                except DataNotAvailableError:
-                    return (None, {})
-            else:
-                return (None, {})
-        
-        # Filter strikes within 10% of current price and process options
-        price_range_low = current_price * 0.9  # 10% below
-        price_range_high = current_price * 1.1  # 10% above
+        return datetime.strptime(expiration, '%Y-%m-%d')
+    except ValueError:
+        return None
 
-        options_by_strike = process_options_chain(opt_chain, price_range_low, price_range_high)
 
-        # Cache the options data
-        cache_options_data(ticker, last_expiration, options_by_strike)
-        
-        # Calculate and update ATM IV metrics
-        atm_iv = calculate_atm_iv(options_by_strike, current_price)
-        if atm_iv is not None:
-            update_stock_iv_metrics(ticker, atm_iv)
-        
-        return (last_expiration, options_by_strike)
-        
+def get_options_data(
+    ticker: str,
+    current_price: float,
+    force_refresh: bool = False
+) -> Tuple[Optional[str], Dict[float, Dict[str, Any]]]:
+    """
+    Fetch options data for one near-term expiration (within 90 days).
+
+    The underlying chain fetch is constrained to a +/-50% strike window and can
+    bypass in-process cache when force_refresh=True.
+    """
+    try:
+        all_options_data = get_all_options_data(
+            ticker=ticker,
+            current_price=current_price,
+            days_limit=90,
+            include_leaps=False,
+            force_refresh=force_refresh
+        )
+        if not all_options_data:
+            return (None, {})
+        expiration, options_data = all_options_data[-1]
+        return (expiration, options_data)
     except Exception as e:
-        # If options data cannot be fetched, return empty
-        import traceback
         logger.error(f"Error fetching options data for {ticker}: {str(e)}")
-        traceback.print_exc()
         return (None, {})
 
 
-def get_all_options_data(ticker: str, current_price: float, days_limit: int = 90) -> List[Tuple[str, Dict[float, Dict[str, Any]]]]:
+def get_all_options_data(
+    ticker: str,
+    current_price: float,
+    days_limit: int = 90,
+    include_leaps: bool = False,
+    force_refresh: bool = False
+) -> List[Tuple[str, Dict[float, Dict[str, Any]]]]:
     """
-    Fetch options data for all expirations within the specified days limit.
-    Returns data organized by expiration date and strike price.
+    Fetch options data for all relevant expirations and cache each expiration.
 
     Args:
         ticker: Stock ticker symbol
         current_price: Current stock price
-        days_limit: Maximum days from now to include expirations (default 90)
+        days_limit: Maximum days from now to include near-term expirations
+        include_leaps: If True, include LEAPS expirations in addition to near-term
+        force_refresh: If True, bypass in-process options cache reads for this fetch
 
     Returns:
-        List of tuples (expiration_date_str, options_by_strike)
+        Sorted list of tuples (expiration_date_str, options_by_strike)
     """
     from app.services.options_cache_service import get_cached_options_data, cache_options_data
 
-    result = []
+    result: List[Tuple[str, Dict[float, Dict[str, Any]]]] = []
 
     try:
-        # Use options provider for data
         if hasattr(ProviderFactory, 'get_options_provider'):
             provider = ProviderFactory.get_options_provider()
         else:
             provider = ProviderFactory.get_default_provider()
 
         use_fallback = False
-
-        # Get all available expiration dates
         try:
             expirations = provider.fetch_options_expirations(ticker)
         except DataNotAvailableError as e:
@@ -507,38 +434,48 @@ def get_all_options_data(ticker: str, current_price: float, days_limit: int = 90
         if not expirations:
             return []
 
-        # Filter expirations within days_limit
         now = datetime.now()
         max_date = now + timedelta(days=days_limit)
+        next_year = now.year + 1
         valid_expirations = []
 
         for exp_str in expirations:
-            try:
-                exp_date = datetime.strptime(exp_str, '%Y-%m-%d')
-                if now < exp_date <= max_date:
-                    valid_expirations.append(exp_str)
-            except ValueError:
+            exp_date = _parse_expiration(exp_str)
+            if exp_date is None:
                 continue
+
+            is_near_term = now < exp_date <= max_date
+            is_leap = include_leaps and exp_date.year >= next_year
+
+            if is_near_term or is_leap:
+                valid_expirations.append(exp_str)
 
         if not valid_expirations:
             return []
 
-        # Strikes within 30% of current price (as per spec)
-        price_range_low = current_price * 0.7  # 30% below
-        price_range_high = current_price * 1.3  # 30% above
+        valid_expirations = sorted(set(valid_expirations), key=lambda x: datetime.strptime(x, '%Y-%m-%d'))
 
-        # Fetch options for each expiration
+        # Always bound strike window to +/-50% of current stock price.
+        price_range_low, price_range_high = _build_strike_window(current_price, window_pct=0.50)
+        request_params = {
+            "side": "both",
+            "strike": f"{price_range_low:.2f}-{price_range_high:.2f}",
+        }
+
         for expiration in valid_expirations:
-            # Check cache first
-            cached = get_cached_options_data(ticker, expiration)
-            if cached:
-                _, options_data = cached
-                result.append((expiration, options_data))
-                continue
+            if not force_refresh:
+                cached = get_cached_options_data(ticker, expiration)
+                if cached:
+                    _, options_data = cached
+                    result.append((expiration, options_data))
+                    continue
 
-            # Fetch from provider
             try:
-                opt_chain = provider.fetch_options_chain(ticker, expiration)
+                opt_chain = provider.fetch_options_chain(
+                    ticker,
+                    expiration,
+                    request_params=request_params
+                )
             except DataNotAvailableError as e:
                 if "rate limit" in str(e).lower() and not use_fallback:
                     logger.warning(f"MarketData rate limit hit for {ticker} options chain, falling back to yfinance")
@@ -546,25 +483,34 @@ def get_all_options_data(ticker: str, current_price: float, days_limit: int = 90
                     from app.providers.yfinance_provider import YFinanceProvider
                     provider = YFinanceProvider()
                     try:
-                        opt_chain = provider.fetch_options_chain(ticker, expiration)
+                        opt_chain = provider.fetch_options_chain(
+                            ticker,
+                            expiration,
+                            request_params=request_params
+                        )
                     except DataNotAvailableError:
                         continue
                 else:
-                    continue
+                    # If provider rejects strike syntax, retry once with side-only
+                    # params so we preserve functionality while keeping local filtering.
+                    try:
+                        opt_chain = provider.fetch_options_chain(
+                            ticker,
+                            expiration,
+                            request_params={"side": "both"}
+                        )
+                    except DataNotAvailableError:
+                        continue
 
             options_by_strike = process_options_chain(opt_chain, price_range_low, price_range_high)
-
-            # Cache the options data
             cache_options_data(ticker, expiration, options_by_strike)
-
             result.append((expiration, options_by_strike))
+
+        return sorted(result, key=lambda item: datetime.strptime(item[0], '%Y-%m-%d'))
 
     except Exception as e:
         logger.error(f"Error fetching all options data for {ticker}: {str(e)}")
-        import traceback
-        traceback.print_exc()
-
-    return result
+        return result
 
 
 def calculate_covered_call_returns(options_data: Dict[float, Dict[str, Any]], current_price: float) -> List[Dict[str, Any]]:
@@ -833,38 +779,40 @@ def calculate_covered_call_returns_v2(
     return covered_calls
 
 
-def get_leaps_expirations(ticker: str) -> List[str]:
+def get_leaps_expirations(ticker: str, expirations: Optional[List[str]] = None) -> List[str]:
     """
     Get LEAPS expiration dates (Jan of next year or later).
     
     Args:
         ticker: Stock ticker symbol
+        expirations: Optional pre-fetched expirations to avoid an additional provider call
         
     Returns:
         List of expiration date strings (YYYY-MM-DD format) for LEAPS
     """
     try:
-        # Use options provider (MarketData if available, else yfinance)
-        if hasattr(ProviderFactory, 'get_options_provider'):
-            provider = ProviderFactory.get_options_provider()
-        else:
-            provider = ProviderFactory.get_default_provider()
-            
-        try:
-            expirations = provider.fetch_options_expirations(ticker)
-        except DataNotAvailableError as e:
-            # Check if this is a rate limit error
-            if "rate limit" in str(e).lower():
-                logger.warning(f"MarketData rate limit hit for {ticker} LEAPS, falling back to yfinance")
-                # Retry with yfinance
-                from app.providers.yfinance_provider import YFinanceProvider
-                provider = YFinanceProvider()
-                try:
-                    expirations = provider.fetch_options_expirations(ticker)
-                except DataNotAvailableError:
-                    return []
+        if expirations is None:
+            # Use options provider (MarketData if available, else yfinance)
+            if hasattr(ProviderFactory, 'get_options_provider'):
+                provider = ProviderFactory.get_options_provider()
             else:
-                return []
+                provider = ProviderFactory.get_default_provider()
+
+            try:
+                expirations = provider.fetch_options_expirations(ticker)
+            except DataNotAvailableError as e:
+                # Check if this is a rate limit error
+                if "rate limit" in str(e).lower():
+                    logger.warning(f"MarketData rate limit hit for {ticker} LEAPS, falling back to yfinance")
+                    # Retry with yfinance
+                    from app.providers.yfinance_provider import YFinanceProvider
+                    provider = YFinanceProvider()
+                    try:
+                        expirations = provider.fetch_options_expirations(ticker)
+                    except DataNotAvailableError:
+                        return []
+                else:
+                    return []
         
         if not expirations:
             return []
@@ -899,394 +847,364 @@ def get_leaps_expirations(ticker: str) -> List[str]:
         return []
 
 
-def calculate_risk_reversal_strategies(ticker: str, current_price: float) -> Dict[str, List[Dict[str, Any]]]:
+def _mid_price_from_option_dict(option_data: Optional[Dict[str, Any]]) -> Optional[float]:
+    """Use average bid/ask as mid when both are available."""
+    if not option_data or not isinstance(option_data, dict):
+        return None
+    bid = option_data.get('bid')
+    ask = option_data.get('ask')
+    if bid is None or ask is None:
+        return None
+    try:
+        bid_f = float(bid)
+        ask_f = float(ask)
+    except (TypeError, ValueError):
+        return None
+    if bid_f <= 0 or ask_f <= 0:
+        return None
+    return (bid_f + ask_f) / 2.0
+
+
+def _calculate_rr_strategies_for_expiration(
+    ticker: str,
+    expiration: str,
+    current_price: float,
+    today: date,
+    options_data: Dict[float, Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Calculate RR strategies for one expiration using already-fetched options data."""
+    if not options_data:
+        return []
+
+    # Build put/call lists from pre-processed strike dictionary.
+    min_put_strike = current_price * 0.90
+    max_put_strike = current_price * 1.30
+    min_call_strike = current_price * 0.90
+    max_call_strike = current_price * 1.50
+
+    puts: List[Dict[str, Any]] = []
+    calls: List[Dict[str, Any]] = []
+
+    for strike_key, strike_data in options_data.items():
+        if not isinstance(strike_data, dict):
+            continue
+        try:
+            strike = round(float(strike_key), 2)
+        except (TypeError, ValueError):
+            continue
+
+        put_mid = _mid_price_from_option_dict(strike_data.get('put'))
+        if put_mid is not None and min_put_strike <= strike <= max_put_strike:
+            puts.append({'strike': strike, 'mid': put_mid})
+
+        call_mid = _mid_price_from_option_dict(strike_data.get('call'))
+        if call_mid is not None and min_call_strike <= strike <= max_call_strike:
+            calls.append({'strike': strike, 'mid': call_mid})
+
+    if not puts or not calls:
+        logger.debug(f"Risk Reversal for {ticker} {expiration}: No valid quotes after filtering")
+        return []
+
+    exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
+    days_to_exp = (exp_date - today).days
+    if days_to_exp <= 0:
+        return []
+
+    cost_limit = current_price * 0.03
+    puts_sorted = sorted(puts, key=lambda p: abs(p['strike'] - current_price))
+
+    # --- 1:1 strategies ---
+    strategies_1_1 = []
+    for put in puts_sorted:
+        eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
+        eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
+
+        for call in eligible_calls_sorted[:10]:
+            net_cost = call['mid'] - put['mid']
+            if abs(net_cost) > cost_limit:
+                continue
+            cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
+            put_risk = put['strike'] * 100
+            strategies_1_1.append({
+                'ratio': '1:1',
+                'put_strike': put['strike'],
+                'call_strike': call['strike'],
+                'put_bid': round(put['mid'], 2),
+                'call_ask': round(call['mid'], 2),
+                'put_breakeven': round(put['strike'] - put['mid'], 2),
+                'call_breakeven': round(call['strike'] + call['mid'], 2),
+                'strike_spread': round(abs(call['strike'] - put['strike']), 2),
+                'cost': round(net_cost, 2),
+                'cost_pct': round(cost_pct, 2),
+                'days_to_expiration': days_to_exp,
+                'put_risk': round(put_risk, 2),
+                'put_risk_formatted': f"{put_risk:,.2f}",
+                'expiration': expiration,
+                'put_proximity': abs(put['strike'] - current_price),
+                'call_proximity': abs(call['strike'] - put['strike']),
+            })
+    strategies_1_1.sort(key=lambda s: (s['put_proximity'], s['call_proximity'], abs(s['cost'])))
+    strategies_1_1 = strategies_1_1[:5]
+
+    # --- 1:2 strategies ---
+    strategies_1_2 = []
+    cost_limit_1_2 = current_price * 0.03
+    pivot_strike_1_2 = None
+    for put in puts:
+        matching_calls = [c for c in calls if c['strike'] == put['strike']]
+        if matching_calls:
+            call = matching_calls[0]
+            net_cost = (2 * call['mid']) - put['mid']
+            if abs(net_cost) <= cost_limit_1_2:
+                pivot_strike_1_2 = put['strike']
+                break
+    if pivot_strike_1_2:
+        min_search = pivot_strike_1_2 * 0.90
+        max_search = pivot_strike_1_2 * 1.10
+        search_puts = [p for p in puts if min_search <= p['strike'] <= max_search]
+    else:
+        search_puts = puts
+
+    for put in search_puts:
+        eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
+        eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
+        for call in eligible_calls_sorted[:10]:
+            net_cost = (2 * call['mid']) - put['mid']
+            if abs(net_cost) > cost_limit_1_2:
+                continue
+            cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
+            put_risk = put['strike'] * 100
+            strategies_1_2.append({
+                'ratio': '1:2',
+                'put_strike': put['strike'],
+                'call_strike': call['strike'],
+                'put_bid': round(put['mid'], 2),
+                'call_ask': round(call['mid'], 2),
+                'put_breakeven': round(put['strike'] - put['mid'], 2),
+                'call_breakeven': round(call['strike'] + (net_cost / 2), 2),
+                'strike_spread': round(abs(call['strike'] - put['strike']), 2),
+                'cost': round(net_cost, 2),
+                'cost_pct': round(cost_pct, 2),
+                'days_to_expiration': days_to_exp,
+                'put_risk': round(put_risk, 2),
+                'put_risk_formatted': f"{put_risk:,.2f}",
+                'expiration': expiration,
+                'put_proximity': abs(put['strike'] - current_price),
+                'call_proximity': abs(call['strike'] - put['strike']),
+            })
+    strategies_1_2.sort(key=lambda s: (s['call_proximity'], s['put_proximity'], abs(s['cost'])))
+    strategies_1_2 = strategies_1_2[:5]
+
+    # --- 1:3 strategies ---
+    strategies_1_3 = []
+    cost_limit_1_3 = current_price * 0.05
+    pivot_strike_1_3 = None
+    for put in puts:
+        matching_calls = [c for c in calls if c['strike'] == put['strike']]
+        if matching_calls:
+            call = matching_calls[0]
+            net_cost = (3 * call['mid']) - put['mid']
+            if abs(net_cost) <= cost_limit_1_3:
+                pivot_strike_1_3 = put['strike']
+                break
+    if pivot_strike_1_3:
+        min_search = pivot_strike_1_3 * 0.90
+        max_search = pivot_strike_1_3 * 1.10
+        search_puts = [p for p in puts if min_search <= p['strike'] <= max_search]
+    else:
+        search_puts = puts
+
+    for put in search_puts:
+        eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
+        eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
+        for call in eligible_calls_sorted[:10]:
+            net_cost = (3 * call['mid']) - put['mid']
+            if abs(net_cost) > cost_limit_1_3:
+                continue
+            cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
+            put_risk = put['strike'] * 100
+            strategies_1_3.append({
+                'ratio': '1:3',
+                'put_strike': put['strike'],
+                'call_strike': call['strike'],
+                'put_bid': round(put['mid'], 2),
+                'call_ask': round(call['mid'], 2),
+                'put_breakeven': round(put['strike'] - put['mid'], 2),
+                'call_breakeven': round(call['strike'] + (net_cost / 3), 2),
+                'strike_spread': round(abs(call['strike'] - put['strike']), 2),
+                'cost': round(net_cost, 2),
+                'cost_pct': round(cost_pct, 2),
+                'days_to_expiration': days_to_exp,
+                'put_risk': round(put_risk, 2),
+                'put_risk_formatted': f"{put_risk:,.2f}",
+                'expiration': expiration,
+                'put_proximity': abs(put['strike'] - current_price),
+                'call_proximity': abs(call['strike'] - put['strike']),
+            })
+    strategies_1_3.sort(key=lambda s: (s['call_proximity'], s['put_proximity'], abs(s['cost'])))
+    strategies_1_3 = strategies_1_3[:5]
+
+    # --- Collar strategies ---
+    strategies_collar = []
+    for put in puts_sorted:
+        eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
+        eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
+
+        for call in eligible_calls_sorted[:5]:
+            otm_calls = [c for c in calls if c['strike'] >= call['strike'] * 1.30]
+            otm_calls_sorted = sorted(otm_calls, key=lambda c: c['strike'])
+
+            for sold_call in otm_calls_sorted[:3]:
+                net_cost_1_1 = call['mid'] - put['mid'] - sold_call['mid']
+                if abs(net_cost_1_1) <= cost_limit:
+                    cost_pct = (net_cost_1_1 / current_price) * 100 if current_price > 0 else 0
+                    put_risk = put['strike'] * 100
+                    strategies_collar.append({
+                        'ratio': 'Collar',
+                        'put_strike': put['strike'],
+                        'call_strike': call['strike'],
+                        'sold_call_strike': sold_call['strike'],
+                        'put_bid': round(put['mid'], 2),
+                        'call_ask': round(call['mid'], 2),
+                        'sold_call_bid': round(sold_call['mid'], 2),
+                        'put_breakeven': round(put['strike'] - put['mid'], 2),
+                        'call_breakeven': round(call['strike'] + net_cost_1_1, 2),
+                        'strike_spread': round(abs(call['strike'] - put['strike']), 2),
+                        'cost': round(net_cost_1_1, 2),
+                        'cost_pct': round(cost_pct, 2),
+                        'days_to_expiration': days_to_exp,
+                        'put_risk': round(put_risk, 2),
+                        'put_risk_formatted': f"{put_risk:,.2f}",
+                        'expiration': expiration,
+                        'put_proximity': abs(put['strike'] - current_price),
+                        'call_proximity': abs(call['strike'] - put['strike']),
+                        'collar_type': '1:1',
+                        'max_profit_strike': sold_call['strike'],
+                    })
+
+                net_cost_1_2 = (2 * call['mid']) - put['mid'] - (2 * sold_call['mid'])
+                if abs(net_cost_1_2) <= cost_limit:
+                    cost_pct = (net_cost_1_2 / current_price) * 100 if current_price > 0 else 0
+                    put_risk = put['strike'] * 100
+                    strategies_collar.append({
+                        'ratio': 'Collar',
+                        'put_strike': put['strike'],
+                        'call_strike': call['strike'],
+                        'sold_call_strike': sold_call['strike'],
+                        'put_bid': round(put['mid'], 2),
+                        'call_ask': round(call['mid'], 2),
+                        'sold_call_bid': round(sold_call['mid'], 2),
+                        'put_breakeven': round(put['strike'] - put['mid'], 2),
+                        'call_breakeven': round(call['strike'] + (net_cost_1_2 / 2), 2),
+                        'strike_spread': round(abs(call['strike'] - put['strike']), 2),
+                        'cost': round(net_cost_1_2, 2),
+                        'cost_pct': round(cost_pct, 2),
+                        'days_to_expiration': days_to_exp,
+                        'put_risk': round(put_risk, 2),
+                        'put_risk_formatted': f"{put_risk:,.2f}",
+                        'expiration': expiration,
+                        'put_proximity': abs(put['strike'] - current_price),
+                        'call_proximity': abs(call['strike'] - put['strike']),
+                        'collar_type': '1:2',
+                        'max_profit_strike': sold_call['strike'],
+                    })
+
+    strategies_collar.sort(key=lambda s: (s['put_proximity'], s['call_proximity'], abs(s['cost'])))
+    strategies_collar = strategies_collar[:5]
+
+    strategies = strategies_1_1 + strategies_1_2 + strategies_1_3 + strategies_collar
+    if not strategies:
+        return []
+
+    closest_negative = None
+    closest_positive = None
+    closest_negative_abs = None
+    closest_positive_abs = None
+
+    for strategy in strategies:
+        cost = strategy['cost']
+        if cost < 0:
+            abs_cost = abs(cost)
+            if closest_negative_abs is None or abs_cost < closest_negative_abs:
+                closest_negative = strategy
+                closest_negative_abs = abs_cost
+        elif cost > 0:
+            if closest_positive_abs is None or cost < closest_positive_abs:
+                closest_positive = strategy
+                closest_positive_abs = cost
+
+    for strategy in strategies:
+        strategy['highlight'] = (
+            strategy == closest_negative
+            or strategy == closest_positive
+            or strategy['cost'] == 0
+        )
+
+    return strategies
+
+
+def calculate_risk_reversal_strategies(
+    ticker: str,
+    current_price: float,
+    options_data_by_expiration: Optional[List[Tuple[str, Dict[float, Dict[str, Any]]]]] = None
+) -> Dict[str, List[Dict[str, Any]]]:
     """
     Calculate Risk Reversal strategies for LEAPS expirations.
 
-    Algorithm based on risk_reversal.md specs:
-    - Only LEAPS expiring Jan next year or later
-    - Put strike: close to current price (90% to 130% of current price)
-    - Call strike: at or above put strike
-    - Ratios: 1:1, 1:2, 1:3, Collar (1:1 or 1:2 with sold OTM call at least 30% higher)
-    - Always use average of bid/ask prices (filter out missing quotes)
-
-    Cost limits:
-    - 1:1: ±3% of current price
-    - 1:2: ±3% of current price (pivot-based search)
-    - 1:3: ±5% of current price (pivot-based search)
-
-    1:2 and 1:3 Algorithm:
-    1. Find pivot strike where put/call at same strike meets cost limit
-    2. Expand search ±10% from pivot strike
+    If pre-fetched options data is provided, this avoids redundant provider calls
+    and reuses the same chain snapshot used for IV and covered calls.
     """
-    strategies_by_expiration = {}
-    
+    strategies_by_expiration: Dict[str, List[Dict[str, Any]]] = {}
+
     try:
-        # Use options provider (MarketData if available, else yfinance)
-        if hasattr(ProviderFactory, 'get_options_provider'):
-            provider = ProviderFactory.get_options_provider()
-        else:
-            provider = ProviderFactory.get_default_provider()
-        
-        # Track if we need to fallback to yfinance due to rate limits
-        use_fallback = False
-            
-        leaps_expirations = get_leaps_expirations(ticker)
-        
+        if options_data_by_expiration is None:
+            options_data_by_expiration = get_all_options_data(
+                ticker=ticker,
+                current_price=current_price,
+                days_limit=90,
+                include_leaps=True,
+                force_refresh=False
+            )
+
+        if not options_data_by_expiration:
+            logger.warning(f"Risk Reversal for {ticker}: No options data available")
+            return strategies_by_expiration
+
+        options_map = {expiration: data for expiration, data in options_data_by_expiration if data}
+        leaps_expirations = get_leaps_expirations(ticker, expirations=list(options_map.keys()))
+
         logger.info(f"Risk Reversal for {ticker}: Found {len(leaps_expirations)} LEAPS expirations: {leaps_expirations}")
-        
         if not leaps_expirations:
             logger.warning(f"Risk Reversal for {ticker}: No LEAPS expirations found")
             return strategies_by_expiration
-        
+
         logger.info(f"Risk Reversal for {ticker}: Current price=${current_price:.2f}")
-        
         today = date.today()
-        
+
         for expiration in leaps_expirations:
+            options_data = options_map.get(expiration)
+            if not options_data:
+                continue
             try:
-                try:
-                    opt_chain = provider.fetch_options_chain(ticker, expiration)
-                except DataNotAvailableError as e:
-                    # Check if this is a rate limit error and we haven't already fallen back
-                    if "rate limit" in str(e).lower() and not use_fallback:
-                        logger.warning(f"MarketData rate limit hit for {ticker} {expiration}, falling back to yfinance")
-                        use_fallback = True
-                        # Retry with yfinance
-                        from app.providers.yfinance_provider import YFinanceProvider
-                        provider = YFinanceProvider()
-                        try:
-                            opt_chain = provider.fetch_options_chain(ticker, expiration)
-                        except DataNotAvailableError:
-                            logger.debug(f"Risk Reversal for {ticker} {expiration}: Options chain not available from yfinance")
-                            continue
-                    else:
-                        logger.debug(f"Risk Reversal for {ticker} {expiration}: Options chain not available")
-                        continue
-                
-                strategies = []
-                
-                if not opt_chain.puts or not opt_chain.calls:
-                    logger.debug(f"Risk Reversal for {ticker} {expiration}: Missing puts or calls")
-                    continue
-
-                def get_mid_price(bid, ask) -> Optional[float]:
-                    """Only use average of bid/ask. Filter out missing quotes."""
-                    if bid is not None and ask is not None and bid > 0 and ask > 0:
-                        return (float(bid) + float(ask)) / 2.0
-                    return None
-
-                # Build put options list (90% to 130% of current price)
-                min_put_strike = current_price * 0.90
-                max_put_strike = current_price * 1.30
-                
-                puts = []
-                for p in opt_chain.puts:
-                    if p.strike < min_put_strike or p.strike > max_put_strike:
-                        continue
-                    mid = get_mid_price(p.bid, p.ask)
-                    if mid is None:
-                        continue
-                    puts.append({'strike': round(p.strike, 2), 'mid': mid, 'bid': p.bid, 'ask': p.ask})
-
-                # Build call options list (within 30% of current price for now, will filter further)
-                min_call_strike = current_price * 0.90
-                max_call_strike = current_price * 1.50  # Allow higher for collar sold calls
-                
-                calls = []
-                for c in opt_chain.calls:
-                    if c.strike < min_call_strike or c.strike > max_call_strike:
-                        continue
-                    mid = get_mid_price(c.bid, c.ask)
-                    if mid is None:
-                        continue
-                    calls.append({'strike': round(c.strike, 2), 'mid': mid, 'bid': c.bid, 'ask': c.ask})
-
-                if not puts or not calls:
-                    logger.debug(f"Risk Reversal for {ticker} {expiration}: No valid quotes after filtering")
-                    continue
-
-                exp_date = datetime.strptime(expiration, '%Y-%m-%d').date()
-                days_to_exp = (exp_date - today).days
-                cost_limit = current_price * 0.03
-
-                # Sort puts by proximity to current price
-                puts_sorted = sorted(puts, key=lambda p: abs(p['strike'] - current_price))
-
-                # --- 1:1 strategies ---
-                strategies_1_1 = []
-                for put in puts_sorted:
-                    # Calls should be at or above put strike
-                    eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
-                    # Sort calls by proximity to put strike
-                    eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
-                    
-                    for call in eligible_calls_sorted[:10]:  # Limit combinations
-                        net_cost = call['mid'] - put['mid']
-                        if abs(net_cost) > cost_limit:
-                            continue
-                        cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
-                        put_risk = put['strike'] * 100
-                        strategies_1_1.append({
-                            'ratio': '1:1',
-                            'put_strike': put['strike'],
-                            'call_strike': call['strike'],
-                            'put_bid': round(put['mid'], 2),
-                            'call_ask': round(call['mid'], 2),
-                            'put_breakeven': round(put['strike'] - put['mid'], 2),
-                            'call_breakeven': round(call['strike'] + call['mid'], 2),
-                            'strike_spread': round(abs(call['strike'] - put['strike']), 2),
-                            'cost': round(net_cost, 2),
-                            'cost_pct': round(cost_pct, 2),
-                            'days_to_expiration': days_to_exp,
-                            'put_risk': round(put_risk, 2),
-                            'put_risk_formatted': f"{put_risk:,.2f}",
-                            'expiration': expiration,
-                            'put_proximity': abs(put['strike'] - current_price),
-                            'call_proximity': abs(call['strike'] - put['strike']),
-                        })
-
-                # Sort 1:1 by: put proximity, call proximity to put, then net cost
-                strategies_1_1.sort(key=lambda s: (s['put_proximity'], s['call_proximity'], abs(s['cost'])))
-                strategies_1_1 = strategies_1_1[:5]
-
-                # --- 1:2 strategies ---
-                # Per spec: Find pivot strike where put premium finances 2 calls at same strike (<3% cost)
-                # Then expand search ±10% from pivot
-                strategies_1_2 = []
-                cost_limit_1_2 = current_price * 0.03  # 3% for 1:2
-
-                # Step 1: Find pivot strike (same strike for put and call where net cost < 3%)
-                pivot_strike_1_2 = None
-                for put in puts:
-                    # Find call at same strike
-                    matching_calls = [c for c in calls if c['strike'] == put['strike']]
-                    if matching_calls:
-                        call = matching_calls[0]
-                        net_cost = (2 * call['mid']) - put['mid']
-                        if abs(net_cost) <= cost_limit_1_2:
-                            pivot_strike_1_2 = put['strike']
-                            break
-
-                # Step 2: If pivot found, search ±10% of pivot; otherwise search all puts
-                if pivot_strike_1_2:
-                    min_search_strike = pivot_strike_1_2 * 0.90
-                    max_search_strike = pivot_strike_1_2 * 1.10
-                    search_puts = [p for p in puts if min_search_strike <= p['strike'] <= max_search_strike]
-                else:
-                    search_puts = puts
-
-                for put in search_puts:
-                    eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
-                    eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
-
-                    for call in eligible_calls_sorted[:10]:
-                        net_cost = (2 * call['mid']) - put['mid']
-                        if abs(net_cost) > cost_limit_1_2:
-                            continue
-                        cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
-                        put_risk = put['strike'] * 100
-                        strategies_1_2.append({
-                            'ratio': '1:2',
-                            'put_strike': put['strike'],
-                            'call_strike': call['strike'],
-                            'put_bid': round(put['mid'], 2),
-                            'call_ask': round(call['mid'], 2),
-                            'put_breakeven': round(put['strike'] - put['mid'], 2),
-                            'call_breakeven': round(call['strike'] + (net_cost / 2), 2),
-                            'strike_spread': round(abs(call['strike'] - put['strike']), 2),
-                            'cost': round(net_cost, 2),
-                            'cost_pct': round(cost_pct, 2),
-                            'days_to_expiration': days_to_exp,
-                            'put_risk': round(put_risk, 2),
-                            'put_risk_formatted': f"{put_risk:,.2f}",
-                            'expiration': expiration,
-                            'put_proximity': abs(put['strike'] - current_price),
-                            'call_proximity': abs(call['strike'] - put['strike']),
-                        })
-
-                # Sort by: same strike first, then put proximity, then cost
-                strategies_1_2.sort(key=lambda s: (s['call_proximity'], s['put_proximity'], abs(s['cost'])))
-                strategies_1_2 = strategies_1_2[:5]
-
-                # --- 1:3 strategies ---
-                # Per spec: Find pivot strike where put premium finances 3 calls at same strike (<5% cost)
-                # Then expand search ±10% from pivot
-                strategies_1_3 = []
-                cost_limit_1_3 = current_price * 0.05  # 5% for 1:3
-
-                # Step 1: Find pivot strike (same strike for put and call where net cost < 5%)
-                pivot_strike_1_3 = None
-                for put in puts:
-                    matching_calls = [c for c in calls if c['strike'] == put['strike']]
-                    if matching_calls:
-                        call = matching_calls[0]
-                        net_cost = (3 * call['mid']) - put['mid']
-                        if abs(net_cost) <= cost_limit_1_3:
-                            pivot_strike_1_3 = put['strike']
-                            break
-
-                # Step 2: If pivot found, search ±10% of pivot; otherwise search all puts
-                if pivot_strike_1_3:
-                    min_search_strike = pivot_strike_1_3 * 0.90
-                    max_search_strike = pivot_strike_1_3 * 1.10
-                    search_puts = [p for p in puts if min_search_strike <= p['strike'] <= max_search_strike]
-                else:
-                    search_puts = puts
-
-                for put in search_puts:
-                    eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
-                    eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
-
-                    for call in eligible_calls_sorted[:10]:
-                        net_cost = (3 * call['mid']) - put['mid']
-                        if abs(net_cost) > cost_limit_1_3:
-                            continue
-                        cost_pct = (net_cost / current_price) * 100 if current_price > 0 else 0
-                        put_risk = put['strike'] * 100
-                        strategies_1_3.append({
-                            'ratio': '1:3',
-                            'put_strike': put['strike'],
-                            'call_strike': call['strike'],
-                            'put_bid': round(put['mid'], 2),
-                            'call_ask': round(call['mid'], 2),
-                            'put_breakeven': round(put['strike'] - put['mid'], 2),
-                            'call_breakeven': round(call['strike'] + (net_cost / 3), 2),
-                            'strike_spread': round(abs(call['strike'] - put['strike']), 2),
-                            'cost': round(net_cost, 2),
-                            'cost_pct': round(cost_pct, 2),
-                            'days_to_expiration': days_to_exp,
-                            'put_risk': round(put_risk, 2),
-                            'put_risk_formatted': f"{put_risk:,.2f}",
-                            'expiration': expiration,
-                            'put_proximity': abs(put['strike'] - current_price),
-                            'call_proximity': abs(call['strike'] - put['strike']),
-                        })
-
-                # Sort by: same strike first, then put proximity, then cost
-                strategies_1_3.sort(key=lambda s: (s['call_proximity'], s['put_proximity'], abs(s['cost'])))
-                strategies_1_3 = strategies_1_3[:5]
-
-                # --- Collar strategies (sell put, buy call(s), sell OTM call) ---
-                # Per spec: sold call must be at least 30% higher than bought call
-                strategies_collar = []
-                for put in puts_sorted:
-                    eligible_calls = [c for c in calls if c['strike'] >= put['strike']]
-                    eligible_calls_sorted = sorted(eligible_calls, key=lambda c: abs(c['strike'] - put['strike']))
-
-                    for call in eligible_calls_sorted[:5]:
-                        # Find OTM calls to sell (strikes at least 30% higher than the bought call)
-                        otm_calls = [c for c in calls if c['strike'] >= call['strike'] * 1.30]
-                        otm_calls_sorted = sorted(otm_calls, key=lambda c: c['strike'])
-
-                        for sold_call in otm_calls_sorted[:3]:
-                            # 1:1 Collar: sell put, buy 1 call, sell 1 OTM call
-                            net_cost_1_1 = call['mid'] - put['mid'] - sold_call['mid']
-                            if abs(net_cost_1_1) <= cost_limit:
-                                cost_pct = (net_cost_1_1 / current_price) * 100 if current_price > 0 else 0
-                                put_risk = put['strike'] * 100
-                                strategies_collar.append({
-                                    'ratio': 'Collar',
-                                    'put_strike': put['strike'],
-                                    'call_strike': call['strike'],
-                                    'sold_call_strike': sold_call['strike'],
-                                    'put_bid': round(put['mid'], 2),
-                                    'call_ask': round(call['mid'], 2),
-                                    'sold_call_bid': round(sold_call['mid'], 2),
-                                    'put_breakeven': round(put['strike'] - put['mid'], 2),
-                                    'call_breakeven': round(call['strike'] + net_cost_1_1, 2),
-                                    'strike_spread': round(abs(call['strike'] - put['strike']), 2),
-                                    'cost': round(net_cost_1_1, 2),
-                                    'cost_pct': round(cost_pct, 2),
-                                    'days_to_expiration': days_to_exp,
-                                    'put_risk': round(put_risk, 2),
-                                    'put_risk_formatted': f"{put_risk:,.2f}",
-                                    'expiration': expiration,
-                                    'put_proximity': abs(put['strike'] - current_price),
-                                    'call_proximity': abs(call['strike'] - put['strike']),
-                                    'collar_type': '1:1',
-                                    'max_profit_strike': sold_call['strike'],
-                                })
-
-                            # 1:2 Collar: sell put, buy 2 calls, sell 2 OTM calls
-                            net_cost_1_2 = (2 * call['mid']) - put['mid'] - (2 * sold_call['mid'])
-                            if abs(net_cost_1_2) <= cost_limit:
-                                cost_pct = (net_cost_1_2 / current_price) * 100 if current_price > 0 else 0
-                                put_risk = put['strike'] * 100
-                                strategies_collar.append({
-                                    'ratio': 'Collar',
-                                    'put_strike': put['strike'],
-                                    'call_strike': call['strike'],
-                                    'sold_call_strike': sold_call['strike'],
-                                    'put_bid': round(put['mid'], 2),
-                                    'call_ask': round(call['mid'], 2),
-                                    'sold_call_bid': round(sold_call['mid'], 2),
-                                    'put_breakeven': round(put['strike'] - put['mid'], 2),
-                                    'call_breakeven': round(call['strike'] + (net_cost_1_2 / 2), 2),
-                                    'strike_spread': round(abs(call['strike'] - put['strike']), 2),
-                                    'cost': round(net_cost_1_2, 2),
-                                    'cost_pct': round(cost_pct, 2),
-                                    'days_to_expiration': days_to_exp,
-                                    'put_risk': round(put_risk, 2),
-                                    'put_risk_formatted': f"{put_risk:,.2f}",
-                                    'expiration': expiration,
-                                    'put_proximity': abs(put['strike'] - current_price),
-                                    'call_proximity': abs(call['strike'] - put['strike']),
-                                    'collar_type': '1:2',
-                                    'max_profit_strike': sold_call['strike'],
-                                })
-
-                strategies_collar.sort(key=lambda s: (s['put_proximity'], s['call_proximity'], abs(s['cost'])))
-                strategies_collar = strategies_collar[:5]
-
-                # Combine all strategies
-                strategies.extend(strategies_1_1 + strategies_1_2 + strategies_1_3 + strategies_collar)
-                
-                # Find strategies closest to $0 and mark for highlighting
+                strategies = _calculate_rr_strategies_for_expiration(
+                    ticker=ticker,
+                    expiration=expiration,
+                    current_price=current_price,
+                    today=today,
+                    options_data=options_data
+                )
                 if strategies:
-                    closest_negative = None
-                    closest_positive = None
-                    closest_negative_abs = None
-                    closest_positive_abs = None
-                    
-                    for strategy in strategies:
-                        cost = strategy['cost']
-                        if cost < 0:
-                            abs_cost = abs(cost)
-                            if closest_negative_abs is None or abs_cost < closest_negative_abs:
-                                closest_negative = strategy
-                                closest_negative_abs = abs_cost
-                        elif cost > 0:
-                            if closest_positive_abs is None or cost < closest_positive_abs:
-                                closest_positive = strategy
-                                closest_positive_abs = cost
-                    
-                    for strategy in strategies:
-                        strategy['highlight'] = (
-                            strategy == closest_negative or 
-                            strategy == closest_positive or
-                            strategy['cost'] == 0
-                        )
-                    
                     strategies_by_expiration[expiration] = strategies
-                    
             except Exception as e:
                 logger.error(f"Error processing Risk Reversal expiration {expiration} for {ticker}: {str(e)}")
-                import traceback
-                traceback.print_exc()
-                continue
-        
+
         logger.info(f"Risk Reversal for {ticker}: Total expirations with strategies: {len(strategies_by_expiration)}")
         if not strategies_by_expiration:
             logger.warning(
                 f"Risk Reversal for {ticker}: No strategies found. Possible reasons: missing bid/ask quotes or no strikes in range."
             )
-        
-        return strategies_by_expiration
-        
-    except Exception as e:
-        logger.error(f"Error calculating Risk Reversal strategies for {ticker}: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return strategies_by_expiration
 
+    except Exception as e:
+        logger.error(f"Error calculating Risk Reversal strategies for {ticker}: {str(e)}")
+        return strategies_by_expiration

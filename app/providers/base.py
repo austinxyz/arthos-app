@@ -1,6 +1,6 @@
 """Abstract base class for stock data providers."""
 from abc import ABC, abstractmethod
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 from dataclasses import dataclass
 
@@ -155,7 +155,8 @@ class StockDataProvider(ABC):
     def fetch_options_chain(
         self, 
         ticker: str, 
-        expiration: str
+        expiration: str,
+        request_params: Optional[Dict[str, Any]] = None
     ) -> OptionsChain:
         """
         Fetch options chain for a specific expiration.
@@ -163,6 +164,8 @@ class StockDataProvider(ABC):
         Args:
             ticker: Stock ticker symbol
             expiration: Expiration date in YYYY-MM-DD format
+            request_params: Optional provider-specific query parameters for
+                server-side filtering (e.g. side, strike, mode)
             
         Returns:
             OptionsChain object with calls and puts

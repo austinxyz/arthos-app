@@ -1,7 +1,7 @@
 """Service for caching pre-computed options strategies in the database."""
 from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from sqlmodel import Session, select, delete
 from app.database import engine
 from app.models.options_cache import CachedCoveredCall, CachedRiskReversal
@@ -38,7 +38,11 @@ def prune_expired_options_cache():
         logger.error(f"Error pruning expired options cache: {e}")
 
 
-def compute_and_cache_covered_calls(ticker: str, current_price: float) -> int:
+def compute_and_cache_covered_calls(
+    ticker: str,
+    current_price: float,
+    options_data_by_expiration: Optional[List[Tuple[str, Dict[float, Dict[str, Any]]]]] = None
+) -> int:
     """
     Compute covered call strategies and cache them in the database.
     Uses smart upsert: UPDATE existing, INSERT new, DELETE stale entries.
@@ -46,6 +50,7 @@ def compute_and_cache_covered_calls(ticker: str, current_price: float) -> int:
     Args:
         ticker: Stock ticker symbol
         current_price: Current stock price
+        options_data_by_expiration: Optional pre-fetched options data to reuse
 
     Returns:
         Number of strategies cached
@@ -54,8 +59,16 @@ def compute_and_cache_covered_calls(ticker: str, current_price: float) -> int:
     from app.services.options_cache_service import calculate_atm_iv, update_stock_iv_metrics
 
     try:
-        # Fetch fresh options data from API
-        all_options_data = get_all_options_data(ticker, current_price, days_limit=90)
+        # Fetch options data once unless it was already supplied by caller.
+        all_options_data = options_data_by_expiration
+        if all_options_data is None:
+            all_options_data = get_all_options_data(
+                ticker,
+                current_price,
+                days_limit=90,
+                include_leaps=False,
+                force_refresh=False
+            )
         if not all_options_data:
             logger.debug(f"No options data available for {ticker}")
             return 0
@@ -157,7 +170,11 @@ def compute_and_cache_covered_calls(ticker: str, current_price: float) -> int:
         return 0
 
 
-def compute_and_cache_risk_reversals(ticker: str, current_price: float) -> int:
+def compute_and_cache_risk_reversals(
+    ticker: str,
+    current_price: float,
+    options_data_by_expiration: Optional[List[Tuple[str, Dict[float, Dict[str, Any]]]]] = None
+) -> int:
     """
     Compute risk reversal strategies and cache them in the database.
     Uses smart upsert: UPDATE existing, INSERT new, DELETE stale entries.
@@ -165,6 +182,7 @@ def compute_and_cache_risk_reversals(ticker: str, current_price: float) -> int:
     Args:
         ticker: Stock ticker symbol
         current_price: Current stock price
+        options_data_by_expiration: Optional pre-fetched options data to reuse
 
     Returns:
         Number of strategies cached
@@ -172,8 +190,12 @@ def compute_and_cache_risk_reversals(ticker: str, current_price: float) -> int:
     from app.services.stock_service import calculate_risk_reversal_strategies
 
     try:
-        # Compute strategies
-        strategies_by_expiration = calculate_risk_reversal_strategies(ticker, current_price)
+        # Compute strategies (reuse pre-fetched data if supplied).
+        strategies_by_expiration = calculate_risk_reversal_strategies(
+            ticker,
+            current_price,
+            options_data_by_expiration=options_data_by_expiration
+        )
         if not strategies_by_expiration:
             logger.debug(f"No risk reversal strategies computed for {ticker}")
             return 0
@@ -474,7 +496,26 @@ def cache_options_strategies_for_ticker(ticker: str) -> Dict[str, int]:
         logger.warning(f"Cannot cache options strategies for {ticker}: no valid current price")
         return {'covered_calls': 0, 'risk_reversals': 0}
 
-    cc_count = compute_and_cache_covered_calls(ticker, current_price)
-    rr_count = compute_and_cache_risk_reversals(ticker, current_price)
+    from app.services.stock_service import get_all_options_data
+
+    # Fetch options data once per ticker and reuse for IV/CC/RR calculations.
+    shared_options_data = get_all_options_data(
+        ticker=ticker,
+        current_price=current_price,
+        days_limit=90,
+        include_leaps=True,
+        force_refresh=False
+    )
+
+    cc_count = compute_and_cache_covered_calls(
+        ticker,
+        current_price,
+        options_data_by_expiration=shared_options_data
+    )
+    rr_count = compute_and_cache_risk_reversals(
+        ticker,
+        current_price,
+        options_data_by_expiration=shared_options_data
+    )
 
     return {'covered_calls': cc_count, 'risk_reversals': rr_count}

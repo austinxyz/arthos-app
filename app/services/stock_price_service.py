@@ -946,9 +946,13 @@ def refresh_stock_data(
 
         # Step 2: Fetch and save fresh stock price data
         try:
+            # If we are refreshing options strategies in this same request, avoid a
+            # separate IV-only options fetch here. We'll reuse one shared options
+            # snapshot in Step 4 for IV + CC + RR.
+            include_options_iv_on_price_fetch = include_options_iv and not refresh_options_strategies
             price_data, new_records = fetch_and_save_stock_prices(
                 ticker_upper,
-                include_options_iv=include_options_iv
+                include_options_iv=include_options_iv_on_price_fetch
             )
             result["price_records"] = new_records
 
@@ -967,6 +971,35 @@ def refresh_stock_data(
 
         # Step 4: Compute and cache option strategies
         current_price = result.get("current_price")
+        shared_options_data = None
+
+        need_shared_options_fetch = refresh_options_strategies
+        if current_price and current_price > 0 and need_shared_options_fetch:
+            try:
+                from app.services.stock_service import get_all_options_data
+                shared_options_data = get_all_options_data(
+                    ticker=ticker_upper,
+                    current_price=current_price,
+                    days_limit=90,
+                    include_leaps=refresh_options_strategies,
+                    force_refresh=clear_cache
+                )
+            except Exception as e:
+                logger.warning(f"Could not fetch shared options data for {ticker_upper}: {e}")
+
+        if include_options_iv and current_price and current_price > 0:
+            try:
+                from app.services.options_cache_service import calculate_atm_iv, update_stock_iv_metrics
+                if shared_options_data:
+                    for _, options_data in shared_options_data:
+                        if not options_data:
+                            continue
+                        atm_iv = calculate_atm_iv(options_data, current_price)
+                        if atm_iv is not None:
+                            update_stock_iv_metrics(ticker_upper, atm_iv)
+                        break
+            except Exception as e:
+                logger.warning(f"Could not update IV metrics for {ticker_upper}: {e}")
 
         if refresh_options_strategies and current_price and current_price > 0:
             try:
@@ -977,14 +1010,22 @@ def refresh_stock_data(
 
                 # Compute and cache Risk Reversal strategies
                 try:
-                    rr_count = compute_and_cache_risk_reversals(ticker_upper, current_price)
+                    rr_count = compute_and_cache_risk_reversals(
+                        ticker_upper,
+                        current_price,
+                        options_data_by_expiration=shared_options_data
+                    )
                     result["rr_strategies"] = rr_count
                 except Exception as e:
                     logger.warning(f"Could not compute/cache RR strategies for {ticker_upper}: {e}")
 
                 # Compute and cache Covered Call strategies
                 try:
-                    cc_count = compute_and_cache_covered_calls(ticker_upper, current_price)
+                    cc_count = compute_and_cache_covered_calls(
+                        ticker_upper,
+                        current_price,
+                        options_data_by_expiration=shared_options_data
+                    )
                     result["cc_strategies"] = cc_count
                 except Exception as e:
                     logger.warning(f"Could not compute/cache CC strategies for {ticker_upper}: {e}")

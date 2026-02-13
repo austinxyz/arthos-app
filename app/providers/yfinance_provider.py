@@ -5,7 +5,7 @@ import warnings
 import sys
 from io import StringIO
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from decimal import Decimal
 
 from app.providers.base import (
@@ -281,7 +281,8 @@ class YFinanceProvider(StockDataProvider):
     def fetch_options_chain(
         self, 
         ticker: str, 
-        expiration: str
+        expiration: str,
+        request_params: Optional[Dict[str, Any]] = None
     ) -> OptionsChain:
         """Fetch options chain for a specific expiration."""
         ticker_upper = ticker.upper()

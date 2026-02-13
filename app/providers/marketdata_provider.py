@@ -46,6 +46,11 @@ class MarketDataProvider(StockDataProvider):
         if self.api_key:
             self.headers["Authorization"] = f"Token {self.api_key}"
 
+        # For paid plans, cached mode is significantly more credit-efficient
+        # than live mode for options chains.
+        self.options_chain_mode = os.getenv("MARKETDATA_OPTIONS_CHAIN_MODE", "cached").strip().lower()
+        self.options_chain_maxage = os.getenv("MARKETDATA_OPTIONS_CHAIN_MAXAGE", "").strip()
+
     @classmethod
     def _is_rate_limited_today(cls) -> bool:
         """Check whether the MarketData rate limit was hit for the current UTC day."""
@@ -275,7 +280,8 @@ class MarketDataProvider(StockDataProvider):
     def fetch_options_chain(
         self, 
         ticker: str, 
-        expiration: str
+        expiration: str,
+        request_params: Optional[Dict[str, Any]] = None
     ) -> OptionsChain:
         """
         Fetch options chain with Greeks for a specific expiration.
@@ -288,10 +294,20 @@ class MarketDataProvider(StockDataProvider):
             OptionsChain with calls and puts including Greeks
         """
         try:
-            params = {
+            params: Dict[str, Any] = {
                 "expiration": expiration,
                 "side": "both"  # Get both calls and puts
             }
+
+            if self.options_chain_mode:
+                params["mode"] = self.options_chain_mode
+                if self.options_chain_mode == "cached" and self.options_chain_maxage:
+                    params["maxage"] = self.options_chain_maxage
+
+            # Callers can override defaults (e.g., strike filters).
+            if request_params:
+                params.update({k: v for k, v in request_params.items() if v is not None})
+
             data = self._make_request(f"/options/chain/{ticker.upper()}/", params)
             
             if data.get('s') != 'ok':

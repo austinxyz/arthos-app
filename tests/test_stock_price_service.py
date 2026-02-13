@@ -1,5 +1,6 @@
 """Tests for stock price service."""
 import pytest
+import pandas as pd
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from app.services.stock_price_service import (
@@ -445,3 +446,102 @@ class TestRefreshStockData:
         assert isinstance(result, dict)
         assert result["ticker"] == "INVALID_TICKER_XYZ"
         # The function should handle this gracefully
+
+    def test_refresh_stock_data_reuses_shared_options_data(self, monkeypatch):
+        """Force refresh should fetch options once and reuse for IV/CC/RR."""
+        import app.services.stock_price_service as stock_price_service
+        import app.services.stock_service as stock_service
+        import app.services.options_strategy_cache_service as strategy_cache_service
+        import app.services.options_cache_service as options_cache_service
+
+        call_log = {
+            "clear_cache_ticker": None,
+            "include_options_iv_on_price_fetch": None,
+            "get_all_options_data_calls": 0,
+            "shared_options_data_obj": None,
+            "rr_shared_obj": None,
+            "cc_shared_obj": None,
+            "iv_updates": 0,
+        }
+
+        shared_options_data = [
+            ("2026-03-20", {100.0: {"call": {"bid": 2.0, "ask": 2.2, "impliedVolatility": 25.0}, "put": {"bid": 1.8, "ask": 2.0, "impliedVolatility": 24.0}}}),
+            ("2027-01-15", {100.0: {"call": {"bid": 3.0, "ask": 3.3, "impliedVolatility": 27.0}, "put": {"bid": 2.7, "ask": 3.0, "impliedVolatility": 26.0}}}),
+        ]
+
+        def fake_clear_options_cache(ticker=None):
+            call_log["clear_cache_ticker"] = ticker
+
+        def fake_fetch_and_save_stock_prices(ticker, include_options_iv=True):
+            call_log["include_options_iv_on_price_fetch"] = include_options_iv
+            return pd.DataFrame({"Close": [160.0]}), 1
+
+        def fake_get_all_options_data(ticker, current_price, days_limit=90, include_leaps=False, force_refresh=False):
+            call_log["get_all_options_data_calls"] += 1
+            call_log["shared_options_data_obj"] = shared_options_data
+            assert include_leaps is True
+            assert force_refresh is True
+            return shared_options_data
+
+        def fake_compute_and_cache_risk_reversals(ticker, current_price, options_data_by_expiration=None):
+            call_log["rr_shared_obj"] = options_data_by_expiration
+            return 3
+
+        def fake_compute_and_cache_covered_calls(ticker, current_price, options_data_by_expiration=None):
+            call_log["cc_shared_obj"] = options_data_by_expiration
+            return 5
+
+        def fake_calculate_atm_iv(options_data, current_price):
+            return 25.0
+
+        def fake_update_stock_iv_metrics(ticker, current_iv):
+            call_log["iv_updates"] += 1
+
+        monkeypatch.setattr(options_cache_service, "clear_options_cache", fake_clear_options_cache)
+        monkeypatch.setattr(stock_price_service, "fetch_and_save_stock_prices", fake_fetch_and_save_stock_prices)
+        monkeypatch.setattr(stock_price_service, "compute_and_save_trading_metrics", lambda ticker: None)
+        monkeypatch.setattr(stock_service, "get_all_options_data", fake_get_all_options_data)
+        monkeypatch.setattr(strategy_cache_service, "compute_and_cache_risk_reversals", fake_compute_and_cache_risk_reversals)
+        monkeypatch.setattr(strategy_cache_service, "compute_and_cache_covered_calls", fake_compute_and_cache_covered_calls)
+        monkeypatch.setattr(options_cache_service, "calculate_atm_iv", fake_calculate_atm_iv)
+        monkeypatch.setattr(options_cache_service, "update_stock_iv_metrics", fake_update_stock_iv_metrics)
+
+        result = refresh_stock_data("DASH", clear_cache=True, refresh_options_strategies=True, include_options_iv=True)
+
+        assert result["success"] is True
+        assert call_log["clear_cache_ticker"] == "DASH"
+        assert call_log["include_options_iv_on_price_fetch"] is False
+        assert call_log["get_all_options_data_calls"] == 1
+        assert call_log["rr_shared_obj"] is call_log["shared_options_data_obj"]
+        assert call_log["cc_shared_obj"] is call_log["shared_options_data_obj"]
+        assert call_log["iv_updates"] == 1
+        assert result["rr_strategies"] == 3
+        assert result["cc_strategies"] == 5
+
+    def test_refresh_stock_data_iv_only_does_not_refetch_shared_options(self, monkeypatch):
+        """IV-only refresh should keep the legacy single IV path and avoid shared fetch."""
+        import app.services.stock_price_service as stock_price_service
+        import app.services.stock_service as stock_service
+
+        call_log = {
+            "include_options_iv_on_price_fetch": None,
+            "get_all_options_data_calls": 0,
+        }
+
+        def fake_fetch_and_save_stock_prices(ticker, include_options_iv=True):
+            call_log["include_options_iv_on_price_fetch"] = include_options_iv
+            return pd.DataFrame({"Close": [100.0]}), 1
+
+        def fake_get_all_options_data(*args, **kwargs):
+            call_log["get_all_options_data_calls"] += 1
+            return []
+
+        monkeypatch.setattr(stock_price_service, "fetch_and_save_stock_prices", fake_fetch_and_save_stock_prices)
+        monkeypatch.setattr(stock_price_service, "compute_and_save_trading_metrics", lambda ticker: None)
+        monkeypatch.setattr(stock_service, "get_all_options_data", fake_get_all_options_data)
+
+        result = refresh_stock_data("AAPL", clear_cache=False, refresh_options_strategies=False, include_options_iv=True)
+
+        assert result["success"] is True
+        assert call_log["include_options_iv_on_price_fetch"] is True
+        assert call_log["get_all_options_data_calls"] == 0
