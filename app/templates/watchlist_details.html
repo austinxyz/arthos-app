@@ -248,7 +248,8 @@
                             {% endif %}
                         </td>
                         {% if 'error' in metric %}
-                        <td colspan="8" class="text-danger fw-bold">{{ metric.error }}</td>
+                        <td colspan="11" class="text-danger fw-bold">{{ metric.error }}</td>
+                        {% if is_owner and not is_public_view %}
                         <td class="text-center">
                             <button class="btn btn-sm btn-danger" onclick="removeStock('{{ metric.ticker }}')">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
@@ -260,6 +261,7 @@
                                 </svg>
                             </button>
                         </td>
+                        {% endif %}
                         {% else %}
                         <td>{{ metric.current_price_formatted }}</td>
                         <td>{{ metric.entry_price_formatted }}</td>

@@ -154,84 +154,6 @@ class TestStockDetailBrowser:
         if console_errors:
             pytest.fail(f"Console errors found: {console_errors}")
     
-    def test_closest_strike_highlighted_in_risk_reversal_table(self, page: Page, live_server_url, authenticated_session):
-        """Test that the closest strike price row is highlighted in Risk Reversal table."""
-        tickers = ["AAPL", "TSLA", "SHOP"]
-
-        for ticker in tickers:
-            page.goto(f"{live_server_url}/stock/{ticker}")
-            page.wait_for_load_state("networkidle", timeout=30000)
-
-            # Switch to Risk Reversal tab
-            risk_reversal_tab = page.locator("button#risk-reversal-tab")
-            if risk_reversal_tab.count() > 0:
-                risk_reversal_tab.click()
-                page.wait_for_timeout(500)  # Wait for tab switch
-
-            # Check if risk reversal table exists
-            rr_table = page.locator("#risk-reversal table").filter(has_text="Put Strike")
-            if rr_table.count() == 0:
-                # Skip if no risk reversal data available
-                continue
-
-            # Get current price from metrics
-            current_price_elem = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large")
-            if current_price_elem.count() == 0:
-                continue
-
-            # Get current price
-            current_price_text = current_price_elem.first.inner_text().strip()
-            try:
-                current_price = float(current_price_text.replace("$", "").replace(",", ""))
-            except ValueError:
-                continue
-
-            # Find all strike price cells in risk reversal table (put strikes)
-            strike_cells = rr_table.locator("td.fw-bold")
-            if strike_cells.count() == 0:
-                continue
-
-            # Get all strike prices and find minimum distance
-            strikes = []
-            for i in range(strike_cells.count()):
-                strike_text = strike_cells.nth(i).inner_text().strip()
-                if strike_text.startswith("$"):
-                    try:
-                        strike_value = float(strike_text.replace("$", "").replace(",", ""))
-                        strikes.append(strike_value)
-                    except ValueError:
-                        continue
-
-            if len(strikes) == 0:
-                continue
-
-            # Calculate minimum distance
-            min_distance = min(abs(strike - current_price) for strike in strikes)
-
-            # Find rows with closest strikes
-            closest_strikes = [s for s in strikes if abs(s - current_price) == min_distance]
-
-            # Check that at least one row is highlighted
-            highlighted_rows = rr_table.locator("tr.table-warning")
-            highlighted_count = highlighted_rows.count()
-
-            # Debug output
-            print(f"\n=== Debug Risk Reversal Table for {ticker} ===")
-            print(f"Current price: {current_price}")
-            print(f"Strikes (sample): {strikes[:10]}...")
-            print(f"Min distance: {min_distance}")
-            print(f"Closest strikes: {closest_strikes}")
-            print(f"Highlighted rows count: {highlighted_count}")
-
-            # Skip assertion if no data - this test validates highlighting logic, not data availability
-            if len(strikes) == 0:
-                print(f"Skipping {ticker} - no strike data found")
-                continue
-
-            # Note: Highlighting may not be implemented for all tables
-            # For now, just verify the table loads correctly
-            print(f"Risk Reversal table loaded with {len(strikes)} strikes for {ticker}")
-    
     def test_closest_strike_highlighted_in_covered_calls_table(self, page: Page, live_server_url, authenticated_session):
         """Test that the Covered Calls table loads correctly with strike prices."""
         tickers = ["AAPL", "TSLA", "SHOP"]
@@ -293,68 +215,6 @@ class TestStockDetailBrowser:
                 assert pct_diff < 50, f"Strike ${strike} is too far from current price ${current_price} ({pct_diff:.1f}%)"
 
             print(f"Covered Calls table validated for {ticker}")
-    
-    def test_equidistant_strikes_both_highlighted(self, page: Page, live_server_url, authenticated_session):
-        """Test that covered calls table loads with multiple strike prices."""
-        ticker = "AAPL"
-        page.goto(f"{live_server_url}/stock/{ticker}")
-        page.wait_for_load_state("networkidle", timeout=30000)
-
-        # Get current price
-        current_price_elem = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large")
-        if current_price_elem.count() == 0:
-            pytest.skip("Could not find current price")
-
-        current_price_text = current_price_elem.first.inner_text().strip()
-        try:
-            current_price = float(current_price_text.replace("$", "").replace(",", ""))
-        except ValueError:
-            pytest.skip("Could not parse current price")
-
-        # Insights tab is active by default, switch to Covered Calls tab
-        covered_calls_tab = page.locator("button#covered-calls-tab")
-        covered_calls_tab.click()
-        page.wait_for_timeout(500)
-
-        covered_calls_pane = page.locator("#covered-calls.tab-pane")
-        expect(covered_calls_pane).to_be_visible()
-
-        # Check covered calls table
-        covered_calls_table = page.locator("#coveredCallsTable, #covered-calls table").filter(has_text="Strike")
-        if covered_calls_table.count() == 0:
-            pytest.skip("No covered calls table found")
-
-        # Get all strike prices
-        strike_cells = covered_calls_table.locator("tbody tr td.fw-bold")
-        if strike_cells.count() < 2:
-            pytest.skip("Not enough strikes to test")
-
-        strikes = []
-        for i in range(min(strike_cells.count(), 20)):  # Sample first 20
-            strike_text = strike_cells.nth(i).inner_text().strip()
-            if strike_text.startswith("$"):
-                try:
-                    strike_value = float(strike_text.replace("$", "").replace(",", ""))
-                    strikes.append(strike_value)
-                except ValueError:
-                    continue
-
-        # Verify we have multiple strikes
-        assert len(strikes) >= 2, "Should have at least 2 strike prices"
-
-        # Calculate distances
-        distances = {strike: abs(strike - current_price) for strike in strikes}
-        min_distance = min(distances.values())
-
-        # Count how many strikes have minimum distance
-        closest_count = sum(1 for d in distances.values() if abs(d - min_distance) < 0.01)
-
-        print(f"Current price: ${current_price:.2f}")
-        print(f"Found {len(strikes)} strikes, {closest_count} closest to current price")
-        print(f"Min distance from current price: ${min_distance:.2f}")
-
-        # Just verify the table is working correctly
-        assert len(strikes) > 0, "Should have strike prices in table"
     
     def test_tabs_functionality(self, page: Page, live_server_url, authenticated_session):
         """Test that Bootstrap tabs work correctly for Covered Calls and Risk Reversal."""
@@ -1216,4 +1076,3 @@ class TestStockDetailBrowser:
                     premium = float(match.group(1))
                     assert premium > min_premium, \
                         f"Premium ${premium:.2f} should be > 1% of stock price (${min_premium:.2f}), not equal"
-

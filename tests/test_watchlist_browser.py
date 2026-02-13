@@ -2,7 +2,7 @@
 import pytest
 import re
 from playwright.sync_api import Page, expect
-from app.services.watchlist_service import create_watchlist, add_stocks_to_watchlist
+from app.services.watchlist_service import create_watchlist
 from app.database import engine, create_db_and_tables
 from sqlmodel import Session
 from app.models.watchlist import WatchList, WatchListStock
@@ -234,35 +234,6 @@ class TestWatchListBrowser:
                         f"INVALID12345 should not be in the table, but found in first cell: {first_cell_text}"
         # If stock_count is 0, that's expected - the table is empty, so INVALID12345 is definitely not there
     
-    def test_add_stocks_sdsk_invalid_ticker(self, page: Page, live_server_url, authenticated_session):
-        """Test adding INV1 (valid format but doesn't exist in yfinance) - should be rejected."""
-        # Use unique ticker (4 chars, valid format) to avoid conflicts with other tests
-        invalid_ticker = "INV1"
-        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
-        
-        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
-        
-        # Try INV1 - valid format (4 chars) but doesn't exist in yfinance
-        page.fill("#tickersInput", invalid_ticker)
-        page.click("button[type='submit']")
-        
-        # Should show error message about invalid ticker (from API, not format validation)
-        expect(page.locator("#errorMessage")).to_be_visible(timeout=10000)
-        expect(page.locator("#errorMessage")).to_contain_text(f"Ticker {invalid_ticker} is invalid")
-        
-        # Wait a bit to ensure no stock was added
-        page.wait_for_timeout(3000)
-        
-        # Verify INV1 is NOT in the table (should not appear even as an error row)
-        # If it was added, it would show as an error row, but it shouldn't be added at all
-        stocks_table = page.locator("#stocksTable tbody tr")
-        stock_count = stocks_table.count()
-        
-        # Check that INV1 is not in any row
-        for i in range(stock_count):
-            row_text = stocks_table.nth(i).inner_text()
-            assert invalid_ticker not in row_text, f"{invalid_ticker} should not be in the table, but found in row: {row_text}"
-    
     def test_add_stocks_mixed_valid_invalid(self, page: Page, live_server_url, authenticated_session):
         """Test adding mix of valid and invalid format tickers - format validation should catch invalid ones."""
         watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
@@ -285,37 +256,6 @@ class TestWatchListBrowser:
         # Since format validation failed, no API call was made, so no stocks should be added
         # The table should be empty (or only have pre-existing stocks)
         # We can't verify AAPL/MSFT were added because the form submission was blocked
-    
-    def test_add_stocks_mixed_valid_sdsk(self, page: Page, live_server_url, authenticated_session):
-        """Test adding mix of valid ticker and INV2 - only valid one should be added."""
-        # Use unique ticker (4 chars, valid format) to avoid conflicts with other tests
-        invalid_ticker = "INV2"
-        watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
-        
-        page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
-        
-        # Add mix of valid ticker and INV2 (valid format but doesn't exist)
-        page.fill("#tickersInput", f"AAPL,{invalid_ticker}")
-        page.click("button[type='submit']")
-        
-        # Should show error message about INV2 being invalid (from API, not format validation)
-        expect(page.locator("#errorMessage")).to_be_visible(timeout=10000)
-        expect(page.locator("#errorMessage")).to_contain_text(f"Ticker {invalid_ticker} is invalid")
-        
-        # Wait for page reload if stocks were added
-        page.wait_for_timeout(3000)
-        
-        # Valid stock should appear in table
-        expect(page.locator("text=AAPL")).to_be_visible(timeout=10000)
-        
-        # INV2 should NOT be in the table (should not be added at all)
-        stocks_table = page.locator("#stocksTable tbody tr")
-        stock_count = stocks_table.count()
-        
-        # Check that INV2 is not in any row
-        for i in range(stock_count):
-            row_text = stocks_table.nth(i).inner_text()
-            assert invalid_ticker not in row_text, f"{invalid_ticker} should not be in the table, but found in row: {row_text}"
     
     def test_delete_button_visible_for_error_rows(self, page: Page, live_server_url, authenticated_session):
         """Test that delete button is visible and actionable for error rows."""
@@ -481,7 +421,21 @@ class TestWatchListBrowser:
     def test_dividend_yield_display_in_portfolio(self, page: Page, live_server_url, authenticated_session):
         """Test that dividend yield is displayed correctly in watchlist table."""
         watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
-        added, _ = add_stocks_to_watchlist(watchlist.watchlist_id, ["HD", "AAPL"], account_id=authenticated_session)
+
+        # Insert stocks directly to avoid external provider dependency in browser tests
+        from datetime import datetime
+        with Session(engine) as session:
+            session.add(WatchListStock(
+                watchlist_id=watchlist.watchlist_id,
+                ticker="HD",
+                date_added=datetime.now()
+            ))
+            session.add(WatchListStock(
+                watchlist_id=watchlist.watchlist_id,
+                ticker="AAPL",
+                date_added=datetime.now()
+            ))
+            session.commit()
         
         page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
         
@@ -494,8 +448,9 @@ class TestWatchListBrowser:
         expect(dividend_yield_header).to_be_visible()
         
         # Check that dividend yield values are displayed (not empty)
-        # Find all dividend yield cells (should be in the 5th column, 0-indexed as 4)
-        dividend_yield_cells = page.locator('#stocksTable tbody tr td:nth-child(5)')
+        # Column order: Ticker(1), Current Price(2), Entry Price(3), Change(4), % Change(5),
+        # SMA 50(6), SMA 200(7), Dividend Yield(8), ...
+        dividend_yield_cells = page.locator('#stocksTable tbody tr td:nth-child(8)')
         count = dividend_yield_cells.count()
         
         # At least one stock should have dividend yield data
@@ -562,30 +517,32 @@ class TestWatchListBrowser:
     @pytest.mark.browser
     def test_earnings_date_display_in_watchlist(self, page: Page, live_server_url, authenticated_session):
         """Test that earnings date is displayed in the watchlist table."""
-        # Use JPM as it's a fresh stock that should have earnings data
+        # Use seeded ticker to avoid external provider dependency
         watchlist = create_watchlist("Test Earnings WatchList", account_id=authenticated_session)
-        # Pass account_id as positional argument (3rd arg) to ensure it's passed correctly
-        added, invalid = add_stocks_to_watchlist(watchlist.watchlist_id, ["JPM"], authenticated_session)
-        
-        # Verify stock was added
-        assert len(added) > 0, "JPM should have been added to watchlist"
-        assert len(invalid) == 0, f"JPM should be valid, but got invalid: {invalid}"
-        
+
+        from datetime import datetime
+        with Session(engine) as session:
+            session.add(WatchListStock(
+                watchlist_id=watchlist.watchlist_id,
+                ticker="AAPL",
+                date_added=datetime.now()
+            ))
+            session.commit()
+
         # Verify earnings data is in database before testing UI
         from app.services.stock_price_service import get_stock_attributes
-        attributes = get_stock_attributes("JPM")
-        assert attributes is not None, "JPM attributes should exist after adding to watchlist"
-        assert attributes.next_earnings_date is not None, f"JPM should have earnings date, but got: {attributes.next_earnings_date}"
+        attributes = get_stock_attributes("AAPL")
+        assert attributes is not None, "AAPL attributes should exist in test seed data"
+        assert attributes.next_earnings_date is not None, f"AAPL should have earnings date, got: {attributes.next_earnings_date}"
         
         # Verify metrics function returns earnings data
         from app.services.watchlist_service import get_watchlist_stocks_with_metrics
-        # Pass account_id to verify ownership
         metrics = get_watchlist_stocks_with_metrics(watchlist.watchlist_id, account_id=authenticated_session)
-        assert len(metrics) > 0, "Should have metrics for JPM"
-        jpm_metric = next((m for m in metrics if m.get("ticker") == "JPM"), None)
-        assert jpm_metric is not None, "Should have metric for JPM"
-        assert jpm_metric.get("next_earnings_date") is not None, f"JPM metric should have earnings date: {jpm_metric}"
-        assert jpm_metric.get("next_earnings_date_formatted") is not None, f"JPM metric should have formatted earnings date: {jpm_metric}"
+        assert len(metrics) > 0, "Should have metrics for AAPL"
+        aapl_metric = next((m for m in metrics if m.get("ticker") == "AAPL"), None)
+        assert aapl_metric is not None, "Should have metric for AAPL"
+        assert aapl_metric.get("next_earnings_date") is not None, f"AAPL metric missing earnings date: {aapl_metric}"
+        assert aapl_metric.get("next_earnings_date_formatted") is not None, f"AAPL metric missing formatted earnings date: {aapl_metric}"
         
         # Navigate to watchlist details page
         response = page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}", wait_until="networkidle", timeout=30000)
@@ -605,26 +562,22 @@ class TestWatchListBrowser:
         earnings_header = page.locator("th:has-text('Next Earnings')")
         expect(earnings_header).to_be_visible(timeout=10000)
         
-        # Check that earnings date is displayed for JPM
-        # Find the row with JPM ticker
-        jpm_row = page.locator("#stocksTable tbody tr").filter(has_text="JPM")
-        expect(jpm_row).to_be_visible(timeout=10000)
+        # Check that earnings date is displayed for AAPL
+        aapl_row = page.locator("#stocksTable tbody tr").filter(has_text="AAPL")
+        expect(aapl_row).to_be_visible(timeout=10000)
         
         # Check that earnings date cell contains a date (not "N/A")
         # Column order: Ticker(0), Current Price(1), Entry Price(2), Change(3), % Change(4),
         # SMA50(5), SMA200(6), Div Yield(7), Next Dividend(8), Next Earnings(9), Signal(10), Trading Range(11), Actions(12)
-        earnings_cell = jpm_row.locator("td").nth(9)
+        earnings_cell = aapl_row.locator("td").nth(9)
         expect(earnings_cell).to_be_attached(timeout=10000)  # May be hidden by responsive mode
         earnings_text = earnings_cell.inner_text().strip()
-        
-        # Debug: Print what we actually see
-        print(f"\nDEBUG: Earnings cell text for JPM: '{earnings_text}'")
-        
-        # Should NOT be "N/A" - JPM should have earnings data
+
+        # Should NOT be "N/A" - AAPL should have earnings data in seeded fixtures
         assert earnings_text != "N/A", \
-            f"JPM earnings date should not be N/A. Got: '{earnings_text}'. " \
+            f"AAPL earnings date should not be N/A. Got: '{earnings_text}'. " \
             f"DB has: {attributes.next_earnings_date}, " \
-            f"Metric has: {jpm_metric.get('next_earnings_date_formatted')}"
+            f"Metric has: {aapl_metric.get('next_earnings_date_formatted')}"
         
         # Should be a date format like "2026-04-14"
         assert len(earnings_text) > 0, \

@@ -1,0 +1,182 @@
+============================= test session starts ==============================
+platform linux -- Python 3.9.25, pytest-8.4.2, pluggy-1.6.0
+Test order randomisation NOT enabled. Enable with --random-order or --random-order-bucket=<bucket_type>
+rootdir: /app
+configfile: pytest.ini
+plugins: anyio-4.12.0, random-order-1.1.0, asyncio-1.2.0, base-url-2.1.0, playwright-0.4.4
+asyncio: mode=auto, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 365 items
+
+tests/test_api.py .......                                                [  1%]
+tests/test_auth_flows.py ....                                            [  3%]
+tests/test_converters.py ...........                                     [  6%]
+tests/test_database_constraints.py ..........                            [  8%]
+tests/test_dumbbell_chart.py ..                                          [  9%]
+tests/test_e2e_user_flows.py ......                                      [ 10%]
+tests/test_model_helpers.py ..........................                   [ 18%]
+tests/test_options_cache_service.py ..................                   [ 23%]
+tests/test_pandas_edge_cases.py ...........                              [ 26%]
+tests/test_provider_exceptions.py ..............                         [ 29%]
+tests/test_providers.py ....................                             [ 35%]
+tests/test_public_watchlists_browser.py ..                               [ 35%]
+tests/test_results_page.py ...............                               [ 40%]
+tests/test_results_sorting.py .                                          [ 40%]
+tests/test_rr_list_browser.py ....s                                      [ 41%]
+tests/test_rr_watchlist_collar.py ..........                             [ 44%]
+tests/test_scheduler_logic.py ..........                                 [ 47%]
+tests/test_stock_chart_service.py .......                                [ 49%]
+tests/test_stock_detail_api.py .......                                   [ 50%]
+tests/test_stock_detail_browser.py .........ss...                        [ 54%]
+tests/test_stock_price_service.py ..................                     [ 59%]
+tests/test_stock_service.py .............................                [ 67%]
+tests/test_ticker_validator.py ..................                        [ 72%]
+tests/test_type_helpers.py .......                                       [ 74%]
+tests/test_validation_api.py ........                                    [ 76%]
+tests/test_watchlist_api.py ............                                 [ 80%]
+tests/test_watchlist_browser.py .................                        [ 84%]
+tests/test_watchlist_models.py ....                                      [ 85%]
+tests/test_watchlist_notes.py ..................                         [ 90%]
+tests/test_watchlist_performance.py ....                                 [ 91%]
+tests/test_watchlist_service.py ...........................              [ 99%]
+tests/test_watchlist_table_structure.py ..                               [ 99%]
+tests/test_watchlist_trading_metrics.py .                                [100%]
+
+=============================== warnings summary ===============================
+tests/test_api.py::TestStockAPI::test_get_stock_data_missing_query_param
+tests/test_api.py::TestStockAPI::test_get_stock_data_empty_query_param
+tests/test_results_page.py::TestResultsPageAPI::test_results_page_missing_tickers
+tests/test_validation_api.py::TestValidateTickersAPI::test_validate_tickers_missing_param
+  /usr/local/lib/python3.9/site-packages/_pytest/python.py:157: DeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+    result = testfunction(**testargs)
+
+tests/test_api.py: 1 warning
+tests/test_results_page.py: 4 warnings
+tests/test_stock_detail_api.py: 6 warnings
+  /usr/local/lib/python3.9/site-packages/starlette/templating.py:162: DeprecationWarning: The `name` is not the first parameter anymore. The first parameter should be the `Request` instance.
+  Replace `TemplateResponse(name, {"request": request})` by `TemplateResponse(request, name)`.
+    warnings.warn(
+
+tests/test_database_constraints.py::TestStockPriceConstraints::test_stock_price_unique_date_ticker
+  /app/tests/test_database_constraints.py:140: SAWarning: New instance <StockPrice at 0xffff5e65ea40> with identity key (<class 'app.models.stock_price.StockPrice'>, (datetime.date(2026, 2, 12), 'AAPL'), None) conflicts with persistent instance <StockPrice at 0xffff5e6c4220>
+    session.commit()
+
+tests/test_model_helpers.py::TestGetModelFields::test_get_model_fields_returns_list
+  /app/app/helpers/model_helpers.py:18: PydanticDeprecatedSince20: The `__fields__` attribute is deprecated, use the `model_fields` class property instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    return list(model_class.__fields__.keys())
+
+tests/test_model_helpers.py::TestModelToDict::test_model_to_dict_basic
+tests/test_model_helpers.py::TestModelToDict::test_model_to_dict_with_exclude_fields
+tests/test_model_helpers.py::TestModelToDict::test_model_to_dict_with_custom_labels
+  /app/app/helpers/model_helpers.py:91: PydanticDeprecatedSince20: The `__fields__` attribute is deprecated, use the `model_fields` class property instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    for field_name in instance.__class__.__fields__:
+
+tests/test_model_helpers.py::TestModelInstanceToTableRow::test_model_to_table_row_basic
+tests/test_model_helpers.py::TestModelInstanceToTableRow::test_model_to_table_row_with_extra_columns
+tests/test_model_helpers.py::TestModelInstanceToTableRow::test_model_to_table_row_with_exclude_fields
+  /app/app/helpers/model_helpers.py:126: PydanticDeprecatedSince20: The `__fields__` attribute is deprecated, use the `model_fields` class property instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    for field_name in instance.__class__.__fields__:
+
+tests/test_model_helpers.py::TestGetTableColumns::test_get_table_columns_basic
+tests/test_model_helpers.py::TestGetTableColumns::test_get_table_columns_with_custom_labels
+tests/test_model_helpers.py::TestGetTableColumns::test_get_table_columns_with_extra_columns
+tests/test_model_helpers.py::TestGetTableColumns::test_get_table_columns_with_exclude_fields
+  /app/app/helpers/model_helpers.py:159: PydanticDeprecatedSince20: The `__fields__` attribute is deprecated, use the `model_fields` class property instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    for field_name in model_class.__fields__:
+
+tests/test_watchlist_models.py::TestWatchListStock::test_portfolio_stock_composite_key
+  /app/tests/test_watchlist_models.py:130: SAWarning: New instance <WatchListStock at 0xffff7cd48db0> with identity key (<class 'app.models.watchlist.WatchListStock'>, ('f0cfa7e3-1a62-4fd3-b3a2-1c83d7088b90', 'AAPL'), None) conflicts with persistent instance <WatchListStock at 0xffff7cd483b0>
+    session.commit()
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========== 362 passed, 3 skipped, 28 warnings in 204.07s (0:03:24) ============
+Name                                             Stmts   Miss  Cover   Missing
+------------------------------------------------------------------------------
+app/__init__.py                                      0      0   100%
+app/database.py                                    668    366    45%   21, 95-116, 128-132, 136-143, 154-190, 199-233, 244-261, 271-275, 278-285, 296-306, 315-322, 340, 355-358, 370-390, 400-404, 413-419, 431-450, 461-467, 486-498, 510-516, 528-539, 548-554, 574-586, 597-604, 615-626, 635-641, 660-672, 683-690, 707-719, 729-735, 746-757, 766-772, 783-793, 802-809, 820-830, 839-846, 851-852, 862-865, 869-872, 882-895, 899-901, 908-912, 922-935, 939-941, 948-952, 971-973, 988-991, 994-995, 1005-1007, 1017-1019, 1023-1024, 1034-1042, 1050-1056, 1066-1074, 1082-1088, 1119-1121, 1125-1126, 1137-1142, 1148-1149, 1153-1158, 1164-1168, 1179-1187, 1193-1197, 1201-1209, 1215-1222, 1233-1238, 1244-1245, 1249-1257, 1263-1270, 1281-1286, 1292-1293, 1299-1300
+app/helpers/__init__.py                              0      0   100%
+app/helpers/model_helpers.py                        57      0   100%
+app/main.py                                        121     52    57%   24-35, 47-49, 68-70, 78-118, 143-161, 213-215, 233
+app/models/__init__.py                               0      0   100%
+app/models/account.py                               24      4    83%   14, 27-29
+app/models/app_settings.py                           7      0   100%
+app/models/llm_model.py                             10      0   100%
+app/models/options_cache.py                         43      0   100%
+app/models/rr_history_log.py                         9      0   100%
+app/models/rr_watchlist.py                          54      6    89%   106-108, 155-157
+app/models/scheduler_log.py                          9      0   100%
+app/models/stock_price.py                           38      0   100%
+app/models/watchlist.py                             38      6    84%   62-64, 102-104
+app/models/watchlist_stock_notes.py                 10      0   100%
+app/providers/__init__.py                            4      0   100%
+app/providers/base.py                               63      6    90%   73, 97, 119, 135, 152, 174
+app/providers/converters.py                         29      0   100%
+app/providers/exceptions.py                          6      0   100%
+app/providers/factory.py                            47      2    96%   41-42
+app/providers/marketdata_provider.py               139     60    57%   37, 66, 68, 72, 78-81, 86-87, 91-96, 108-141, 149, 156-174, 190, 200-202, 233, 287-289, 301-325, 329
+app/providers/yfinance_provider.py                 183     39    79%   55-57, 81, 96, 109-113, 141, 146, 153, 158, 176-179, 197-198, 210-212, 228-231, 241-242, 256-258, 277-279, 343, 353-357
+app/routers/__init__.py                              0      0   100%
+app/routers/auth.py                                 62     29    53%   27, 60-122
+app/routers/debug_routes.py                        292    247    15%   31-115, 142-183, 189-234, 245, 262-333, 357-428, 452-466, 485-497, 509-519, 530, 543-550, 569-579, 592-609, 615-617, 628-674, 685-720
+app/routers/insights_routes.py                      61     38    38%   40-46, 58-64, 82-94, 100-114, 120-127, 138-143
+app/routers/notes_routes.py                         44     32    27%   30-49, 71-95, 115-132
+app/routers/rr_routes.py                           173    157     9%   26-115, 132-285, 297-341, 347-364
+app/routers/stock_routes.py                        201     79    61%   41, 47-52, 58-63, 87-93, 102, 131-133, 159-173, 181-196, 214-217, 234-264, 291, 301, 318-321, 324-325, 365-366, 391
+app/routers/watchlist_routes.py                    164     54    67%   44-50, 61-63, 74, 88-99, 118-127, 259, 262, 267, 293-313, 332, 338, 340-341, 363, 366, 372, 382-383, 398-399, 419, 429, 431-432
+app/services/__init__.py                             0      0   100%
+app/services/covered_call_service.py               119    114     4%   18-108, 132-271
+app/services/llm_model_service.py                   61     44    28%   20-22, 27-29, 34-47, 52-71, 76-86, 96-101
+app/services/options_cache_service.py              113      8    93%   30, 37-39, 137, 215-216, 241-242
+app/services/options_data_service.py               193    181     6%   22, 50-68, 86-190, 206-295, 306-359
+app/services/options_strategy_cache_service.py     209    147    30%   18-38, 53-143, 158-259, 284, 316-318, 343, 413-415, 428-444, 458-466
+app/services/risk_reversal_service.py              194    188     3%   29-398
+app/services/rr_watchlist_service.py               169     59    65%   56-57, 67-68, 73, 80, 85, 92, 104, 111, 151-170, 208-212, 243-248, 271, 275-276, 291-295, 320-339
+app/services/scheduler_service.py                  526    346    34%   42, 79, 83, 98-219, 228-330, 377-385, 394-402, 419-423, 429-437, 444-447, 452-454, 458-460, 465-467, 471-473, 487-489, 493-495, 518-522, 539-543, 561-580, 651-665, 674-728, 737-817, 824-828, 834
+app/services/stock_chart_service.py                 83     16    81%   40, 52-53, 158-161, 167-170, 178, 183-189
+app/services/stock_data_service.py                  59      8    86%   33, 39-40, 74-77, 103, 122
+app/services/stock_price_service.py                498    111    78%   73, 85, 115, 151-157, 165, 188, 201-207, 215, 290, 293, 364, 367-370, 374-410, 440-443, 496-498, 543, 552-554, 671-672, 686-690, 729, 777-778, 781, 795-799, 821-825, 841, 847, 849, 851, 853, 855-857, 929-930, 938, 947-948, 954-975, 985-988
+app/services/stock_service.py                      607    409    33%   73, 108-145, 149, 156, 182, 186, 191, 226, 230, 238, 248, 253, 259, 310, 321-322, 330-333, 369, 390, 393, 407-408, 411, 426-439, 457-462, 478-567, 581-671, 714, 719-720, 729, 735, 743, 765, 827-831, 846-899, 922-1291
+app/services/ticker_validator.py                    19      0   100%
+app/services/watchlist_notes_service.py             96      0   100%
+app/services/watchlist_service.py                  382     89    77%   73, 90, 181, 191, 197, 235, 239, 246, 250, 254-256, 287, 293, 361, 363, 365, 369, 384-386, 390-392, 429-430, 478, 598-602, 657-658, 688, 698, 714-724, 740-758, 776-793, 809-819, 848-851, 862-925
+app/utils/__init__.py                                0      0   100%
+app/utils/route_helpers.py                          19     15    21%   10-16, 21-31
+app/utils/type_helpers.py                           18      0   100%
+tests/__init__.py                                    0      0   100%
+tests/conftest.py                                  114      8    93%   73-74, 89-92, 94, 223
+tests/fixtures/__init__.py                           0      0   100%
+tests/fixtures/auth_fixtures.py                     42      5    88%   83-86, 88-90, 102
+tests/test_api.py                                   76      0   100%
+tests/test_auth_flows.py                            30      0   100%
+tests/test_converters.py                            81      0   100%
+tests/test_database_constraints.py                 129      0   100%
+tests/test_dumbbell_chart.py                        90     51    43%   52-118, 130-154
+tests/test_e2e_user_flows.py                       318    247    22%   39, 44, 104-344, 352-367, 376-407, 416-442, 454-494, 503-531, 535-569
+tests/test_model_helpers.py                        127      0   100%
+tests/test_options_cache_service.py                133      0   100%
+tests/test_pandas_edge_cases.py                     96      8    92%   90, 153-156, 193, 205, 215
+tests/test_provider_exceptions.py                   80      3    96%   126, 133, 140
+tests/test_providers.py                            139      4    97%   97-98, 110, 222
+tests/test_public_watchlists_browser.py             50     16    68%   58-70, 91-103
+tests/test_results_page.py                          98      0   100%
+tests/test_results_sorting.py                       32     22    31%   20-66
+tests/test_rr_list_browser.py                      130     66    49%   24, 30, 43, 95-108, 116-130, 143-165, 169-183, 192-205, 211-224, 237-274
+tests/test_rr_watchlist_collar.py                  228      0   100%
+tests/test_scheduler_logic.py                      118      0   100%
+tests/test_stock_chart_service.py                  143     11    92%   218-234
+tests/test_stock_detail_api.py                      84      0   100%
+tests/test_stock_detail_browser.py                 629    549    13%   61-155, 163-217, 223-287, 293-326, 332-356, 363-381, 388-512, 520-550, 552, 559-599, 605-694, 701-861, 870-972, 978-1027, 1030, 1036-1077
+tests/test_stock_price_service.py                  211      5    98%   194, 311-313, 327-329
+tests/test_stock_service.py                        270      0   100%
+tests/test_ticker_validator.py                      78      0   100%
+tests/test_type_helpers.py                          30      0   100%
+tests/test_validation_api.py                        69      0   100%
+tests/test_watchlist_api.py                         79      0   100%
+tests/test_watchlist_browser.py                    308    161    48%   24, 29, 35, 40, 64-65, 113-118, 125-134, 141-146, 157-166, 175-182, 191-200, 209-233, 245-254, 281-297, 302-303, 310-316, 325-338, 360-372, 378-390, 399-403, 410-419, 443-469, 477-515, 549-585, 595-623
+tests/test_watchlist_models.py                      67      0   100%
+tests/test_watchlist_notes.py                      217      0   100%
+tests/test_watchlist_performance.py                111      0   100%
+tests/test_watchlist_service.py                    224      0   100%
+tests/test_watchlist_table_structure.py             61     28    54%   55-82, 110-135
+tests/test_watchlist_trading_metrics.py             63      0   100%
+------------------------------------------------------------------------------
+TOTAL                                            10676   4096    62%

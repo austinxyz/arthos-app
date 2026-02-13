@@ -1,7 +1,11 @@
 """Test to verify watchlist details table structure matches DataTables requirements."""
 import pytest
 from playwright.sync_api import Page, expect
-from app.services.watchlist_service import create_watchlist, add_stocks_to_watchlist
+from datetime import datetime
+from sqlmodel import Session
+from app.database import engine
+from app.services.watchlist_service import create_watchlist
+from app.models.watchlist import WatchListStock
 from tests.conftest import populate_test_stock_prices
 
 
@@ -30,8 +34,19 @@ def test_watchlist_table_column_count(page: Page, live_server_url, authenticated
     # Create a watchlist
     watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
     
-    # Add stocks to watchlist
-    add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "MSFT"], account_id=authenticated_session)
+    # Add stocks directly to avoid external provider dependencies in browser tests
+    with Session(engine) as session:
+        session.add(WatchListStock(
+            watchlist_id=watchlist.watchlist_id,
+            ticker="AAPL",
+            date_added=datetime.now()
+        ))
+        session.add(WatchListStock(
+            watchlist_id=watchlist.watchlist_id,
+            ticker="MSFT",
+            date_added=datetime.now()
+        ))
+        session.commit()
     
     # Navigate to watchlist details page
     page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
@@ -73,9 +88,20 @@ def test_watchlist_table_with_error_row(page: Page, live_server_url, authenticat
     # Create a watchlist
     watchlist = create_watchlist("Test WatchList", account_id=authenticated_session)
     
-    # Add a valid stock and an invalid one
-    # The invalid one should show an error row
-    add_stocks_to_watchlist(watchlist.watchlist_id, ["AAPL", "INVALIDTICKER123"], account_id=authenticated_session)
+    # Add a valid stock and an invalid one directly.
+    # INVALIDX is valid format but has no price/attribute records -> expected error row.
+    with Session(engine) as session:
+        session.add(WatchListStock(
+            watchlist_id=watchlist.watchlist_id,
+            ticker="AAPL",
+            date_added=datetime.now()
+        ))
+        session.add(WatchListStock(
+            watchlist_id=watchlist.watchlist_id,
+            ticker="INVALIDX",
+            date_added=datetime.now()
+        ))
+        session.commit()
     
     # Navigate to watchlist details page
     page.goto(f"{live_server_url}/watchlist/{watchlist.watchlist_id}")
@@ -92,18 +118,18 @@ def test_watchlist_table_with_error_row(page: Page, live_server_url, authenticat
     error_row = page.locator("#stocksTable tbody tr.table-danger").first
     
     if error_row.count() > 0:
-        # Count columns in error row
+        # DataTables column matching depends on effective column span, not raw cell count.
         error_row_cells = error_row.locator("td")
-        error_row_count = error_row_cells.count()
-        
-        # Check for colspan
-        error_cell = error_row.locator("td.text-danger")
-        if error_cell.count() > 0:
-            colspan = error_cell.get_attribute("colspan")
-            print(f"Error row has {error_row_count} cells, error cell colspan={colspan}")
-            
-            # Verify total columns match header
-            assert error_row_count == header_count, \
-                f"Error row has {error_row_count} columns but header has {header_count}"
+        raw_cell_count = error_row_cells.count()
+        effective_column_count = 0
+        for i in range(raw_cell_count):
+            colspan = error_row_cells.nth(i).get_attribute("colspan")
+            effective_column_count += int(colspan) if colspan else 1
+
+        print(f"Error row has {raw_cell_count} cells, effective columns={effective_column_count}")
+
+        # Verify total effective columns match table header.
+        assert effective_column_count == header_count, \
+            f"Error row effective columns {effective_column_count} do not match header {header_count}"
     
     print("Error row structure verified")

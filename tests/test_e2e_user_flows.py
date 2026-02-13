@@ -446,7 +446,7 @@ class TestE2EUserFlows:
     
     @pytest.mark.e2e
     def test_options_data_strike_prices_within_range(self, page: Page, live_server_url, authenticated_session):
-        """Test that options data shows strike prices within 10% of current price."""
+        """Test that covered call strikes are ATM/OTM relative to current price."""
         ticker = "AAPL"
         page.goto(f"{live_server_url}/stock/{ticker}")
         
@@ -465,38 +465,33 @@ class TestE2EUserFlows:
             option_data_tab.click()
             page.wait_for_timeout(1000)
             
-            option_data_pane = page.locator("#covered-calls-pane")
+            option_data_pane = page.locator("#covered-calls")
             if option_data_pane.count() > 0:
                 options_table = option_data_pane.locator("table")
                 
                 if options_table.count() > 0:
-                    # Extract strike prices and verify they're within 10%
+                    # Extract strike prices from the Strike Price column.
                     table_rows = options_table.locator("tbody tr")
                     row_count = table_rows.count()
-                    
+
                     strikes_found = []
                     for i in range(min(row_count, 20)):  # Check up to 20 rows
                         row = table_rows.nth(i)
-                        cells = row.locator("td")
-                        cell_count = cells.count()
-                        
-                        # Strike price is typically in the middle column
-                        for j in range(cell_count):
-                            cell_text = cells.nth(j).inner_text().strip()
-                            try:
-                                strike = float(cell_text.replace("$", "").replace(",", ""))
-                                # Check if this looks like a strike price (reasonable range)
-                                if 10 < strike < 10000:  # Reasonable stock price range
-                                    price_diff_pct = abs(strike - current_price) / current_price * 100
-                                    assert price_diff_pct <= 10.0, \
-                                        f"Strike price ${strike} is {price_diff_pct:.2f}% away from current price ${current_price}, should be within 10%"
-                                    strikes_found.append(strike)
-                                    break
-                            except ValueError:
-                                continue
-                    
-                    if strikes_found:
-                        assert len(strikes_found) > 0, "Should find at least one strike price"
+                        strike_cell = row.locator("td.fw-bold")
+                        if strike_cell.count() == 0:
+                            continue
+                        cell_text = strike_cell.first.inner_text().strip()
+                        try:
+                            strike = float(cell_text.replace("$", "").replace(",", ""))
+                        except ValueError:
+                            continue
+
+                        assert strike > 0, f"Invalid strike value parsed: {cell_text}"
+                        strikes_found.append(strike)
+                        assert strike >= current_price * 0.99, \
+                            f"Strike ${strike} is below current price ${current_price}; covered calls should be ATM/OTM"
+
+                    assert strikes_found, "Should parse at least one covered call strike price"
     
     @pytest.mark.e2e
     def test_covered_calls_math_correctness(self, page: Page, live_server_url, authenticated_session):
@@ -519,7 +514,7 @@ class TestE2EUserFlows:
             covered_calls_tab.click()
             page.wait_for_timeout(1000)
             
-            covered_calls_pane = page.locator("#covered-calls-pane")
+            covered_calls_pane = page.locator("#covered-calls")
             if covered_calls_pane.count() > 0:
                 covered_calls_table = covered_calls_pane.locator("table")
                 
@@ -535,19 +530,20 @@ class TestE2EUserFlows:
                         row = table_rows.nth(i)
                         cells = row.locator("td")
                         cell_texts = [cell.inner_text().strip() for cell in cells.all()]
-                        
-                        if len(cell_texts) >= 4:
+
+                        # Columns: Expiration, Strike, Premium, Exercised, Not Exercised, Visualization.
+                        if len(cell_texts) >= 5:
                             try:
                                 # Parse strike price
-                                strike_text = cell_texts[0].replace("$", "").replace(",", "")
+                                strike_text = cell_texts[1].replace("$", "").replace(",", "")
                                 strike_price = float(strike_text)
                                 
                                 # Parse call premium
-                                premium_text = cell_texts[1].replace("$", "").replace(",", "")
+                                premium_text = cell_texts[2].replace("$", "").replace(",", "")
                                 call_premium = float(premium_text)
                                 
                                 # Parse and verify exercised return
-                                exercised_text = cell_texts[2]
+                                exercised_text = cell_texts[3]
                                 exercised_match = re.search(r'\(([\d.+-]+)%\)', exercised_text)
                                 if exercised_match:
                                     exercised_pct = float(exercised_match.group(1))
@@ -556,7 +552,7 @@ class TestE2EUserFlows:
                                         f"Row {i}: Exercised return mismatch. Expected {expected_exercised:.2f}%, got {exercised_pct:.2f}%"
                                 
                                 # Parse and verify not exercised return
-                                not_exercised_text = cell_texts[3]
+                                not_exercised_text = cell_texts[4]
                                 not_exercised_match = re.search(r'\(([\d.+-]+)%\)', not_exercised_text)
                                 if not_exercised_match:
                                     not_exercised_pct = float(not_exercised_match.group(1))
@@ -571,4 +567,3 @@ class TestE2EUserFlows:
                     # If we found covered calls data, we should have checked at least one row
                     if row_count > 0:
                         assert rows_checked > 0, "Should have verified at least one row of covered calls data"
-
