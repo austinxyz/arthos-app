@@ -4,6 +4,7 @@ import requests
 import logging
 from typing import List, Optional, Dict, Any
 from datetime import date, datetime, timedelta
+from threading import Lock
 from app.providers.base import (
     StockDataProvider, StockPriceData, StockInfo, 
     OptionQuote, OptionsChain
@@ -17,13 +18,15 @@ class MarketDataProvider(StockDataProvider):
     """
     MarketData.app provider for options data with Greeks and IV.
     
-    Free tier: 100 API calls/day
-    Paid tier: $12/month for more calls
+    API usage limits are plan-dependent. This provider includes
+    a daily circuit breaker when the upstream API returns 429.
     
     API Documentation: https://www.marketdata.app/docs/api
     """
     
     BASE_URL = "https://api.marketdata.app/v1"
+    _rate_limited_utc_date: Optional[date] = None
+    _rate_limit_lock = Lock()
     
     def __init__(self, api_key: Optional[str] = None):
         """
@@ -41,6 +44,28 @@ class MarketDataProvider(StockDataProvider):
         }
         if self.api_key:
             self.headers["Authorization"] = f"Token {self.api_key}"
+
+    @classmethod
+    def _is_rate_limited_today(cls) -> bool:
+        """Check whether the MarketData rate limit was hit for the current UTC day."""
+        today_utc = datetime.utcnow().date()
+        with cls._rate_limit_lock:
+            if cls._rate_limited_utc_date and cls._rate_limited_utc_date != today_utc:
+                # Automatically reset circuit breaker on UTC day rollover.
+                cls._rate_limited_utc_date = None
+            return cls._rate_limited_utc_date == today_utc
+
+    @classmethod
+    def _mark_rate_limited_today(cls) -> None:
+        """Mark current UTC day as rate-limited to short-circuit subsequent calls."""
+        today_utc = datetime.utcnow().date()
+        with cls._rate_limit_lock:
+            if cls._rate_limited_utc_date != today_utc:
+                cls._rate_limited_utc_date = today_utc
+                logger.warning(
+                    "MarketData API rate limit hit; enabling circuit breaker for UTC date %s",
+                    today_utc.isoformat()
+                )
     
     def _make_request(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -58,6 +83,9 @@ class MarketDataProvider(StockDataProvider):
             DataNotAvailableError: If data is not available
         """
         url = f"{self.BASE_URL}{endpoint}"
+
+        if self._is_rate_limited_today():
+            raise DataNotAvailableError("MarketData API rate limit exceeded (circuit breaker active for today)")
         
         try:
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
@@ -67,7 +95,8 @@ class MarketDataProvider(StockDataProvider):
             elif response.status_code == 401:
                 raise DataNotAvailableError("MarketData API key invalid or missing")
             elif response.status_code == 429:
-                raise DataNotAvailableError("MarketData API rate limit exceeded (100 calls/day on free tier)")
+                self._mark_rate_limited_today()
+                raise DataNotAvailableError("MarketData API rate limit exceeded")
             elif response.status_code not in (200, 203):
                 raise DataNotAvailableError(f"MarketData API error: {response.status_code} - {response.text}")
             
@@ -203,6 +232,8 @@ class MarketDataProvider(StockDataProvider):
             
             return sorted(result)
             
+        except (TickerNotFoundError, DataNotAvailableError):
+            raise
         except Exception as e:
             logger.error(f"Error fetching options expirations for {ticker}: {e}")
             raise
@@ -284,6 +315,8 @@ class MarketDataProvider(StockDataProvider):
                 puts=puts
             )
             
+        except (TickerNotFoundError, DataNotAvailableError):
+            raise
         except Exception as e:
             logger.error(f"Error fetching options chain for {ticker}: {e}")
             raise

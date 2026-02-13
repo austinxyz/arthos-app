@@ -122,7 +122,7 @@ def update_stock_prices_for_all_watchlists(bypass_market_hours: bool = False):
         should_proceed, skip_reason = should_proceed_with_update(bypass_market_hours, post_market_minutes=20)
 
         if not should_proceed:
-            logger.warning(f"⊘ SKIPPING: {skip_reason}")
+            logger.info(f"⊘ SKIPPING: {skip_reason}")
             with Session(engine) as session:
                 log_entry = session.get(SchedulerLog, log_id)
                 if log_entry:
@@ -171,14 +171,17 @@ def update_stock_prices_for_all_watchlists(bypass_market_hours: bool = False):
 
             logger.info(f"[{idx}/{len(unique_tickers)}] Refreshing data for {ticker}...")
             try:
-                # Use unified refresh_stock_data function
-                # This fetches prices, computes trading metrics, AND caches option strategies
-                # clear_cache=True ensures identical behavior to manual Force Refresh
-                result = refresh_stock_data(ticker, clear_cache=True)
+                # Stock update job should refresh prices/metrics only.
+                # Options strategies are handled by the dedicated daily options-cache job.
+                result = refresh_stock_data(
+                    ticker,
+                    clear_cache=False,
+                    refresh_options_strategies=False,
+                    include_options_iv=False
+                )
 
                 if result.get("success"):
-                    logger.info(f"  ✓ {ticker}: {result['price_records']} prices, "
-                                f"{result['rr_strategies']} RR, {result['cc_strategies']} CC")
+                    logger.info(f"  ✓ {ticker}: {result['price_records']} prices refreshed")
                     success_count += 1
                 else:
                     error_count += 1
@@ -412,6 +415,9 @@ def update_rr_history(bypass_market_hours: bool = False):
         next_pause_count = random.randint(1, 10)
         processed_count_since_pause = 0
 
+        provider = ProviderFactory.get_default_provider()
+        options_chain_cache = {}
+
         for idx, entry in enumerate(active_entries, 1):
             # Jitter logic
             processed_count_since_pause += 1
@@ -437,14 +443,22 @@ def update_rr_history(bypass_market_hours: bool = False):
                     continue
 
                 # Fetch fresh quotes from data provider
-                provider = ProviderFactory.get_default_provider()
                 expiration_str = entry.expiration.strftime('%Y-%m-%d')
-                try:
-                    opt_chain = provider.fetch_options_chain(entry.ticker, expiration_str)
-                except DataNotAvailableError:
-                    logger.warning(f"Options chain not available for {entry.ticker} {expiration_str}")
-                    error_count += 1
-                    continue
+                cache_key = (entry.ticker.upper(), expiration_str)
+                if cache_key in options_chain_cache:
+                    opt_chain = options_chain_cache[cache_key]
+                    if opt_chain is None:
+                        error_count += 1
+                        continue
+                else:
+                    try:
+                        opt_chain = provider.fetch_options_chain(entry.ticker, expiration_str)
+                        options_chain_cache[cache_key] = opt_chain
+                    except DataNotAvailableError:
+                        logger.warning(f"Options chain not available for {entry.ticker} {expiration_str}")
+                        options_chain_cache[cache_key] = None
+                        error_count += 1
+                        continue
 
                 # Get put option data
                 put_matches = [p for p in opt_chain.puts if round(p.strike, 2) == round(float(entry.put_strike), 2)]

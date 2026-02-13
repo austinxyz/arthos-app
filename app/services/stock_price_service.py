@@ -297,7 +297,7 @@ def save_stock_prices(ticker: str, price_data: pd.DataFrame, iv_data: Optional[D
                 # after dividend information is fetched
 
 
-def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
+def fetch_and_save_stock_prices(ticker: str, include_options_iv: bool = True) -> Tuple[pd.DataFrame, int]:
     """
     Fetch stock price data from data provider and save to database.
     Also updates stock attributes (dividend_amt, dividend_yield).
@@ -308,6 +308,7 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
     
     Args:
         ticker: Stock ticker symbol
+        include_options_iv: If True, fetch options data to compute/update ATM IV metrics.
         
     Returns:
         Tuple of (DataFrame with fetched data, number of new records saved)
@@ -329,11 +330,15 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
     
     # Check stock attributes to determine if we have existing data
     attributes = get_stock_attributes(ticker_upper)
-    logger.info(f"  Stock attributes: {attributes}")
     if attributes:
+        # Keep info logs concise; full model repr includes large insights payloads.
+        logger.info("  Stock attributes found")
+        logger.debug(f"  Stock attributes: {attributes}")
         logger.info(f"    - earliest_date: {attributes.earliest_date}")
         logger.info(f"    - latest_date: {attributes.latest_date}")
         logger.info(f"    - gap_days: {(today - attributes.latest_date).days}")
+    else:
+        logger.info("  Stock attributes: none")
     
     all_price_data = []
     
@@ -474,7 +479,7 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
     
     # Check if we're saving data for today
     price_dates = [pd.Timestamp(idx).date() if isinstance(idx, pd.Timestamp) else idx.date() for idx in price_data.index]
-    if today in price_dates:
+    if include_options_iv and today in price_dates:
         # Calculate IV from options data for today
         try:
             from app.services.stock_service import get_options_data
@@ -496,6 +501,8 @@ def fetch_and_save_stock_prices(ticker: str) -> Tuple[pd.DataFrame, int]:
         except Exception as e:
             # Log but don't fail the price save if IV calculation fails
             logger.warning(f"Could not calculate IV for {ticker_upper} on {today}: {e}")
+    elif not include_options_iv:
+        logger.debug(f"Skipping options IV calculation for {ticker_upper} (include_options_iv=False)")
     
     # Count records before saving
     records_before = 0
@@ -879,7 +886,12 @@ def get_stock_metrics_from_db(ticker: str) -> Dict[str, Any]:
     }
 
 
-def refresh_stock_data(ticker: str, clear_cache: bool = False) -> Dict[str, Any]:
+def refresh_stock_data(
+    ticker: str,
+    clear_cache: bool = False,
+    refresh_options_strategies: bool = True,
+    include_options_iv: bool = True
+) -> Dict[str, Any]:
     """
     Unified function to refresh all stock data for a ticker.
 
@@ -898,6 +910,8 @@ def refresh_stock_data(ticker: str, clear_cache: bool = False) -> Dict[str, Any]
         ticker: Stock ticker symbol
         clear_cache: If True, clears the options cache before fetching new data.
                      Use True for force refresh scenarios.
+        refresh_options_strategies: If True, compute/cache RR and covered call strategies.
+        include_options_iv: If True, compute/update ATM IV during price refresh.
 
     Returns:
         Dict with refresh results:
@@ -921,7 +935,8 @@ def refresh_stock_data(ticker: str, clear_cache: bool = False) -> Dict[str, Any]
 
     try:
         # Step 1: Optionally clear options cache
-        if clear_cache:
+        # Cache clear is only useful when we also refresh options strategies.
+        if clear_cache and refresh_options_strategies:
             try:
                 from app.services.options_cache_service import clear_options_cache
                 clear_options_cache(ticker_upper)
@@ -931,7 +946,10 @@ def refresh_stock_data(ticker: str, clear_cache: bool = False) -> Dict[str, Any]
 
         # Step 2: Fetch and save fresh stock price data
         try:
-            price_data, new_records = fetch_and_save_stock_prices(ticker_upper)
+            price_data, new_records = fetch_and_save_stock_prices(
+                ticker_upper,
+                include_options_iv=include_options_iv
+            )
             result["price_records"] = new_records
 
             if not price_data.empty:
@@ -950,7 +968,7 @@ def refresh_stock_data(ticker: str, clear_cache: bool = False) -> Dict[str, Any]
         # Step 4: Compute and cache option strategies
         current_price = result.get("current_price")
 
-        if current_price and current_price > 0:
+        if refresh_options_strategies and current_price and current_price > 0:
             try:
                 from app.services.options_strategy_cache_service import (
                     compute_and_cache_risk_reversals,
@@ -974,7 +992,10 @@ def refresh_stock_data(ticker: str, clear_cache: bool = False) -> Dict[str, Any]
             except ImportError as e:
                 logger.warning(f"Could not import options strategy cache service: {e}")
         else:
-            logger.debug(f"Skipping option strategy caching for {ticker_upper}: no valid current price")
+            logger.debug(
+                f"Skipping option strategy caching for {ticker_upper}: "
+                f"refresh_options_strategies={refresh_options_strategies}, current_price={current_price}"
+            )
 
         result["success"] = True
         logger.info(f"Refreshed {ticker_upper}: {result['price_records']} prices, "

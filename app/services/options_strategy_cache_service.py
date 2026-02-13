@@ -51,6 +51,7 @@ def compute_and_cache_covered_calls(ticker: str, current_price: float) -> int:
         Number of strategies cached
     """
     from app.services.stock_service import get_all_options_data, calculate_covered_call_returns_v2
+    from app.services.options_cache_service import calculate_atm_iv, update_stock_iv_metrics
 
     try:
         # Fetch fresh options data from API
@@ -58,6 +59,19 @@ def compute_and_cache_covered_calls(ticker: str, current_price: float) -> int:
         if not all_options_data:
             logger.debug(f"No options data available for {ticker}")
             return 0
+
+        # Update ATM IV metrics from the first available expiration in the fetched options set.
+        # This avoids extra options API calls solely for IV refresh.
+        try:
+            for _, options_data in all_options_data:
+                if not options_data:
+                    continue
+                atm_iv = calculate_atm_iv(options_data, current_price)
+                if atm_iv is not None:
+                    update_stock_iv_metrics(ticker, atm_iv)
+                break
+        except Exception as e:
+            logger.warning(f"Could not update IV metrics during covered call cache refresh for {ticker}: {e}")
 
         # Compute strategies
         computed_strategies = calculate_covered_call_returns_v2(all_options_data, current_price)
