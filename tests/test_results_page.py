@@ -80,6 +80,54 @@ class TestMultipleStockMetrics:
         assert len(results) == 2
         assert all(r["ticker"] in ["AAPL", "MSFT"] for r in results if "error" not in r)
 
+    def test_get_multiple_stock_metrics_skips_options_iv_on_cache_miss(self, monkeypatch):
+        """Test cache-miss fetch does not trigger options IV fetches."""
+        calls = {"metrics_reads": 0, "include_options_iv": None}
+
+        def fake_get_stock_metrics_from_db(ticker):
+            calls["metrics_reads"] += 1
+            if calls["metrics_reads"] == 1:
+                raise ValueError("No data found for DASH")
+            return {
+                "ticker": ticker,
+                "sma_50": 100.0,
+                "sma_200": 95.0,
+                "devstep": 0.2,
+                "signal": "Neutral",
+                "current_price": 101.0,
+                "dividend_yield": None,
+                "next_earnings_date": None,
+                "is_earnings_date_estimate": None,
+                "next_dividend_date": None,
+                "movement_5day_stddev": 0.1,
+                "is_price_positive_5day": True,
+                "data_points": 250,
+                "current_iv": None,
+                "iv_rank": None,
+                "iv_percentile": None,
+                "iv_high_52w": None,
+                "iv_low_52w": None,
+            }
+
+        def fake_fetch_and_save_stock_prices(ticker, include_options_iv=True):
+            calls["include_options_iv"] = include_options_iv
+            return None, 0
+
+        monkeypatch.setattr(
+            "app.services.stock_price_service.get_stock_metrics_from_db",
+            fake_get_stock_metrics_from_db
+        )
+        monkeypatch.setattr(
+            "app.services.stock_price_service.fetch_and_save_stock_prices",
+            fake_fetch_and_save_stock_prices
+        )
+
+        results = get_multiple_stock_metrics(["DASH"])
+
+        assert len(results) == 1
+        assert "error" not in results[0]
+        assert calls["include_options_iv"] is False
+
 
 class TestResultsPageAPI:
     """Tests for /results endpoint."""
@@ -160,4 +208,3 @@ class TestHomePage:
         assert "Arthos" in response.text
         assert "Enter comma-separated stock tickers" in response.text
         assert "Explore" in response.text
-
