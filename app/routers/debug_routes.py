@@ -497,6 +497,29 @@ async def trigger_scheduler_manual(bypass_market_hours: bool = Query(True, descr
         raise HTTPException(status_code=500, detail=f"Error triggering scheduler: {str(e)}")
 
 
+@router.post("/debug/options-cache-log/trigger")
+async def trigger_options_cache_manual():
+    """
+    Manually trigger the options cache update job.
+    This endpoint allows testing the daily options cache refresh on demand.
+
+    Returns:
+        JSON response with trigger status and log entry ID
+    """
+    from app.services.scheduler_service import update_options_cache_for_all_watchlists
+
+    try:
+        log_id = update_options_cache_for_all_watchlists()
+
+        return {
+            "message": "Options cache update triggered successfully",
+            "log_id": log_id,
+            "status": "completed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error triggering options cache update: {str(e)}")
+
+
 @router.post("/debug/cleanup-logs/trigger")
 async def trigger_cleanup_logs():
     """

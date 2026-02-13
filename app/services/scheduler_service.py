@@ -231,6 +231,9 @@ def update_options_cache_for_all_watchlists():
     Fetch and cache options strategies for all unique tickers.
     Scheduled to run at specific times (10:00 AM, 2:00 PM, 4:05 PM ET).
     Creates a log entry in scheduler_log table.
+
+    Returns:
+        The ID of the scheduler_log entry created for this run, or None if failed.
     """
     start_time = datetime.now()
     log_id = None
@@ -276,7 +279,7 @@ def update_options_cache_for_all_watchlists():
                     log_entry.notes = "No tickers found for options update."
                     session.add(log_entry)
                     session.commit()
-            return
+            return log_id
 
         logger.info(f"Processing {len(unique_tickers)} tickers for OPTIONS CACHE")
 
@@ -320,6 +323,7 @@ def update_options_cache_for_all_watchlists():
                 session.add(log_entry)
                 session.commit()
         logger.info(f"✓ Options cache update job completed. {notes}")
+        return log_id
 
     except Exception as e:
         logger.error(f"Error in update_options_cache_for_all_watchlists: {str(e)}")
@@ -335,6 +339,7 @@ def update_options_cache_for_all_watchlists():
                         session.commit()
             except Exception as log_error:
                 logger.error(f"Could not update log entry: {log_error}")
+        return None
 
 
 @with_api_usage_scope("scheduler.update_rr_history")
