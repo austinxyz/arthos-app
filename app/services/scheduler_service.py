@@ -13,6 +13,8 @@ import pytz
 import logging
 import random
 import time
+from collections import defaultdict
+from app.services.api_usage_tracker import with_api_usage_scope
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +87,7 @@ def should_proceed_with_update(bypass_market_hours: bool = False, post_market_mi
     return False, f"Market closed. Current time: {current_time}, Market hours: {MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d}-{MARKET_CLOSE_HOUR}:{MARKET_CLOSE_MINUTE:02d} ET"
 
 
+@with_api_usage_scope("scheduler.update_stock_prices")
 def update_stock_prices_for_all_watchlists(bypass_market_hours: bool = False):
     """
     Fetch stock price data for all unique tickers across all watchlists.
@@ -222,6 +225,7 @@ def update_stock_prices_for_all_watchlists(bypass_market_hours: bool = False):
         return None
 
 
+@with_api_usage_scope("scheduler.update_options_cache")
 def update_options_cache_for_all_watchlists():
     """
     Fetch and cache options strategies for all unique tickers.
@@ -333,6 +337,7 @@ def update_options_cache_for_all_watchlists():
                 logger.error(f"Could not update log entry: {log_error}")
 
 
+@with_api_usage_scope("scheduler.update_rr_history")
 def update_rr_history(bypass_market_hours: bool = False):
     """
     Update Risk Reversal history by recalculating net cost for all active entries.
@@ -417,6 +422,13 @@ def update_rr_history(bypass_market_hours: bool = False):
 
         provider = ProviderFactory.get_default_provider()
         options_chain_cache = {}
+        options_chain_requests = 0
+        options_chain_fetches = 0
+        options_chain_cache_hits = 0
+        options_chain_fetch_errors = 0
+        rr_requests_by_ticker = defaultdict(int)
+        rr_fetches_by_ticker = defaultdict(int)
+        rr_cache_hits_by_ticker = defaultdict(int)
 
         for idx, entry in enumerate(active_entries, 1):
             # Jitter logic
@@ -444,17 +456,25 @@ def update_rr_history(bypass_market_hours: bool = False):
 
                 # Fetch fresh quotes from data provider
                 expiration_str = entry.expiration.strftime('%Y-%m-%d')
-                cache_key = (entry.ticker.upper(), expiration_str)
+                ticker_upper = entry.ticker.upper()
+                cache_key = (ticker_upper, expiration_str)
+                options_chain_requests += 1
+                rr_requests_by_ticker[ticker_upper] += 1
                 if cache_key in options_chain_cache:
                     opt_chain = options_chain_cache[cache_key]
+                    options_chain_cache_hits += 1
+                    rr_cache_hits_by_ticker[ticker_upper] += 1
                     if opt_chain is None:
                         error_count += 1
                         continue
                 else:
+                    options_chain_fetches += 1
+                    rr_fetches_by_ticker[ticker_upper] += 1
                     try:
                         opt_chain = provider.fetch_options_chain(entry.ticker, expiration_str)
                         options_chain_cache[cache_key] = opt_chain
                     except DataNotAvailableError:
+                        options_chain_fetch_errors += 1
                         logger.warning(f"Options chain not available for {entry.ticker} {expiration_str}")
                         options_chain_cache[cache_key] = None
                         error_count += 1
@@ -561,6 +581,25 @@ def update_rr_history(bypass_market_hours: bool = False):
         notes = f"Updated {len(active_entries)} RR entry(ies). Success: {success_count}, Errors: {error_count}, Expired: {expired_count}"
 
         logger.info(f"✓ RR history update completed. {notes}")
+        logger.info(
+            "RR_OPTIONS_CHAIN_USAGE job=update_rr_history active_entries=%d requests=%d provider_fetches=%d cache_hits=%d avoided_calls=%d unique_contracts=%d fetch_errors=%d",
+            len(active_entries),
+            options_chain_requests,
+            options_chain_fetches,
+            options_chain_cache_hits,
+            options_chain_cache_hits,
+            len(options_chain_cache),
+            options_chain_fetch_errors
+        )
+
+        for ticker in sorted(rr_requests_by_ticker.keys()):
+            logger.info(
+                "RR_OPTIONS_CHAIN_TICKER ticker=%s requests=%d provider_fetches=%d cache_hits=%d",
+                ticker,
+                rr_requests_by_ticker[ticker],
+                rr_fetches_by_ticker[ticker],
+                rr_cache_hits_by_ticker[ticker]
+            )
 
         with Session(engine) as session:
             log_entry = session.get(RRHistoryLog, log_id)

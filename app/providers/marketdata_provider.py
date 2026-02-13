@@ -10,6 +10,7 @@ from app.providers.base import (
     OptionQuote, OptionsChain
 )
 from app.providers.exceptions import TickerNotFoundError, DataNotAvailableError
+from app.services.api_usage_tracker import record_api_call
 
 logger = logging.getLogger(__name__)
 
@@ -84,11 +85,15 @@ class MarketDataProvider(StockDataProvider):
         """
         url = f"{self.BASE_URL}{endpoint}"
 
+        ticker = self._extract_ticker_from_endpoint(endpoint)
+
         if self._is_rate_limited_today():
+            record_api_call("marketdata", endpoint, ticker=ticker, status="rate_limit_short_circuit")
             raise DataNotAvailableError("MarketData API rate limit exceeded (circuit breaker active for today)")
         
         try:
             response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            record_api_call("marketdata", endpoint, ticker=ticker, status=f"http_{response.status_code}")
             
             if response.status_code == 404:
                 raise TickerNotFoundError(f"Ticker not found: {endpoint}")
@@ -112,8 +117,37 @@ class MarketDataProvider(StockDataProvider):
             return data
             
         except requests.RequestException as e:
+            record_api_call("marketdata", endpoint, ticker=ticker, status="request_exception")
             logger.error(f"MarketData API request failed: {e}")
             raise DataNotAvailableError(f"MarketData API request failed: {e}")
+
+    @staticmethod
+    def _extract_ticker_from_endpoint(endpoint: str) -> Optional[str]:
+        """
+        Best-effort ticker extraction from MarketData endpoint path.
+        Expected endpoint patterns include:
+        - /options/expirations/{ticker}/
+        - /options/chain/{ticker}/
+        - /stocks/quotes/{ticker}/
+        - /stocks/candles/D/{ticker}/
+        """
+        try:
+            parts = [p for p in endpoint.strip("/").split("/") if p]
+            if not parts:
+                return None
+
+            # Most endpoints place ticker as the last segment.
+            candidate = parts[-1].upper()
+            if candidate not in {"D"} and candidate.isalnum():
+                return candidate
+
+            # Candles endpoint has interval segment before ticker.
+            if len(parts) >= 4 and parts[0] == "stocks" and parts[1] == "candles":
+                return parts[3].upper()
+        except Exception:
+            return None
+
+        return None
     
     def validate_ticker(self, ticker: str) -> bool:
         """Validate if a ticker exists."""
