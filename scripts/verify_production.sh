@@ -3,6 +3,7 @@
 # Runs automated checks after deployment
 
 set -e
+TEST_ACCOUNT_EMAIL="${PRODUCTION_TEST_EMAIL:-arthos.test@example.com}"
 
 echo "=================================================="
 echo "🔍 PRODUCTION VERIFICATION"
@@ -59,4 +60,4 @@ echo "=================================================="
 echo ""
 echo "Next: Manual verification of changed functionality"
 echo "      Login at: https://my.arthos.app"
-echo "      Test account: arthos.test@gmail.com"
+echo "      Test account: ${TEST_ACCOUNT_EMAIL}"

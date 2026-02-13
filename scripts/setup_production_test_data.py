@@ -1,4 +1,4 @@
-"""Setup test data for production test account (arthos.test@gmail.com).
+"""Setup test data for production test account.
 
 This script creates sample watchlists and data for the test account in production.
 Run this once after creating the test account to populate it with test data.
@@ -26,7 +26,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TEST_EMAIL = "arthos.test@gmail.com"
+TEST_EMAIL = os.getenv("PRODUCTION_TEST_EMAIL", "arthos.test@example.com")
 
 
 def get_or_create_test_account() -> str:

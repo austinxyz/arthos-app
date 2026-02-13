@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to fix data ownership - assigns ALL orphaned data to kgajjala@gmail.com.
+Script to fix data ownership - assigns ALL orphaned data to configured default account.
 This is a more robust version of the migration that handles edge cases.
 """
 import os
@@ -11,7 +11,7 @@ from datetime import datetime
 
 def fix_data_ownership(dry_run=True):
     """
-    Fix data ownership by assigning all orphaned data to kgajjala@gmail.com.
+    Fix data ownership by assigning all orphaned data to a configured default account.
 
     Args:
         dry_run: If True, only show what would be done without making changes
@@ -31,7 +31,9 @@ def fix_data_ownership(dry_run=True):
 
     print()
 
-    default_email = "kgajjala@gmail.com"
+    default_email = os.getenv("DEFAULT_ACCOUNT_EMAIL", "default-account@arthos.local")
+    default_full_name = os.getenv("DEFAULT_ACCOUNT_FULL_NAME", "Arthos Default Account")
+    default_google_sub = os.getenv("DEFAULT_ACCOUNT_GOOGLE_SUB", "migration_placeholder")
 
     with Session(engine) as session:
         # Step 1: Find or create the default account
@@ -49,7 +51,7 @@ def fix_data_ownership(dry_run=True):
                 if not dry_run:
                     session.exec(text(
                         f"INSERT INTO account (id, email, google_sub, full_name, created_at) "
-                        f"VALUES ('{new_id}', '{default_email}', 'migration_placeholder', 'Karthik Gajjala', '{now_str}')"
+                        f"VALUES ('{new_id}', '{default_email}', '{default_google_sub}', '{default_full_name}', '{now_str}')"
                     ))
                     session.commit()
                     default_account_id = new_id
@@ -85,7 +87,7 @@ def fix_data_ownership(dry_run=True):
                 f"SELECT COUNT(*) FROM watchlist WHERE account_id = '{default_account_id}'"
             )).scalar()
             total_count = session.exec(text("SELECT COUNT(*) FROM watchlist")).scalar()
-            print(f"   📊 kgajjala@gmail.com now owns {owned_count} of {total_count} watchlists")
+            print(f"   📊 {default_email} now owns {owned_count} of {total_count} watchlists")
 
         except Exception as e:
             print(f"   ❌ Error: {e}")
@@ -115,7 +117,7 @@ def fix_data_ownership(dry_run=True):
                 f"SELECT COUNT(*) FROM rr_watchlist WHERE account_id = '{default_account_id}'"
             )).scalar()
             total_count = session.exec(text("SELECT COUNT(*) FROM rr_watchlist")).scalar()
-            print(f"   📊 kgajjala@gmail.com now owns {owned_count} of {total_count} RR entries")
+            print(f"   📊 {default_email} now owns {owned_count} of {total_count} RR entries")
 
         except Exception as e:
             print(f"   ❌ Error: {e}")
@@ -126,7 +128,7 @@ def fix_data_ownership(dry_run=True):
             print("DRY RUN COMPLETE - No changes were made")
             print("Run with --live flag to apply changes: python fix_data_ownership.py --live")
         else:
-            print("FIX COMPLETE - All orphaned data assigned to kgajjala@gmail.com")
+            print(f"FIX COMPLETE - All orphaned data assigned to {default_email}")
         print("=" * 80)
 
 

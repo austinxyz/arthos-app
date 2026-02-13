@@ -9,6 +9,7 @@ from app.database import engine
 
 def diagnose_data_ownership():
     """Check the current state of data ownership."""
+    default_email = os.getenv("DEFAULT_ACCOUNT_EMAIL", "default-account@arthos.local")
 
     print("=" * 80)
     print("DATA OWNERSHIP DIAGNOSTIC")
@@ -16,9 +17,9 @@ def diagnose_data_ownership():
 
     with Session(engine) as session:
         # Check if account exists
-        print("\n1. Checking for kgajjala@gmail.com account...")
+        print(f"\n1. Checking for {default_email} account...")
         try:
-            result = session.exec(text("SELECT id, email, google_sub FROM account WHERE email = 'kgajjala@gmail.com'")).first()
+            result = session.exec(text(f"SELECT id, email, google_sub FROM account WHERE email = '{default_email}'")).first()
             if result:
                 print(f"   ✅ Account exists: ID = {result[0]}, email = {result[1]}, google_sub = {result[2]}")
                 default_account_id = result[0]
@@ -40,9 +41,9 @@ def diagnose_data_ownership():
             null_count = session.exec(text("SELECT COUNT(*) FROM watchlist WHERE account_id IS NULL")).scalar()
             print(f"   Watchlists with NULL account_id: {null_count}")
 
-            # Watchlists owned by kgajjala
+            # Watchlists owned by default account
             owned = session.exec(text(f"SELECT COUNT(*) FROM watchlist WHERE account_id = '{default_account_id}'")).scalar()
-            print(f"   Watchlists owned by kgajjala@gmail.com: {owned}")
+            print(f"   Watchlists owned by {default_email}: {owned}")
 
             # Watchlists owned by others
             others = total - null_count - owned
@@ -51,7 +52,7 @@ def diagnose_data_ownership():
             if null_count > 0:
                 print(f"   ⚠️  WARNING: {null_count} watchlists have NULL account_id - grandfathering incomplete!")
             elif owned == 0 and total > 0:
-                print(f"   ⚠️  WARNING: No watchlists assigned to kgajjala@gmail.com but {total} exist!")
+                print(f"   ⚠️  WARNING: No watchlists assigned to {default_email} but {total} exist!")
             else:
                 print(f"   ✅ All watchlists properly assigned")
 
@@ -69,9 +70,9 @@ def diagnose_data_ownership():
             null_count = session.exec(text("SELECT COUNT(*) FROM rr_watchlist WHERE account_id IS NULL")).scalar()
             print(f"   RR entries with NULL account_id: {null_count}")
 
-            # RR entries owned by kgajjala
+            # RR entries owned by default account
             owned = session.exec(text(f"SELECT COUNT(*) FROM rr_watchlist WHERE account_id = '{default_account_id}'")).scalar()
-            print(f"   RR entries owned by kgajjala@gmail.com: {owned}")
+            print(f"   RR entries owned by {default_email}: {owned}")
 
             # RR entries owned by others
             others = total - null_count - owned
@@ -80,7 +81,7 @@ def diagnose_data_ownership():
             if null_count > 0:
                 print(f"   ⚠️  WARNING: {null_count} RR entries have NULL account_id - grandfathering incomplete!")
             elif owned == 0 and total > 0:
-                print(f"   ⚠️  WARNING: No RR entries assigned to kgajjala@gmail.com but {total} exist!")
+                print(f"   ⚠️  WARNING: No RR entries assigned to {default_email} but {total} exist!")
             else:
                 print(f"   ✅ All RR entries properly assigned")
 
@@ -102,7 +103,7 @@ def diagnose_data_ownership():
             results = session.exec(text("SELECT id, email FROM account")).all()
             print(f"   Total accounts: {len(results)}")
             for row in results:
-                marker = "👤" if row[1] == "kgajjala@gmail.com" else "👥"
+                marker = "👤" if row[1] == default_email else "👥"
                 print(f"   {marker} {row[1]} (ID: {row[0]})")
         except Exception as e:
             print(f"   ❌ Error: {e}")

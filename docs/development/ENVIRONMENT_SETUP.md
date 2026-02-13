@@ -50,6 +50,10 @@ Recommended variables:
 - `MARKETDATA_API_KEY` (required when provider is `marketdata`)
 - `LOG_LEVEL` (default `INFO`)
 - `SCHEDULER_AUTO_START` (`true` by default)
+- `DEFAULT_ACCOUNT_EMAIL` (optional; default account for ownership migrations)
+- `DEFAULT_ACCOUNT_FULL_NAME` (optional; display name for default migration account)
+- `DEFAULT_ACCOUNT_GOOGLE_SUB` (optional; placeholder Google subject for migration account)
+- `PRODUCTION_TEST_EMAIL` (optional; test account email used by prod helper scripts)
 
 ## 5. Start the Application
 

@@ -953,20 +953,22 @@ def _migrate_rr_watchlist_account_column():
 
 
 def _migrate_data_ownership_to_default_account():
-    """Create default account kgajjala@gmail.com and assign all orphaned data to it."""
+    """Create default account from env and assign orphaned data to it."""
     try:
         from uuid import uuid4
         from datetime import datetime
 
-        default_email = "kgajjala@gmail.com"
+        default_email = os.getenv("DEFAULT_ACCOUNT_EMAIL", "default-account@arthos.local")
+        default_full_name = os.getenv("DEFAULT_ACCOUNT_FULL_NAME", "Arthos Default Account")
+        default_google_sub = os.getenv("DEFAULT_ACCOUNT_GOOGLE_SUB", "migration_placeholder")
         default_account_id = None
 
         with Session(engine) as session:
             # Check if default account exists
             try:
-                result = session.exec(text(f"SELECT id FROM account WHERE email = '{default_email}'")).first()
-                if result:
-                    default_account_id = result[0]
+                existing = session.exec(select(Account).where(Account.email == default_email)).first()
+                if existing:
+                    default_account_id = existing.id
                     print(f"Found existing account {default_email} with ID {default_account_id}")
             except Exception as e:
                 print(f"Could not query account table: {e}")
@@ -975,15 +977,19 @@ def _migrate_data_ownership_to_default_account():
             # Create account if it doesn't exist
             if not default_account_id:
                 new_id = str(uuid4())
-                now_str = datetime.utcnow().isoformat()
+                now_utc = datetime.utcnow()
 
                 try:
-                    session.exec(text(
-                        f"INSERT INTO account (id, email, google_sub, full_name, created_at) "
-                        f"VALUES ('{new_id}', '{default_email}', 'migration_placeholder', 'Karthik Gajjala', '{now_str}')"
-                    ))
+                    account = Account(
+                        id=new_id,
+                        email=default_email,
+                        google_sub=default_google_sub,
+                        full_name=default_full_name,
+                        created_at=now_utc
+                    )
+                    session.add(account)
                     session.commit()
-                    default_account_id = new_id
+                    default_account_id = account.id
                     print(f"✅ Created default account {default_email} with ID {new_id}")
                 except Exception as e:
                     session.rollback()

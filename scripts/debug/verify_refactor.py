@@ -1,3 +1,4 @@
+import os
 from sqlmodel import Session, select, create_engine, text
 from app.models.account import Account
 from app.models.watchlist import WatchList
@@ -6,6 +7,7 @@ from app.database import engine, create_db_and_tables
 
 def verify_refactor():
     print("Verifying refactor to Account...")
+    default_email = os.getenv("DEFAULT_ACCOUNT_EMAIL", "default-account@arthos.local")
     
     # 1. Run migrations
     try:
@@ -19,9 +21,9 @@ def verify_refactor():
     with Session(engine) as session:
         # Check Account table
         try:
-            account = session.exec(select(Account).where(Account.email == "kgajjala@gmail.com")).first()
+            account = session.exec(select(Account).where(Account.email == default_email)).first()
             if not account:
-                 print("❌ Account 'kgajjala@gmail.com' NOT found in 'account' table!")
+                 print(f"❌ Account '{default_email}' NOT found in 'account' table!")
             else:
                  print(f"✅ Account found: {account.email} (ID: {account.id})")
         except Exception as e:
