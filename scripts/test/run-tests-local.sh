@@ -10,6 +10,7 @@ echo "=========================================="
 # Colors for output
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Check if Docker is running
@@ -59,20 +60,38 @@ case $TEST_TYPE in
             sleep 1
         done
         
-        # Run browser tests (use host network to access localhost:8000)
+        # Run browser tests on the compose network (test-runner reaches test-server by service name)
         echo -e "\n${GREEN}Running browser tests...${NC}"
+        set +e
         docker-compose -f docker-compose.test.yml run --rm test-runner \
             pytest tests/ -v --tb=short -k "browser or e2e"
+        browser_status=$?
+        set -e
         
         # Stop server
         docker-compose -f docker-compose.test.yml stop test-server || true
+
+        # Return browser test status
+        if [ $browser_status -ne 0 ]; then
+            exit $browser_status
+        fi
         ;;
     all)
         echo -e "\n${GREEN}Running all tests...${NC}"
+        unit_status=0
+        browser_status=0
+
         # Run unit tests
         echo -e "\n${YELLOW}--- Unit Tests ---${NC}"
+        set +e
         docker-compose -f docker-compose.test.yml run --rm test-runner \
             pytest tests/ -v --tb=short -k "not browser and not e2e"
+        unit_status=$?
+        set -e
+
+        if [ $unit_status -ne 0 ]; then
+            echo -e "\n${YELLOW}Unit tests failed (exit code: ${unit_status}). Continuing to browser tests...${NC}"
+        fi
         
         # Run browser tests
         echo -e "\n${YELLOW}--- Browser Tests ---${NC}"
@@ -89,12 +108,23 @@ case $TEST_TYPE in
             sleep 1
         done
         
-        # Run browser tests (use host network to access localhost:8000)
-        docker-compose -f docker-compose.test.yml run --rm --network host test-runner \
+        # Run browser tests on the compose network (test-runner reaches test-server by service name)
+        set +e
+        docker-compose -f docker-compose.test.yml run --rm test-runner \
             pytest tests/ -v --tb=short -k "browser or e2e"
+        browser_status=$?
+        set -e
         
         # Stop server
         docker-compose -f docker-compose.test.yml stop test-server || true
+
+        # Fail if either phase failed
+        if [ $unit_status -ne 0 ] || [ $browser_status -ne 0 ]; then
+            echo -e "\n${RED}Test run failed.${NC}"
+            echo -e "${RED}  Unit exit code: ${unit_status}${NC}"
+            echo -e "${RED}  Browser exit code: ${browser_status}${NC}"
+            exit 1
+        fi
         ;;
     *)
         # Run specific test file or pattern
@@ -109,4 +139,3 @@ echo -e "\n${GREEN}Tests completed!${NC}"
 # Cleanup (optional - comment out if you want to keep containers running)
 # echo -e "\n${YELLOW}Cleaning up...${NC}"
 # docker-compose -f docker-compose.test.yml down
-
