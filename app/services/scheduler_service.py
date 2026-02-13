@@ -229,7 +229,7 @@ def update_stock_prices_for_all_watchlists(bypass_market_hours: bool = False):
 def update_options_cache_for_all_watchlists():
     """
     Fetch and cache options strategies for all unique tickers.
-    Scheduled to run at specific times (10:00 AM, 2:00 PM, 4:05 PM ET).
+    Scheduled by start_scheduler during market hours and once after close.
     Creates a log entry in scheduler_log table.
 
     Returns:
@@ -824,7 +824,19 @@ def start_scheduler():
         replace_existing=True
     )
 
-    # 2. Options Cache Update: After Market Close (4:05 PM ET / 1:05 PM PT)
+    # 2a. Options Cache Update: Hourly during market hours
+    #     PT: 06:30, 07:30, ..., 12:30
+    #     ET: 09:30, 10:30, ..., 15:30
+    logger.info("Registering job: update_options_cache_hourly (hourly 09:30-15:30 ET)")
+    scheduler.add_job(
+        func=update_options_cache_for_all_watchlists,
+        trigger=CronTrigger(hour='9-15', minute=30, timezone=ET_TIMEZONE),
+        id='update_options_cache_hourly',
+        name='Update options cache (hourly 09:30-15:30 ET)',
+        replace_existing=True
+    )
+
+    # 2b. Options Cache Update: After Market Close (4:05 PM ET / 1:05 PM PT)
     logger.info("Registering job: update_options_cache (16:05 ET)")
     scheduler.add_job(
         func=update_options_cache_for_all_watchlists,
