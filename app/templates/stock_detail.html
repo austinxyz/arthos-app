@@ -20,8 +20,6 @@
     <script src="https://code.highcharts.com/highcharts-more.js"></script>
     <script src="https://code.highcharts.com/modules/dumbbell.js"></script>
     <script src="https://code.highcharts.com/modules/exporting.js"></script>
-    <!-- Marked.js for markdown rendering -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
         body {
             background-color: #f5f5f5;
@@ -176,55 +174,6 @@
             vertical-align: middle;
         }
 
-        /* Insights markdown styling */
-        .insights-markdown {
-            line-height: 1.6;
-        }
-
-        .insights-markdown h2 {
-            color: #0d6efd;
-            font-size: 1.3rem;
-            margin-top: 1.5rem;
-            margin-bottom: 0.75rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #dee2e6;
-        }
-
-        .insights-markdown h2:first-child {
-            margin-top: 0;
-        }
-
-        .insights-markdown h3 {
-            font-size: 1.1rem;
-            color: #495057;
-            margin-top: 1rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .insights-markdown p {
-            margin-bottom: 0.75rem;
-        }
-
-        .insights-markdown ul, .insights-markdown ol {
-            margin-bottom: 0.75rem;
-            padding-left: 1.5rem;
-        }
-
-        .insights-markdown li {
-            margin-bottom: 0.25rem;
-        }
-
-        .insights-markdown strong {
-            color: #212529;
-        }
-
-        .insights-markdown blockquote {
-            border-left: 4px solid #0d6efd;
-            padding-left: 1rem;
-            margin: 1rem 0;
-            color: #6c757d;
-            font-style: italic;
-        }
     </style>
 </head>
 
@@ -398,14 +347,9 @@
             </div>
             <ul class="nav nav-tabs" id="optionsTabs" role="tablist">
                 <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="insights-tab" data-bs-toggle="tab"
-                        data-bs-target="#insights" type="button" role="tab" aria-controls="insights"
-                        aria-selected="true">Insights</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="covered-calls-tab" data-bs-toggle="tab"
+                    <button class="nav-link active" id="covered-calls-tab" data-bs-toggle="tab"
                         data-bs-target="#covered-calls" type="button" role="tab" aria-controls="covered-calls"
-                        aria-selected="false">Covered Calls</button>
+                        aria-selected="true">Covered Calls</button>
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="risk-reversal-tab" data-bs-toggle="tab" data-bs-target="#risk-reversal"
@@ -417,40 +361,8 @@
                 </li>
             </ul>
             <div class="tab-content" id="optionsTabsContent">
-                <!-- Insights Tab -->
-                <div class="tab-pane fade show active" id="insights" role="tabpanel"
-                    aria-labelledby="insights-tab">
-                    <div class="mt-3">
-                        <div id="insights-container">
-                            <!-- Loading state -->
-                            <div id="insights-loading" class="text-center py-5">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                                <p class="mt-3 text-muted">Fetching AI-powered insights...</p>
-                            </div>
-                            <!-- Error state -->
-                            <div id="insights-error" class="alert alert-warning" style="display: none;">
-                                <i class="bi bi-exclamation-triangle me-2"></i>
-                                <span id="insights-error-message">Unable to load insights at this time.</span>
-                            </div>
-                            <!-- Insights content -->
-                            <div id="insights-content" style="display: none;">
-                                <div class="card">
-                                    <div class="card-header bg-primary text-white">
-                                        <h5 class="mb-0"><i class="bi bi-lightbulb me-2"></i>Investment Analysis</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div id="insights-analysis" class="insights-markdown"></div>
-                                    </div>
-                                </div>
-                                <p class="text-muted text-center small mt-2" id="insights-timestamp"></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
                 <!-- Covered Calls Tab -->
-                <div class="tab-pane fade" id="covered-calls" role="tabpanel"
+                <div class="tab-pane fade show active" id="covered-calls" role="tabpanel"
                     aria-labelledby="covered-calls-tab">
                     <div class="mt-3">
                         {% if covered_calls and covered_calls|length > 0 %}
@@ -1431,63 +1343,6 @@
             });
         }
 
-        // Fetch and display AI insights
-        function fetchInsights() {
-            const ticker = '{{ ticker }}';
-            const loadingEl = document.getElementById('insights-loading');
-            const errorEl = document.getElementById('insights-error');
-            const errorMsgEl = document.getElementById('insights-error-message');
-            const contentEl = document.getElementById('insights-content');
-            const timestampEl = document.getElementById('insights-timestamp');
-            const analysisEl = document.getElementById('insights-analysis');
-
-            // Show loading state
-            loadingEl.style.display = 'block';
-            errorEl.style.display = 'none';
-            contentEl.style.display = 'none';
-
-            fetch(`/v1/stock/${ticker}/insights`)
-                .then(response => response.json())
-                .then(data => {
-                    loadingEl.style.display = 'none';
-
-                    if (data.status === 'available' || data.status === 'stale') {
-                        // Display insights
-                        if (data.insights && data.insights.analysis) {
-                            // Render markdown analysis
-                            analysisEl.innerHTML = marked.parse(data.insights.analysis);
-
-                            // Show timestamp
-                            if (data.updated_at) {
-                                const date = new Date(data.updated_at);
-                                timestampEl.textContent = `Last updated: ${date.toLocaleString()}`;
-                                if (data.is_stale) {
-                                    timestampEl.textContent += ' (Refreshing in background...)';
-                                }
-                            }
-
-                            contentEl.style.display = 'block';
-                        }
-                    } else if (data.status === 'unavailable') {
-                        errorMsgEl.textContent = 'Insights are being generated. Please check back shortly.';
-                        errorEl.style.display = 'block';
-                    } else {
-                        errorMsgEl.textContent = data.error || 'Unable to load insights at this time.';
-                        errorEl.style.display = 'block';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching insights:', error);
-                    loadingEl.style.display = 'none';
-                    errorMsgEl.textContent = 'Unable to load insights at this time.';
-                    errorEl.style.display = 'block';
-                });
-        }
-
-        // Fetch insights when page loads
-        document.addEventListener('DOMContentLoaded', function() {
-            fetchInsights();
-        });
     </script>
 </body>
 

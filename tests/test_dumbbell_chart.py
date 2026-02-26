@@ -54,12 +54,9 @@ class TestCoveredCallsDumbbellChart:
         # Check page loaded
         expect(page).to_have_title(f"Stock: {ticker} - Arthos", timeout=10000)
 
-        # Insights tab is active by default, switch to Covered Calls tab
+        # Covered Calls tab is active by default
         covered_calls_tab = page.locator("button#covered-calls-tab")
         expect(covered_calls_tab).to_be_visible()
-
-        # Click to activate Covered Calls tab
-        covered_calls_tab.click()
         page.wait_for_timeout(500)
 
         # Check if dumbbell chart container exists

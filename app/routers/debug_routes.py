@@ -124,14 +124,13 @@ async def debug_stock_price_page(request: Request, ticker: str = Query("", descr
 @router.post("/debug/stock-price/fetch")
 async def fetch_stock_price_data(ticker: str = Query(..., description="Stock ticker symbol")):
     """
-    Force refresh stock data, options cache, trading metrics, option strategies, and insights.
+    Force refresh stock data, options cache, trading metrics, and option strategies.
 
     Uses the unified refresh_stock_data function that:
     1. Clears the options cache for this ticker
     2. Fetches fresh stock price data from yfinance
     3. Recalculates trading metrics (SMAs, signals, IV)
     4. Pre-calculates option strategies (Risk Reversal, Covered Calls)
-    5. Refreshes LLM insights
 
     Args:
         ticker: Stock ticker symbol
@@ -140,7 +139,6 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
         JSON response with fetch status
     """
     from app.services.stock_price_service import refresh_stock_data
-    from app.services import insights_service
 
     if not ticker or not ticker.strip():
         raise HTTPException(status_code=400, detail="Ticker is required")
@@ -157,14 +155,9 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
                 detail=result.get("error", "Failed to refresh stock data")
             )
 
-        # Also refresh insights
-        insights_result = insights_service.get_insights(ticker, force_refresh=True)
-        insights_refreshed = insights_result.get("status") == "available"
-
         return {
             "message": f"Force refreshed {ticker}: {result['price_records']} price records, "
-                       f"{result['rr_strategies']} RR strategies, {result['cc_strategies']} CC strategies"
-                       f"{', insights updated' if insights_refreshed else ''}",
+                       f"{result['rr_strategies']} RR strategies, {result['cc_strategies']} CC strategies",
             "ticker": ticker,
             "new_records": result["price_records"],
             "current_price": result.get("current_price"),
@@ -173,7 +166,6 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
             "strategies_calculated": result["rr_strategies"] > 0 or result["cc_strategies"] > 0,
             "rr_strategies_count": result["rr_strategies"],
             "cc_strategies_count": result["cc_strategies"],
-            "insights_refreshed": insights_refreshed
         }
     except HTTPException:
         raise

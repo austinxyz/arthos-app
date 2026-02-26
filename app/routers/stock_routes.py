@@ -227,12 +227,10 @@ async def refresh_stock_data_endpoint(request: Request, ticker: str = FPath(...)
     2. Fetches fresh stock price data
     3. Recalculates trading metrics (SMAs, signals, IV)
     4. Pre-calculates option strategies (Risk Reversal, Covered Calls)
-    5. Refreshes LLM insights
 
     This is the same code path used by the scheduler and debug page Force Refresh.
     """
     from app.services.stock_price_service import refresh_stock_data
-    from app.services import insights_service
 
     ticker = ticker.strip().upper()
 
@@ -240,18 +238,12 @@ async def refresh_stock_data_endpoint(request: Request, ticker: str = FPath(...)
         print(f"Force refresh requested for {ticker} from stock detail page")
         result = refresh_stock_data(ticker, clear_cache=True)
 
-        # Also refresh insights
-        insights_result = insights_service.get_insights(ticker, force_refresh=True)
-        insights_refreshed = insights_result.get("status") == "available"
-
         if result.get("success"):
             return {
                 "success": True,
                 "message": f"Refreshed {ticker}: {result['price_records']} prices, "
-                           f"{result['rr_strategies']} RR, {result['cc_strategies']} CC"
-                           f"{', insights updated' if insights_refreshed else ''}",
+                           f"{result['rr_strategies']} RR, {result['cc_strategies']} CC",
                 "details": result,
-                "insights_refreshed": insights_refreshed
             }
         else:
             return {

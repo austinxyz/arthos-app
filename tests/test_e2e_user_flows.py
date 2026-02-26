@@ -215,16 +215,12 @@ class TestE2EUserFlows:
         expect(chart_container).to_be_visible()
         
         # Step 5: Verify Options Data displays correctly
-        # Insights tab is active by default, switch to Covered Calls tab
+        # Covered Calls tab is active by default
         option_data_tab = page.locator("button#covered-calls-tab")
         expect(option_data_tab).to_be_visible()
-
-        # Click to activate Covered Calls tab
-        option_data_tab.click()
         page.wait_for_timeout(1000)
-        
+
         # Check if options data is available
-        # The pane might be in the DOM but not visible initially, so check if it exists
         option_data_pane = page.locator("#covered-calls.tab-pane")
         expect(option_data_pane).to_be_attached()  # Element exists in DOM
         
@@ -459,12 +455,11 @@ class TestE2EUserFlows:
         current_price_text = page.locator(".metric-item").filter(has_text="Current Price").locator(".metric-value-large").inner_text().strip()
         current_price = float(current_price_text.replace("$", "").replace(",", ""))
 
-        # Insights tab is active by default, switch to Covered Calls tab
+        # Covered Calls tab is active by default
         option_data_tab = page.locator("button#covered-calls-tab")
         if option_data_tab.count() > 0:
-            option_data_tab.click()
             page.wait_for_timeout(1000)
-            
+
             option_data_pane = page.locator("#covered-calls")
             if option_data_pane.count() > 0:
                 options_table = option_data_pane.locator("table")

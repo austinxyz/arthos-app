@@ -1,7 +1,7 @@
 """
-Stock insights and LLM model management API endpoints.
+LLM model management API endpoints.
 """
-from fastapi import APIRouter, Request, HTTPException, Query, Path as FPath
+from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 from starlette.templating import Jinja2Templates
 from pathlib import Path as PathLib
@@ -13,37 +13,6 @@ router = APIRouter()
 # Set up templates directory
 templates_dir = PathLib(__file__).parent.parent / "templates"
 templates = Jinja2Templates(directory=str(templates_dir))
-
-
-# Stock Insights API Endpoints
-@router.get("/v1/stock/{ticker}/insights")
-async def get_stock_insights(
-    request: Request,
-    ticker: str = FPath(...),
-    refresh: bool = Query(False, description="Force refresh insights from LLM")
-):
-    """
-    Get LLM-generated insights for a stock.
-
-    Returns AI-generated comprehensive investment analysis covering strategic narrative,
-    fundamentals, debt/cash flow, price action, future scenarios, and investment verdict.
-    Insights are cached for 24 hours. Use refresh=true to force a fresh fetch.
-
-    Args:
-        request: Request object
-        ticker: Stock ticker symbol
-        refresh: If true, force refresh from LLM regardless of cache
-
-    Returns:
-        JSON response with insights data containing 'analysis' markdown text
-    """
-    from app.services import insights_service
-
-    try:
-        result = insights_service.get_insights(ticker, force_refresh=refresh)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching insights: {str(e)}")
 
 
 # LLM Model Management API Endpoints
