@@ -634,7 +634,7 @@
                                             <td>
                                                 {% set rr_key = expiration ~ "|" ~ strategy.put_strike ~ "|" ~ strategy.call_strike ~ "|" ~ strategy.ratio %}
                                                 {% if rr_key in saved_rr_keys %}
-                                                <span class="badge bg-success" style="font-size: 0.875rem;">Saved</span>
+                                                <span class="badge bg-success" style="font-size: 0.875rem;">Tracked</span>
                                                 {% else %}
                                                 <button class="btn btn-sm btn-primary save-rr-btn"
                                                     data-ticker="{{ ticker }}" data-expiration="{{ expiration }}"
@@ -645,7 +645,7 @@
                                                     strategy.ratio=='Collar' %}
                                                     data-sold-call-strike="{{ strategy.sold_call_strike }}"
                                                     data-collar-type="{{ strategy.collar_type }}" {% endif %}>
-                                                    Save
+                                                    Track
                                                 </button>
                                                 {% endif %}
                                             </td>
@@ -1178,7 +1178,7 @@
                 success: function (response) {
                     if (response.success) {
                         // Replace button with "Saved" badge (consistent with page load state)
-                        const savedBadge = $('<span class="badge bg-success" style="font-size: 0.875rem;">Saved</span>');
+                        const savedBadge = $('<span class="badge bg-success" style="font-size: 0.875rem;">Tracked</span>');
                         btn.replaceWith(savedBadge);
                     } else {
                         alert('Error: ' + (response.error || 'Failed to save Risk Reversal'));
