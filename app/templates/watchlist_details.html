@@ -219,8 +219,8 @@
                 <thead class="table-dark">
                     <tr>
                         <th>Ticker</th>
-                        <th>Current Price</th>
                         <th data-column="entry-price">Entry Price</th>
+                        <th>Current Price</th>
                         <th data-column="change">Change</th>
                         <th data-column="percent-change">% Change</th>
                         <th>SMA 50</th>
@@ -263,8 +263,8 @@
                         </td>
                         {% endif %}
                         {% else %}
-                        <td>{{ metric.current_price_formatted }}</td>
                         <td>{{ metric.entry_price_formatted }}</td>
+                        <td>{{ metric.current_price_formatted }}</td>
                         <td data-sort="{{ metric.change if metric.change else 0 }}"
                             class="{% if metric.is_change_positive == true %}text-success{% elif metric.is_change_positive == false %}text-danger{% endif %}">
                             {{ metric.change_formatted }}
