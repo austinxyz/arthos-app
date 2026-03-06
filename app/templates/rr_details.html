@@ -311,6 +311,7 @@
                         <thead class="table-dark">
                             <tr>
                                 <th>Date</th>
+                                <th>Stock Price</th>
                                 <th>Long Call</th>
                                 <th>Short Put</th>
                                 {% if is_collar %}
@@ -323,6 +324,7 @@
                             {% for row in table_data %}
                             <tr>
                                 <td>{{ row.history_date.strftime('%Y-%m-%d') }}</td>
+                                <td>{% if row.stock_price is not none %}${{ "%.2f"|format(row.stock_price) }}{% else %}-{% endif %}</td>
                                 <td>{% if row.call_price is not none %}${{ "%.2f"|format(row.call_price) }}{% else %}-{%
                                     endif %}</td>
                                 <td>{% if row.put_price is not none %}${{ "%.2f"|format(row.put_price) }}{% else %}-{%

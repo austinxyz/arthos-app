@@ -158,6 +158,24 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
     else:
         contract = f"{entry.ticker} {expiration_str} sell {entry.put_quantity} ${entry.put_strike:.2f} put and buy {entry.call_quantity} ${entry.call_strike:.2f} call"
 
+    # Fetch stock prices for the date range the RR has been tracked
+    from app.models.stock_price import StockPrice
+    from sqlmodel import Session, select
+    from app.database import engine
+
+    stock_price_by_date = {}
+    if history:
+        min_date = min(hist.history_date for hist in history)
+        max_date = max(hist.history_date for hist in history)
+        with Session(engine) as session:
+            statement = select(StockPrice).where(
+                StockPrice.ticker == entry.ticker,
+                StockPrice.price_date >= min_date,
+                StockPrice.price_date <= max_date
+            )
+            stock_prices = session.exec(statement).all()
+            stock_price_by_date = {sp.price_date: float(sp.close_price) for sp in stock_prices}
+
     # Format history for chart
     chart_data = []
     table_data = []
@@ -171,7 +189,8 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
             'history_date': hist.history_date,
             'curr_value': float(hist.curr_value),
             'call_price': float(hist.call_price) if hist.call_price else None,
-            'put_price': float(hist.put_price) if hist.put_price else None
+            'put_price': float(hist.put_price) if hist.put_price else None,
+            'stock_price': stock_price_by_date.get(hist.history_date)
         }
         if is_collar:
             row_data['short_call_price'] = float(hist.short_call_price) if hist.short_call_price else None
@@ -221,10 +240,6 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
             value_change_pct = (value_change / abs(entry_price)) * 100
 
     # Get current stock price and calculate stock price change
-    from app.models.stock_price import StockPrice
-    from sqlmodel import Session, select
-    from app.database import engine
-
     current_stock_price = None
     stock_price_change = None
     stock_price_change_pct = None
