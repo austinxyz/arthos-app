@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New RR - Arthos</title>
+    <link rel="icon" type="image/svg+xml" href="/static/arthos-favicon.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            padding: 0;
+            margin: 0;
+        }
+
+        .position-short {
+            color: #dc3545;
+            font-weight: 600;
+        }
+
+        .position-long {
+            color: #198754;
+            font-weight: 600;
+        }
+
+        .legs-table {
+            width: auto !important;
+        }
+
+        .legs-table th,
+        .legs-table td {
+            white-space: nowrap;
+            padding: 0.5rem 0.75rem;
+        }
+
+        .summary-table {
+            width: auto !important;
+        }
+
+        .summary-table td {
+            white-space: nowrap;
+            padding: 0.5rem 0.75rem;
+        }
+
+        .form-section {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            max-width: 640px;
+        }
+
+        .preview-section {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+
+<body>
+    {% set current_page = 'options' %}
+    {% include 'partials/navbar.html' %}
+
+    <div class="container-fluid px-4">
+        <div class="mb-4">
+            <a href="/rr-list" class="text-decoration-none text-primary mb-2 d-inline-block">← Back to RR List</a>
+            <h1 style="color: #4285f4;">Add New RR</h1>
+        </div>
+
+        <!-- Form -->
+        <div class="form-section mb-4">
+            <!-- Ticker row -->
+            <div class="row g-3 align-items-end mb-3">
+                <div class="col-auto">
+                    <label for="tickerInput" class="form-label fw-semibold">Ticker</label>
+                    <input type="text" id="tickerInput" class="form-control text-uppercase"
+                        placeholder="e.g. AAPL" style="width: 140px;" maxlength="10">
+                </div>
+                <div class="col-auto">
+                    <button id="loadExpBtn" class="btn btn-outline-primary">Load Expirations</button>
+                </div>
+                <div class="col-auto">
+                    <span id="loadExpStatus" class="text-muted small"></span>
+                </div>
+            </div>
+
+            <!-- Expiration row (hidden until expirations loaded) -->
+            <div id="expirationRow" class="row g-3 align-items-end mb-3" style="display:none !important;">
+                <div class="col-auto">
+                    <label for="expirationSelect" class="form-label fw-semibold">Expiration</label>
+                    <select id="expirationSelect" class="form-select" style="width: 180px;">
+                        <option value="">— select —</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <span id="loadChainStatus" class="text-muted small"></span>
+                </div>
+            </div>
+
+            <!-- Strike / ratio row (hidden until options chain loaded) -->
+            <div id="strikesRow" class="row g-3 align-items-end mb-4" style="display:none !important;">
+                <div class="col-auto">
+                    <label for="putStrikeSelect" class="form-label fw-semibold">Put Strike</label>
+                    <select id="putStrikeSelect" class="form-select" style="width: 130px;">
+                        <option value="">— select —</option>
+                    </select>
+                    <div class="form-text text-muted">Short ×1</div>
+                </div>
+                <div class="col-auto">
+                    <label for="callStrikeSelect" class="form-label fw-semibold">Call Strike</label>
+                    <select id="callStrikeSelect" class="form-select" style="width: 130px;">
+                        <option value="">— select —</option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <label for="callRatioSelect" class="form-label fw-semibold">Call Qty</label>
+                    <select id="callRatioSelect" class="form-select" style="width: 90px;">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                    <div class="form-text text-muted">Long ×N</div>
+                </div>
+            </div>
+
+            <!-- Action buttons (hidden until chain loaded) -->
+            <div id="actionRow" class="d-flex gap-2" style="display:none !important;">
+                <button id="showBtn" class="btn btn-secondary">Show</button>
+                <button id="trackBtn" class="btn btn-success">Track</button>
+                <span id="trackStatus" class="align-self-center text-muted small ms-2"></span>
+            </div>
+        </div>
+
+        <!-- Preview section (hidden until Show clicked) -->
+        <div id="previewSection" class="preview-section" style="display:none;">
+            <h5 class="mb-3">Preview</h5>
+            <div class="row">
+                <!-- Option Legs -->
+                <div class="col-auto mb-3">
+                    <div class="card h-100">
+                        <div class="card-header"><strong>Option Legs</strong></div>
+                        <div class="card-body p-0">
+                            <table class="table table-sm mb-0 legs-table">
+                                <thead>
+                                    <tr>
+                                        <th>Position</th>
+                                        <th>Type</th>
+                                        <th>Strike</th>
+                                        <th>Qty</th>
+                                        <th>Bid</th>
+                                        <th>Ask</th>
+                                        <th>Mid</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="legsTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary -->
+                <div class="col-auto mb-3">
+                    <div class="card h-100">
+                        <div class="card-header"><strong>Summary</strong></div>
+                        <div class="card-body p-0">
+                            <table class="table table-sm mb-0 summary-table">
+                                <tbody id="summaryTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+        crossorigin="anonymous"></script>
+
+    <script>
+        // State
+        let optionsData = null; // { stock_price, puts: [...], calls: [...] }
+
+        function fmt(val) {
+            return '$' + parseFloat(val).toFixed(2);
+        }
+
+        function badgeHtml(ratio) {
+            const map = {
+                '1:1': 'bg-primary',
+                '1:2': 'bg-warning text-dark',
+                '1:3': 'bg-danger',
+                '1:4': 'bg-secondary',
+                '1:5': 'bg-dark',
+            };
+            const cls = map[ratio] || 'bg-primary';
+            return `<span class="badge ${cls}">${ratio}</span>`;
+        }
+
+        // Load expirations
+        document.getElementById('loadExpBtn').addEventListener('click', loadExpirations);
+        document.getElementById('tickerInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') loadExpirations();
+        });
+
+        function loadExpirations() {
+            const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
+            if (!ticker) return;
+
+            const status = document.getElementById('loadExpStatus');
+            status.textContent = 'Loading…';
+            optionsData = null;
+            hideRow('expirationRow');
+            hideRow('strikesRow');
+            hideRow('actionRow');
+            document.getElementById('previewSection').style.display = 'none';
+
+            fetch('/api/rr/expirations?ticker=' + encodeURIComponent(ticker))
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        status.textContent = 'Error: ' + data.error;
+                        return;
+                    }
+                    const exps = data.expirations || [];
+                    if (exps.length === 0) {
+                        status.textContent = 'No LEAPS expirations found.';
+                        return;
+                    }
+                    const sel = document.getElementById('expirationSelect');
+                    sel.innerHTML = '<option value="">— select —</option>';
+                    exps.forEach(exp => {
+                        const opt = document.createElement('option');
+                        opt.value = exp;
+                        // Format as "Jan 2027"
+                        const d = new Date(exp + 'T00:00:00');
+                        opt.textContent = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                        sel.appendChild(opt);
+                    });
+                    status.textContent = '';
+                    showRow('expirationRow');
+                })
+                .catch(() => { status.textContent = 'Request failed.'; });
+        }
+
+        // Load options chain on expiration change
+        document.getElementById('expirationSelect').addEventListener('change', function() {
+            const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
+            const expiration = this.value;
+            if (!expiration) return;
+
+            const status = document.getElementById('loadChainStatus');
+            status.textContent = 'Loading options…';
+            optionsData = null;
+            hideRow('strikesRow');
+            hideRow('actionRow');
+            document.getElementById('previewSection').style.display = 'none';
+
+            fetch('/api/rr/options-chain?ticker=' + encodeURIComponent(ticker) + '&expiration=' + encodeURIComponent(expiration))
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        status.textContent = 'Error: ' + data.error;
+                        return;
+                    }
+                    optionsData = data;
+
+                    // Populate put strikes
+                    const putSel = document.getElementById('putStrikeSelect');
+                    putSel.innerHTML = '<option value="">— select —</option>';
+                    (data.puts || []).forEach(p => {
+                        const opt = document.createElement('option');
+                        opt.value = p.strike;
+                        opt.textContent = '$' + p.strike.toFixed(2);
+                        opt.dataset.bid = p.bid;
+                        opt.dataset.ask = p.ask;
+                        opt.dataset.mid = p.mid;
+                        putSel.appendChild(opt);
+                    });
+
+                    // Populate call strikes
+                    const callSel = document.getElementById('callStrikeSelect');
+                    callSel.innerHTML = '<option value="">— select —</option>';
+                    (data.calls || []).forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.strike;
+                        opt.textContent = '$' + c.strike.toFixed(2);
+                        opt.dataset.bid = c.bid;
+                        opt.dataset.ask = c.ask;
+                        opt.dataset.mid = c.mid;
+                        callSel.appendChild(opt);
+                    });
+
+                    status.textContent = fmt(data.stock_price) + ' stock price · ' +
+                        (data.puts || []).length + ' puts · ' + (data.calls || []).length + ' calls';
+                    showRow('strikesRow');
+                    showRow('actionRow');
+                })
+                .catch(() => { status.textContent = 'Request failed.'; });
+        });
+
+        // Show preview
+        document.getElementById('showBtn').addEventListener('click', function() {
+            if (!optionsData) return;
+
+            const putSel = document.getElementById('putStrikeSelect');
+            const callSel = document.getElementById('callStrikeSelect');
+            const callRatio = parseInt(document.getElementById('callRatioSelect').value);
+
+            const putOpt = putSel.options[putSel.selectedIndex];
+            const callOpt = callSel.options[callSel.selectedIndex];
+
+            if (!putOpt || !putOpt.value) { alert('Please select a put strike.'); return; }
+            if (!callOpt || !callOpt.value) { alert('Please select a call strike.'); return; }
+
+            const putStrike = parseFloat(putOpt.value);
+            const putBid = parseFloat(putOpt.dataset.bid);
+            const putAsk = parseFloat(putOpt.dataset.ask);
+            const putMid = parseFloat(putOpt.dataset.mid);
+
+            const callStrike = parseFloat(callOpt.value);
+            const callBid = parseFloat(callOpt.dataset.bid);
+            const callAsk = parseFloat(callOpt.dataset.ask);
+            const callMid = parseFloat(callOpt.dataset.mid);
+
+            // Net cost = call_ask * callRatio - put_bid * 1
+            const netCost = (callAsk * callRatio) - putBid;
+
+            const ratio = '1:' + callRatio;
+
+            // Build legs table
+            const legsBody = document.getElementById('legsTableBody');
+            legsBody.innerHTML = `
+                <tr>
+                    <td><span class="position-short">Short</span></td>
+                    <td>Put</td>
+                    <td><strong>${fmt(putStrike)}</strong></td>
+                    <td>1</td>
+                    <td>${fmt(putBid)}</td>
+                    <td>${fmt(putAsk)}</td>
+                    <td>${fmt(putMid)}</td>
+                </tr>
+                <tr>
+                    <td><span class="position-long">Long</span></td>
+                    <td>Call</td>
+                    <td><strong>${fmt(callStrike)}</strong></td>
+                    <td>${callRatio}</td>
+                    <td>${fmt(callBid)}</td>
+                    <td>${fmt(callAsk)}</td>
+                    <td>${fmt(callMid)}</td>
+                </tr>`;
+
+            // Format expiration
+            const expVal = document.getElementById('expirationSelect').value;
+            const expDisplay = expVal
+                ? new Date(expVal + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : '—';
+
+            const netCostColor = netCost > 0 ? 'text-danger' : netCost < 0 ? 'text-success' : '';
+            const summaryBody = document.getElementById('summaryTableBody');
+            summaryBody.innerHTML = `
+                <tr><td class="text-muted">Ticker</td><td class="text-end fw-semibold">${document.getElementById('tickerInput').value.trim().toUpperCase()}</td></tr>
+                <tr><td class="text-muted">Strategy</td><td class="text-end fw-semibold">${badgeHtml(ratio)}</td></tr>
+                <tr><td class="text-muted">Expiration</td><td class="text-end fw-semibold">${expDisplay}</td></tr>
+                <tr><td class="text-muted">Net Entry Price</td><td class="text-end fw-semibold"><span class="${netCostColor}">${fmt(netCost)}</span></td></tr>
+                <tr><td class="text-muted">Stock Price</td><td class="text-end fw-semibold">${fmt(optionsData.stock_price)}</td></tr>`;
+
+            document.getElementById('previewSection').style.display = 'block';
+        });
+
+        // Track
+        document.getElementById('trackBtn').addEventListener('click', function() {
+            if (!optionsData) return;
+
+            const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
+            const expiration = document.getElementById('expirationSelect').value;
+            const putSel = document.getElementById('putStrikeSelect');
+            const callSel = document.getElementById('callStrikeSelect');
+            const callRatio = parseInt(document.getElementById('callRatioSelect').value);
+
+            const putOpt = putSel.options[putSel.selectedIndex];
+            const callOpt = callSel.options[callSel.selectedIndex];
+
+            if (!putOpt || !putOpt.value) { alert('Please select a put strike.'); return; }
+            if (!callOpt || !callOpt.value) { alert('Please select a call strike.'); return; }
+
+            const payload = {
+                ticker: ticker,
+                expiration: expiration,
+                put_strike: parseFloat(putOpt.value),
+                call_strike: parseFloat(callOpt.value),
+                ratio: '1:' + callRatio,
+                current_price: optionsData.stock_price,
+            };
+
+            const trackStatus = document.getElementById('trackStatus');
+            const btn = document.getElementById('trackBtn');
+            btn.disabled = true;
+            btn.textContent = 'Saving…';
+            trackStatus.textContent = '';
+
+            fetch('/api/rr-watchlist/save', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = '/rr-list';
+                    } else {
+                        trackStatus.textContent = 'Error: ' + (data.error || 'Save failed');
+                        btn.disabled = false;
+                        btn.textContent = 'Track';
+                    }
+                })
+                .catch(() => {
+                    trackStatus.textContent = 'Request failed.';
+                    btn.disabled = false;
+                    btn.textContent = 'Track';
+                });
+        });
+
+        function showRow(id) {
+            const el = document.getElementById(id);
+            el.style.removeProperty('display');
+            el.style.display = 'flex';
+        }
+
+        function hideRow(id) {
+            document.getElementById(id).style.display = 'none';
+        }
+    </script>
+</body>
+
+</html>

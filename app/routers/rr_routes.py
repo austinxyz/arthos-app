@@ -356,6 +356,113 @@ async def save_rr_to_watchlist_api(request: Request):
         return {"success": False, "error": f"Error: {str(e)}"}
 
 
+@router.get("/rr-add", response_class=HTMLResponse)
+async def rr_add_page(request: Request):
+    """Render the Add New RR page."""
+    return templates.TemplateResponse("rr_add.html", {"request": request})
+
+
+@router.get("/api/rr/expirations")
+async def get_rr_expirations(ticker: str):
+    """Get LEAPS expiration dates for a ticker."""
+    from app.services.options_data_service import get_leaps_expirations
+    ticker = ticker.upper().strip()
+    expirations = get_leaps_expirations(ticker)
+    return {"expirations": expirations}
+
+
+@router.get("/api/rr/options-chain")
+async def get_rr_options_chain(ticker: str, expiration: str):
+    """
+    Get filtered options chain (puts and calls) for a ticker and expiration.
+
+    Put strikes: 90%–140% of current stock price
+    Call strikes: 50%–150% of current stock price
+    """
+    from app.providers.factory import ProviderFactory
+    from app.providers.exceptions import DataNotAvailableError
+    from app.models.stock_price import StockPrice
+    from sqlmodel import Session, select
+    from app.database import engine
+
+    ticker = ticker.upper().strip()
+
+    # Get current stock price from DB
+    current_stock_price = None
+    with Session(engine) as session:
+        statement = select(StockPrice).where(
+            StockPrice.ticker == ticker
+        ).order_by(StockPrice.price_date.desc()).limit(1)
+        latest = session.exec(statement).first()
+        if latest:
+            current_stock_price = float(latest.close_price)
+
+    if not current_stock_price:
+        try:
+            provider = ProviderFactory.get_default_provider()
+            info = provider.fetch_stock_info(ticker)
+            if info and info.current_price:
+                current_stock_price = float(info.current_price)
+        except Exception:
+            pass
+
+    if not current_stock_price:
+        return {"error": f"Could not get stock price for {ticker}"}
+
+    # Fetch options chain
+    try:
+        if hasattr(ProviderFactory, 'get_options_provider'):
+            provider = ProviderFactory.get_options_provider()
+        else:
+            provider = ProviderFactory.get_default_provider()
+        try:
+            chain = provider.fetch_options_chain(ticker, expiration)
+        except DataNotAvailableError as e:
+            if "rate limit" in str(e).lower():
+                from app.providers.yfinance_provider import YFinanceProvider
+                chain = YFinanceProvider().fetch_options_chain(ticker, expiration)
+            else:
+                return {"error": str(e)}
+    except Exception as e:
+        return {"error": f"Failed to fetch options chain: {str(e)}"}
+
+    put_min = current_stock_price * 0.90
+    put_max = current_stock_price * 1.40
+    call_min = current_stock_price * 0.50
+    call_max = current_stock_price * 1.50
+
+    puts = []
+    for opt in chain.puts:
+        if put_min <= opt.strike <= put_max:
+            if opt.bid and opt.ask and float(opt.bid) > 0 and float(opt.ask) > 0:
+                puts.append({
+                    "strike": round(opt.strike, 2),
+                    "bid": round(float(opt.bid), 2),
+                    "ask": round(float(opt.ask), 2),
+                    "mid": round((float(opt.bid) + float(opt.ask)) / 2, 2),
+                })
+
+    calls = []
+    for opt in chain.calls:
+        if call_min <= opt.strike <= call_max:
+            if opt.bid and opt.ask and float(opt.bid) > 0 and float(opt.ask) > 0:
+                calls.append({
+                    "strike": round(opt.strike, 2),
+                    "bid": round(float(opt.bid), 2),
+                    "ask": round(float(opt.ask), 2),
+                    "mid": round((float(opt.bid) + float(opt.ask)) / 2, 2),
+                })
+
+    puts.sort(key=lambda x: x["strike"])
+    calls.sort(key=lambda x: x["strike"])
+
+    return {
+        "stock_price": current_stock_price,
+        "puts": puts,
+        "calls": calls,
+    }
+
+
 @router.delete("/api/rr-watchlist/delete/{rr_uuid}")
 async def delete_rr_watchlist_api(request: Request, rr_uuid: UUID = FPath(...)):
     """Delete a Risk Reversal watchlist entry and all associated history."""

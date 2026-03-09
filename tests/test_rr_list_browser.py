@@ -223,6 +223,27 @@ class TestRRListBrowser:
             result = session.exec(statement).first()
             assert result is not None, "Entry should still exist in database"
 
+    def test_add_new_rr_button_visible(self, page: Page, live_server_url, authenticated_session):
+        """Test that the Add New RR button is visible and links to /rr-add."""
+        response = page.goto(f"{live_server_url}/rr-list")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        assert response is not None and response.status == 200
+
+        add_btn = page.locator("a[href='/rr-add']")
+        expect(add_btn).to_be_visible()
+        expect(add_btn).to_contain_text("Add New RR")
+
+    def test_rr_add_page_accessible(self, page: Page, live_server_url, authenticated_session):
+        """Test that /rr-add loads correctly with all expected form elements."""
+        response = page.goto(f"{live_server_url}/rr-add")
+        page.wait_for_load_state("networkidle", timeout=30000)
+        assert response is not None and response.status == 200
+
+        expect(page).to_have_title("Add New RR - Arthos", timeout=10000)
+        expect(page.locator("#tickerInput")).to_be_visible()
+        expect(page.locator("#loadExpBtn")).to_be_visible()
+        expect(page.locator("a[href='/rr-list']").first).to_be_visible()
+
     def test_delete_entry_success(self, page: Page, live_server_url, authenticated_session):
         """Test that confirming delete actually removes the entry from UI and database.
 

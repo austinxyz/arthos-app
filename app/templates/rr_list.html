@@ -66,8 +66,9 @@
     {% set current_page = 'options' %}
     {% include 'partials/navbar.html' %}
     <div class="container-fluid px-4">
-        <div class="header mb-4">
+        <div class="header mb-4 d-flex justify-content-between align-items-center">
             <h1>RR Watchlist</h1>
+            <a href="/rr-add" class="btn btn-primary">+ Add New RR</a>
         </div>
 
         <div class="table-responsive">
@@ -95,6 +96,10 @@
                         <td>
                             {% if entry.ratio == 'Collar' %}
                             <span class="badge bg-info">Collar</span>
+                            {% elif entry.ratio == '1:5' %}
+                            <span class="badge bg-dark">1:5</span>
+                            {% elif entry.ratio == '1:4' %}
+                            <span class="badge bg-secondary">1:4</span>
                             {% elif entry.ratio == '1:3' %}
                             <span class="badge bg-danger">1:3</span>
                             {% elif entry.ratio == '1:2' %}
