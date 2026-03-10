@@ -223,13 +223,15 @@ async def rr_details_page(request: Request, rr_uuid: UUID = FPath(...)):
 
     put_change_pct = None
     if latest_put_price is not None and entry_put_quote != 0:
-        put_change_pct = ((latest_put_price - entry_put_quote) / entry_put_quote) * 100
+        # Negate: short put benefits when price decreases, so show that as positive
+        put_change_pct = -((latest_put_price - entry_put_quote) / entry_put_quote) * 100
 
     short_call_change_pct = None
     if is_collar and latest_short_call_price is not None:
         entry_short_call_quote = float(entry.short_call_option_quote) if entry.short_call_option_quote else 0
         if entry_short_call_quote != 0:
-            short_call_change_pct = ((latest_short_call_price - entry_short_call_quote) / entry_short_call_quote) * 100
+            # Negate: short call benefits when price decreases
+            short_call_change_pct = -((latest_short_call_price - entry_short_call_quote) / entry_short_call_quote) * 100
 
     # Calculate overall value change
     value_change = None

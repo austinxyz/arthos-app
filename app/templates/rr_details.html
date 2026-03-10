@@ -167,8 +167,8 @@
                                     </td>
                                     <td id="putChangePct">
                                         {% if entry.put_change_pct is not none %}
-                                        <span class="{% if entry.put_change_pct > 0 %}text-danger{% elif entry.put_change_pct < 0 %}text-success{% endif %}">
-                                            {{ "%.2f"|format(entry.put_change_pct) }}%
+                                        <span class="{% if entry.put_change_pct > 0 %}text-success{% elif entry.put_change_pct < 0 %}text-danger{% endif %}">
+                                            {% if entry.put_change_pct > 0 %}+{% endif %}{{ "%.2f"|format(entry.put_change_pct) }}%
                                         </span>
                                         {% else %}
                                         <span class="text-muted">N/A</span>
@@ -198,7 +198,7 @@
                                     <td id="callChangePct">
                                         {% if entry.call_change_pct is not none %}
                                         <span class="{% if entry.call_change_pct > 0 %}text-success{% elif entry.call_change_pct < 0 %}text-danger{% endif %}">
-                                            {{ "%.2f"|format(entry.call_change_pct) }}%
+                                            {% if entry.call_change_pct > 0 %}+{% endif %}{{ "%.2f"|format(entry.call_change_pct) }}%
                                         </span>
                                         {% else %}
                                         <span class="text-muted">N/A</span>
@@ -228,8 +228,8 @@
                                     </td>
                                     <td id="shortCallChangePct">
                                         {% if entry.short_call_change_pct is not none %}
-                                        <span class="{% if entry.short_call_change_pct > 0 %}text-danger{% elif entry.short_call_change_pct < 0 %}text-success{% endif %}">
-                                            {{ "%.2f"|format(entry.short_call_change_pct) }}%
+                                        <span class="{% if entry.short_call_change_pct > 0 %}text-success{% elif entry.short_call_change_pct < 0 %}text-danger{% endif %}">
+                                            {% if entry.short_call_change_pct > 0 %}+{% endif %}{{ "%.2f"|format(entry.short_call_change_pct) }}%
                                         </span>
                                         {% else %}
                                         <span class="text-muted">N/A</span>
@@ -449,14 +449,13 @@
 
         function fmtAmt(v) { return '$' + Math.abs(v).toFixed(2); }
 
-        function renderChangePct(pct, isShortLeg) {
-            // For short legs (put, short call): price increase is bad (danger), decrease is good (success)
-            // For long legs (call): price increase is good (success), decrease is bad (danger)
+        function renderChangePct(pct) {
+            // pct is already from position P&L perspective: positive = gain (green), negative = loss (red)
+            // Short legs are pre-negated so the same rule applies uniformly
             if (pct === null) return '<span class="text-muted">N/A</span>';
-            let cls = '';
-            if (pct > 0) cls = isShortLeg ? 'text-danger' : 'text-success';
-            else if (pct < 0) cls = isShortLeg ? 'text-success' : 'text-danger';
-            return `<span class="${cls}">${pct.toFixed(2)}%</span>`;
+            let cls = pct > 0 ? 'text-success' : pct < 0 ? 'text-danger' : '';
+            const sign = pct > 0 ? '+' : '';
+            return `<span class="${cls}">${sign}${pct.toFixed(2)}%</span>`;
         }
 
         function renderSummaryChange(change, changePct) {
@@ -482,17 +481,17 @@
                     .querySelector('.entry-price-display').textContent = '$' + shortCallQuote.toFixed(2);
             }
 
-            // Recalculate per-leg change %
+            // Recalculate per-leg change % (short legs negated to reflect P&L perspective)
             const putChangePct = (currentPutPrice !== null && putQuote !== 0)
-                ? ((currentPutPrice - putQuote) / putQuote) * 100 : null;
+                ? -((currentPutPrice - putQuote) / putQuote) * 100 : null;
             const callChangePct = (currentCallPrice !== null && callQuote !== 0)
                 ? ((currentCallPrice - callQuote) / callQuote) * 100 : null;
-            document.getElementById('putChangePct').innerHTML = renderChangePct(putChangePct, true);
-            document.getElementById('callChangePct').innerHTML = renderChangePct(callChangePct, false);
+            document.getElementById('putChangePct').innerHTML = renderChangePct(putChangePct);
+            document.getElementById('callChangePct').innerHTML = renderChangePct(callChangePct);
             if (isCollar) {
                 const scChangePct = (currentShortCallPrice !== null && shortCallQuote !== null && shortCallQuote !== 0)
-                    ? ((currentShortCallPrice - shortCallQuote) / shortCallQuote) * 100 : null;
-                document.getElementById('shortCallChangePct').innerHTML = renderChangePct(scChangePct, true);
+                    ? -((currentShortCallPrice - shortCallQuote) / shortCallQuote) * 100 : null;
+                document.getElementById('shortCallChangePct').innerHTML = renderChangePct(scChangePct);
             }
 
             // Update summary Net Entry Price
