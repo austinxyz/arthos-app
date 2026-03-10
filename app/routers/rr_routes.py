@@ -463,6 +463,39 @@ async def get_rr_options_chain(ticker: str, expiration: str):
     }
 
 
+@router.patch("/api/rr-watchlist/{rr_uuid}/entry-prices")
+async def update_rr_entry_prices_api(request: Request, rr_uuid: UUID = FPath(...)):
+    """Update the entry (option quote) prices for an RR watchlist entry."""
+    from app.services.rr_watchlist_service import update_rr_entry_prices
+
+    try:
+        data = await request.json()
+        put_option_quote = data.get("put_option_quote")
+        call_option_quote = data.get("call_option_quote")
+        short_call_option_quote = data.get("short_call_option_quote")
+
+        if put_option_quote is None or call_option_quote is None:
+            return {"success": False, "error": "put_option_quote and call_option_quote are required"}
+
+        account_id = request.session.get("account_id")
+        if not account_id:
+            return {"success": False, "error": "User must be logged in"}
+
+        result = update_rr_entry_prices(
+            rr_uuid=str(rr_uuid),
+            put_option_quote=float(put_option_quote),
+            call_option_quote=float(call_option_quote),
+            account_id=account_id,
+            short_call_option_quote=float(short_call_option_quote) if short_call_option_quote is not None else None,
+        )
+        return result
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": f"Error: {str(e)}"}
+
+
 @router.delete("/api/rr-watchlist/delete/{rr_uuid}")
 async def delete_rr_watchlist_api(request: Request, rr_uuid: UUID = FPath(...)):
     """Delete a Risk Reversal watchlist entry and all associated history."""

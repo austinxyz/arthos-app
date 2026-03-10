@@ -81,6 +81,16 @@
             white-space: nowrap;
             padding: 0.5rem 0.75rem;
         }
+
+        .entry-price-input {
+            width: 90px;
+            padding: 0.15rem 0.4rem;
+            font-size: 0.875rem;
+        }
+
+        .edit-save-status {
+            font-size: 0.8rem;
+        }
     </style>
 </head>
 
@@ -112,8 +122,14 @@
             <!-- Legs Table -->
             <div class="col-auto mb-3">
                 <div class="card h-100">
-                    <div class="card-header">
+                    <div class="card-header d-flex justify-content-between align-items-center">
                         <strong>Option Legs</strong>
+                        <div class="d-flex align-items-center gap-2">
+                            <span id="editPriceStatus" class="edit-save-status text-muted"></span>
+                            <button id="editPricesBtn" class="btn btn-sm btn-outline-secondary">Edit Prices</button>
+                            <button id="savePricesBtn" class="btn btn-sm btn-success" style="display:none;">Save</button>
+                            <button id="cancelPricesBtn" class="btn btn-sm btn-outline-secondary" style="display:none;">Cancel</button>
+                        </div>
                     </div>
                     <div class="card-body p-0">
                         <table class="table table-sm mb-0 legs-table">
@@ -129,12 +145,19 @@
                                 </tr>
                             </thead>
                             <tbody>
+                                <!-- Put leg (Short) -->
                                 <tr>
                                     <td><span class="position-short">Short</span></td>
                                     <td>Put</td>
                                     <td><strong>${{ "%.2f"|format(entry.put_strike) }}</strong></td>
                                     <td>{{ entry.put_quantity }}</td>
-                                    <td>${{ "%.2f"|format(entry.put_option_quote) }}</td>
+                                    <td class="entry-price-cell" data-leg="put">
+                                        <span class="entry-price-display">${{ "%.2f"|format(entry.put_option_quote) }}</span>
+                                        <input type="number" class="form-control form-control-sm entry-price-input"
+                                            id="putEntryInput"
+                                            value="{{ "%.4f"|format(entry.put_option_quote) }}"
+                                            step="0.01" min="0" style="display:none;">
+                                    </td>
                                     <td>
                                         {% if entry.current_put_price is not none %}
                                         ${{ "%.2f"|format(entry.current_put_price) }}
@@ -142,10 +165,9 @@
                                         <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
-                                    <td>
+                                    <td id="putChangePct">
                                         {% if entry.put_change_pct is not none %}
-                                        <span
-                                            class="{% if entry.put_change_pct > 0 %}text-danger{% elif entry.put_change_pct < 0 %}text-success{% endif %}">
+                                        <span class="{% if entry.put_change_pct > 0 %}text-danger{% elif entry.put_change_pct < 0 %}text-success{% endif %}">
                                             {{ "%.2f"|format(entry.put_change_pct) }}%
                                         </span>
                                         {% else %}
@@ -153,12 +175,19 @@
                                         {% endif %}
                                     </td>
                                 </tr>
+                                <!-- Call leg (Long) -->
                                 <tr>
                                     <td><span class="position-long">Long</span></td>
                                     <td>Call</td>
                                     <td><strong>${{ "%.2f"|format(entry.call_strike) }}</strong></td>
                                     <td>{{ entry.call_quantity }}</td>
-                                    <td>${{ "%.2f"|format(entry.call_option_quote) }}</td>
+                                    <td class="entry-price-cell" data-leg="call">
+                                        <span class="entry-price-display">${{ "%.2f"|format(entry.call_option_quote) }}</span>
+                                        <input type="number" class="form-control form-control-sm entry-price-input"
+                                            id="callEntryInput"
+                                            value="{{ "%.4f"|format(entry.call_option_quote) }}"
+                                            step="0.01" min="0" style="display:none;">
+                                    </td>
                                     <td>
                                         {% if entry.current_call_price is not none %}
                                         ${{ "%.2f"|format(entry.current_call_price) }}
@@ -166,10 +195,9 @@
                                         <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
-                                    <td>
+                                    <td id="callChangePct">
                                         {% if entry.call_change_pct is not none %}
-                                        <span
-                                            class="{% if entry.call_change_pct > 0 %}text-success{% elif entry.call_change_pct < 0 %}text-danger{% endif %}">
+                                        <span class="{% if entry.call_change_pct > 0 %}text-success{% elif entry.call_change_pct < 0 %}text-danger{% endif %}">
                                             {{ "%.2f"|format(entry.call_change_pct) }}%
                                         </span>
                                         {% else %}
@@ -178,12 +206,19 @@
                                     </td>
                                 </tr>
                                 {% if is_collar %}
+                                <!-- Short Call leg (Collar) -->
                                 <tr>
                                     <td><span class="position-short">Short</span></td>
                                     <td>Call</td>
                                     <td><strong>${{ "%.2f"|format(entry.short_call_strike) }}</strong></td>
                                     <td>{{ entry.short_call_quantity }}</td>
-                                    <td>${{ "%.2f"|format(entry.short_call_option_quote) }}</td>
+                                    <td class="entry-price-cell" data-leg="short_call">
+                                        <span class="entry-price-display">${{ "%.2f"|format(entry.short_call_option_quote) }}</span>
+                                        <input type="number" class="form-control form-control-sm entry-price-input"
+                                            id="shortCallEntryInput"
+                                            value="{{ "%.4f"|format(entry.short_call_option_quote) }}"
+                                            step="0.01" min="0" style="display:none;">
+                                    </td>
                                     <td>
                                         {% if entry.current_short_call_price is not none %}
                                         ${{ "%.2f"|format(entry.current_short_call_price) }}
@@ -191,10 +226,9 @@
                                         <span class="text-muted">N/A</span>
                                         {% endif %}
                                     </td>
-                                    <td>
+                                    <td id="shortCallChangePct">
                                         {% if entry.short_call_change_pct is not none %}
-                                        <span
-                                            class="{% if entry.short_call_change_pct > 0 %}text-danger{% elif entry.short_call_change_pct < 0 %}text-success{% endif %}">
+                                        <span class="{% if entry.short_call_change_pct > 0 %}text-danger{% elif entry.short_call_change_pct < 0 %}text-success{% endif %}">
                                             {{ "%.2f"|format(entry.short_call_change_pct) }}%
                                         </span>
                                         {% else %}
@@ -224,7 +258,7 @@
                                 </tr>
                                 <tr>
                                     <td class="text-muted">Net Entry Price</td>
-                                    <td class="text-end fw-semibold">${{ "%.2f"|format(entry.entry_price) }}</td>
+                                    <td class="text-end fw-semibold" id="summaryEntryPrice">${{ "%.2f"|format(entry.entry_price) }}</td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted">Current Value</td>
@@ -238,7 +272,7 @@
                                 </tr>
                                 <tr>
                                     <td class="text-muted">Change</td>
-                                    <td class="text-end fw-semibold">
+                                    <td class="text-end fw-semibold" id="summaryChange">
                                         {% if entry.value_change is not none %}
                                         <span
                                             class="{% if entry.value_change > 0 %}text-success{% elif entry.value_change < 0 %}text-danger{% endif %}">
@@ -399,6 +433,155 @@
                 enabled: false
             }
         });
+
+        // ── Entry Price Editing ──────────────────────────────────────────────
+        const rrUuid = '{{ entry.id }}';
+        const isCollar = {{ 'true' if is_collar else 'false' }};
+        const callQty = {{ entry.call_quantity }};
+        const putQty = {{ entry.put_quantity }};
+        const shortCallQty = {{ entry.short_call_quantity if is_collar and entry.short_call_quantity else 0 }};
+
+        // Current prices needed to recalculate change % after edit
+        const currentPutPrice = {{ entry.current_put_price if entry.current_put_price is not none else 'null' }};
+        const currentCallPrice = {{ entry.current_call_price if entry.current_call_price is not none else 'null' }};
+        const currentShortCallPrice = {{ entry.current_short_call_price if is_collar and entry.current_short_call_price is not none else 'null' }};
+        const currentValue = {{ entry.current_value if entry.current_value is not none else 'null' }};
+
+        function fmtAmt(v) { return '$' + Math.abs(v).toFixed(2); }
+
+        function renderChangePct(pct, isShortLeg) {
+            // For short legs (put, short call): price increase is bad (danger), decrease is good (success)
+            // For long legs (call): price increase is good (success), decrease is bad (danger)
+            if (pct === null) return '<span class="text-muted">N/A</span>';
+            let cls = '';
+            if (pct > 0) cls = isShortLeg ? 'text-danger' : 'text-success';
+            else if (pct < 0) cls = isShortLeg ? 'text-success' : 'text-danger';
+            return `<span class="${cls}">${pct.toFixed(2)}%</span>`;
+        }
+
+        function renderSummaryChange(change, changePct) {
+            if (change === null) return '<span class="text-muted">N/A</span>';
+            const cls = change > 0 ? 'text-success' : change < 0 ? 'text-danger' : '';
+            const pctStr = changePct !== null ? ` (${changePct.toFixed(2)}%)` : '';
+            return `<span class="${cls}">$${change.toFixed(2)}${pctStr}</span>`;
+        }
+
+        function updateDisplayAfterSave(data) {
+            const putQuote = data.put_option_quote;
+            const callQuote = data.call_option_quote;
+            const shortCallQuote = data.short_call_option_quote || null;
+            const entryPrice = data.entry_price;
+
+            // Update entry price display text in legs table
+            document.querySelector('#putEntryInput').closest('.entry-price-cell')
+                .querySelector('.entry-price-display').textContent = '$' + putQuote.toFixed(2);
+            document.querySelector('#callEntryInput').closest('.entry-price-cell')
+                .querySelector('.entry-price-display').textContent = '$' + callQuote.toFixed(2);
+            if (isCollar && shortCallQuote !== null) {
+                document.querySelector('#shortCallEntryInput').closest('.entry-price-cell')
+                    .querySelector('.entry-price-display').textContent = '$' + shortCallQuote.toFixed(2);
+            }
+
+            // Recalculate per-leg change %
+            const putChangePct = (currentPutPrice !== null && putQuote !== 0)
+                ? ((currentPutPrice - putQuote) / putQuote) * 100 : null;
+            const callChangePct = (currentCallPrice !== null && callQuote !== 0)
+                ? ((currentCallPrice - callQuote) / callQuote) * 100 : null;
+            document.getElementById('putChangePct').innerHTML = renderChangePct(putChangePct, true);
+            document.getElementById('callChangePct').innerHTML = renderChangePct(callChangePct, false);
+            if (isCollar) {
+                const scChangePct = (currentShortCallPrice !== null && shortCallQuote !== null && shortCallQuote !== 0)
+                    ? ((currentShortCallPrice - shortCallQuote) / shortCallQuote) * 100 : null;
+                document.getElementById('shortCallChangePct').innerHTML = renderChangePct(scChangePct, true);
+            }
+
+            // Update summary Net Entry Price
+            document.getElementById('summaryEntryPrice').textContent = '$' + entryPrice.toFixed(2);
+
+            // Update summary Change
+            let valueChange = null;
+            let valueChangePct = null;
+            if (currentValue !== null) {
+                valueChange = currentValue - entryPrice;
+                if (entryPrice !== 0) valueChangePct = (valueChange / Math.abs(entryPrice)) * 100;
+            }
+            document.getElementById('summaryChange').innerHTML = renderSummaryChange(valueChange, valueChangePct);
+        }
+
+        $('#editPricesBtn').on('click', function () {
+            // Switch to edit mode
+            $('.entry-price-display').hide();
+            $('.entry-price-input').show().focus();
+            $('#editPricesBtn').hide();
+            $('#savePricesBtn, #cancelPricesBtn').show();
+            $('#editPriceStatus').text('');
+        });
+
+        $('#cancelPricesBtn').on('click', function () {
+            // Restore original values and switch back to view mode
+            $('#putEntryInput').val(parseFloat($('#putEntryInput').data('original') || $('#putEntryInput').val()));
+            exitEditMode();
+        });
+
+        // Store originals so Cancel works
+        $('#putEntryInput, #callEntryInput, #shortCallEntryInput').each(function () {
+            $(this).data('original', $(this).val());
+        });
+
+        $('#savePricesBtn').on('click', function () {
+            const putVal = parseFloat($('#putEntryInput').val());
+            const callVal = parseFloat($('#callEntryInput').val());
+            const shortCallVal = isCollar ? parseFloat($('#shortCallEntryInput').val()) : null;
+
+            if (isNaN(putVal) || putVal < 0 || isNaN(callVal) || callVal < 0) {
+                $('#editPriceStatus').text('Invalid prices.').removeClass('text-success').addClass('text-danger');
+                return;
+            }
+            if (isCollar && (isNaN(shortCallVal) || shortCallVal < 0)) {
+                $('#editPriceStatus').text('Invalid short call price.').removeClass('text-success').addClass('text-danger');
+                return;
+            }
+
+            const btn = $(this);
+            btn.prop('disabled', true).text('Saving…');
+            $('#editPriceStatus').text('').removeClass('text-success text-danger');
+
+            const payload = { put_option_quote: putVal, call_option_quote: callVal };
+            if (isCollar) payload.short_call_option_quote = shortCallVal;
+
+            $.ajax({
+                url: '/api/rr-watchlist/' + rrUuid + '/entry-prices',
+                method: 'PATCH',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function (resp) {
+                    if (resp.success) {
+                        updateDisplayAfterSave(resp);
+                        // Update stored originals for next cancel
+                        $('#putEntryInput').val(putVal.toFixed(4)).data('original', putVal.toFixed(4));
+                        $('#callEntryInput').val(callVal.toFixed(4)).data('original', callVal.toFixed(4));
+                        if (isCollar) $('#shortCallEntryInput').val(shortCallVal.toFixed(4)).data('original', shortCallVal.toFixed(4));
+                        $('#editPriceStatus').text('Saved.').addClass('text-success');
+                        exitEditMode();
+                    } else {
+                        $('#editPriceStatus').text('Error: ' + (resp.error || 'Save failed')).addClass('text-danger');
+                    }
+                },
+                error: function () {
+                    $('#editPriceStatus').text('Request failed.').addClass('text-danger');
+                },
+                complete: function () {
+                    btn.prop('disabled', false).text('Save');
+                }
+            });
+        });
+
+        function exitEditMode() {
+            $('.entry-price-input').hide();
+            $('.entry-price-display').show();
+            $('#savePricesBtn, #cancelPricesBtn').hide();
+            $('#editPricesBtn').show();
+        }
 
         // Initialize DataTable
         initDataTable('historyTable', {

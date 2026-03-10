@@ -305,6 +305,71 @@ def get_rr_history(rr_uuid: Union[str, UUID]) -> list[RRHistory]:
         return list(entries)
 
 
+def update_rr_entry_prices(
+    rr_uuid: Union[str, UUID],
+    put_option_quote: float,
+    call_option_quote: float,
+    account_id: Optional[Union[str, UUID]] = None,
+    short_call_option_quote: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Update the entry prices (option quotes) for a saved RR watchlist entry and
+    recalculate the net entry_price accordingly.
+
+    Args:
+        rr_uuid: UUID of the RR entry to update
+        put_option_quote: New put leg entry price (per contract)
+        call_option_quote: New call leg entry price (per contract)
+        account_id: Account ID for ownership validation
+        short_call_option_quote: New short call entry price for Collar strategies
+
+    Returns:
+        Dict with success status and updated values for client recalculation
+    """
+    try:
+        with Session(engine) as session:
+            entry = session.get(RRWatchlist, rr_uuid)
+            if not entry:
+                return {"success": False, "error": "Entry not found"}
+
+            if account_id and to_str(entry.account_id) != to_str(account_id):
+                return {"success": False, "error": "Access denied"}
+
+            # Recalculate net entry price
+            # entry_price = call * call_qty - put * put_qty - short_call * short_call_qty (Collar)
+            new_entry_price = (call_option_quote * entry.call_quantity) - (put_option_quote * entry.put_quantity)
+            if entry.ratio == "Collar" and short_call_option_quote is not None and entry.short_call_quantity:
+                new_entry_price -= short_call_option_quote * entry.short_call_quantity
+
+            entry.put_option_quote = Decimal(str(round(put_option_quote, 4)))
+            entry.call_option_quote = Decimal(str(round(call_option_quote, 4)))
+            entry.entry_price = Decimal(str(round(new_entry_price, 4)))
+            if entry.ratio == "Collar" and short_call_option_quote is not None:
+                entry.short_call_option_quote = Decimal(str(round(short_call_option_quote, 4)))
+
+            session.add(entry)
+            session.commit()
+            session.refresh(entry)
+
+            logger.info(f"Updated entry prices for RR {rr_uuid}: put={put_option_quote}, call={call_option_quote}, entry_price={new_entry_price}")
+
+            result = {
+                "success": True,
+                "put_option_quote": float(entry.put_option_quote),
+                "call_option_quote": float(entry.call_option_quote),
+                "entry_price": float(entry.entry_price),
+            }
+            if entry.ratio == "Collar" and entry.short_call_option_quote is not None:
+                result["short_call_option_quote"] = float(entry.short_call_option_quote)
+            return result
+
+    except Exception as e:
+        logger.error(f"Error updating RR entry prices: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "error": str(e)}
+
+
 def get_saved_rr_keys_for_ticker(ticker: str, account_id: Optional[Union[str, UUID]] = None) -> set:
     """
     Get a set of unique keys for saved RR entries for a specific ticker.
