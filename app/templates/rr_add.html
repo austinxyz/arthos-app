@@ -49,7 +49,7 @@
             border-radius: 8px;
             padding: 24px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            max-width: 640px;
+            max-width: 760px;
         }
 
         .preview-section {
@@ -102,23 +102,24 @@
             </div>
 
             <!-- Strike / ratio row (hidden until options chain loaded) -->
-            <div id="strikesRow" class="row g-3 align-items-end mb-4" style="display:none !important;">
+            <div id="strikesRow" class="row g-4 align-items-start mb-4" style="display:none !important;">
                 <div class="col-auto">
                     <label for="putStrikeSelect" class="form-label fw-semibold">Put Strike</label>
-                    <select id="putStrikeSelect" class="form-select" style="width: 130px;">
+                    <select id="putStrikeSelect" class="form-select" style="width: 150px;">
                         <option value="">— select —</option>
                     </select>
                     <div class="form-text text-muted">Short ×1</div>
                 </div>
                 <div class="col-auto">
                     <label for="callStrikeSelect" class="form-label fw-semibold">Call Strike</label>
-                    <select id="callStrikeSelect" class="form-select" style="width: 130px;">
+                    <select id="callStrikeSelect" class="form-select" style="width: 150px;">
                         <option value="">— select —</option>
                     </select>
+                    <div class="form-text text-muted">&nbsp;</div>
                 </div>
                 <div class="col-auto">
                     <label for="callRatioSelect" class="form-label fw-semibold">Call Qty</label>
-                    <select id="callRatioSelect" class="form-select" style="width: 90px;">
+                    <select id="callRatioSelect" class="form-select" style="width: 100px;">
                         <option value="1">1</option>
                         <option value="2">2</option>
                         <option value="3">3</option>
