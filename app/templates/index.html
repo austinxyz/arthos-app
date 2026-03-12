@@ -125,11 +125,11 @@
             border-bottom: 2px solid #eee;
         }
 
-        .movers-card.winners h3 {
+        .movers-card.oversold h3 {
             color: #198754;
         }
 
-        .movers-card.losers h3 {
+        .movers-card.overbought h3 {
             color: #dc3545;
         }
 
@@ -211,10 +211,10 @@
 
         <!-- Winners and Losers Section -->
         <div class="movers-section">
-            <!-- Winners -->
-            <div class="movers-card winners">
-                <h3>Winners</h3>
-                {% if winners and winners|length > 0 %}
+            <!-- Most Oversold -->
+            <div class="movers-card oversold">
+                <h3>Most Oversold</h3>
+                {% if oversold and oversold|length > 0 %}
                 <table class="movers-table">
                     <thead>
                         <tr>
@@ -226,12 +226,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for stock in winners %}
+                        {% for stock in oversold %}
                         <tr>
                             <td><a href="/stock/{{ stock.ticker }}" class="ticker-link">{{ stock.ticker }}</a></td>
                             <td>${{ "%.2f"|format(stock.entry_price) }}</td>
                             <td>${{ "%.2f"|format(stock.current_price) }}</td>
-                            <td class="positive">+{{ "%.2f"|format(stock.change_pct) }}%</td>
+                            <td class="{{ 'positive' if stock.change_pct >= 0 else 'negative' }}">{{ '+' if stock.change_pct >= 0 else '' }}{{ "%.2f"|format(stock.change_pct) }}%</td>
                             <td>
                                 {% if stock.signal == "Extreme Oversold" %}
                                 <span class="badge bg-success">Extreme OS</span>
@@ -256,10 +256,10 @@
                 {% endif %}
             </div>
 
-            <!-- Losers -->
-            <div class="movers-card losers">
-                <h3>Losers</h3>
-                {% if losers and losers|length > 0 %}
+            <!-- Most Overbought -->
+            <div class="movers-card overbought">
+                <h3>Most Overbought</h3>
+                {% if overbought and overbought|length > 0 %}
                 <table class="movers-table">
                     <thead>
                         <tr>
@@ -271,12 +271,12 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for stock in losers %}
+                        {% for stock in overbought %}
                         <tr>
                             <td><a href="/stock/{{ stock.ticker }}" class="ticker-link">{{ stock.ticker }}</a></td>
                             <td>${{ "%.2f"|format(stock.entry_price) }}</td>
                             <td>${{ "%.2f"|format(stock.current_price) }}</td>
-                            <td class="negative">{{ "%.2f"|format(stock.change_pct) }}%</td>
+                            <td class="{{ 'positive' if stock.change_pct >= 0 else 'negative' }}">{{ '+' if stock.change_pct >= 0 else '' }}{{ "%.2f"|format(stock.change_pct) }}%</td>
                             <td>
                                 {% if stock.signal == "Extreme Oversold" %}
                                 <span class="badge bg-success">Extreme OS</span>
@@ -304,9 +304,9 @@
         <!-- Explanatory text below tables -->
         <p class="movers-caption">
             {% if is_user_data %}
-            Top 5 winners and losers from your watchlists
+            Top 5 most oversold and overbought stocks from your watchlists
             {% else %}
-            Top 5 winners and losers from all public watchlists
+            Top 5 most oversold and overbought stocks from all public watchlists
             {% endif %}
         </p>
     </div>

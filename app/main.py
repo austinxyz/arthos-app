@@ -212,12 +212,12 @@ async def home(request: Request):
         top_movers = get_top_movers(limit=5, account_id=account_id_str)
     except Exception as e:
         print(f"Error fetching top movers: {e}")
-        top_movers = {'winners': [], 'losers': [], 'is_user_data': False}
+        top_movers = {'oversold': [], 'overbought': [], 'is_user_data': False}
 
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "winners": top_movers['winners'],
-        "losers": top_movers['losers'],
+        "oversold": top_movers['oversold'],
+        "overbought": top_movers['overbought'],
         "is_user_data": top_movers.get('is_user_data', False)
     })
 

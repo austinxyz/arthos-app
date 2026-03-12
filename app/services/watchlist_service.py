@@ -821,7 +821,7 @@ def get_public_watchlist_stocks(watchlist_id: Union[UUID, str]) -> List[WatchLis
 
 def get_top_movers(limit: int = 5, account_id: Optional[Union[str, UUID]] = None) -> Dict[str, Any]:
     """
-    Get top winners and losers from watchlists.
+    Get most oversold and overbought stocks from watchlists.
 
     If account_id is provided, returns from that user's watchlists (public or private).
     If account_id is None, returns from all public watchlists.
@@ -832,8 +832,8 @@ def get_top_movers(limit: int = 5, account_id: Optional[Union[str, UUID]] = None
 
     Returns:
         Dictionary with:
-        - winners: List of top gaining stocks
-        - losers: List of top losing stocks
+        - oversold: List of most oversold stocks (signal Oversold/Extreme Oversold), sorted by change_pct ascending
+        - overbought: List of most overbought stocks (signal Overbought/Extreme Overbought), sorted by change_pct descending
         - is_user_data: Boolean indicating if data is from user's watchlists
     """
     from app.models.stock_price import StockPrice, StockAttributes
@@ -857,7 +857,7 @@ def get_top_movers(limit: int = 5, account_id: Optional[Union[str, UUID]] = None
             is_user_data = False
 
         if not watchlists:
-            return {'winners': [], 'losers': [], 'is_user_data': is_user_data}
+            return {'oversold': [], 'overbought': [], 'is_user_data': is_user_data}
 
         watchlist_ids = [wl.watchlist_id for wl in watchlists]
 
@@ -870,7 +870,7 @@ def get_top_movers(limit: int = 5, account_id: Optional[Union[str, UUID]] = None
         ).all()
 
         if not stocks:
-            return {'winners': [], 'losers': [], 'is_user_data': is_user_data}
+            return {'oversold': [], 'overbought': [], 'is_user_data': is_user_data}
 
         # Get unique tickers and their entry prices
         ticker_entries = {}
@@ -916,11 +916,19 @@ def get_top_movers(limit: int = 5, account_id: Optional[Union[str, UUID]] = None
                     'signal': signal_lookup.get(ticker, 'N/A')
                 })
 
-        # Sort and split into winners/losers
-        movers.sort(key=lambda x: x['change_pct'], reverse=True)
+        # Split into oversold and overbought by signal
+        oversold_signals = {'Extreme Oversold', 'Oversold'}
+        overbought_signals = {'Extreme Overbought', 'Overbought'}
 
-        winners = movers[:limit]
-        losers = sorted(movers, key=lambda x: x['change_pct'])[:limit]
+        oversold = sorted(
+            [m for m in movers if m['signal'] in oversold_signals],
+            key=lambda x: x['change_pct']
+        )[:limit]
 
-        return {'winners': winners, 'losers': losers, 'is_user_data': is_user_data}
+        overbought = sorted(
+            [m for m in movers if m['signal'] in overbought_signals],
+            key=lambda x: x['change_pct'], reverse=True
+        )[:limit]
+
+        return {'oversold': oversold, 'overbought': overbought, 'is_user_data': is_user_data}
 
