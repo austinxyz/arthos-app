@@ -896,11 +896,12 @@ def get_top_movers(limit: int = 5, account_id: Optional[Union[str, UUID]] = None
 
         price_lookup = {p.ticker: float(p.close_price) for p in latest_prices}
 
-        # Get signals from stock_attributes
+        # Get signals and devstep from stock_attributes
         attributes = session.exec(
             select(StockAttributes).where(StockAttributes.ticker.in_(tickers))
         ).all()
         signal_lookup = {attr.ticker: attr.signal for attr in attributes}
+        devstep_lookup = {attr.ticker: float(attr.devstep) if attr.devstep is not None else None for attr in attributes}
 
         # Calculate change percentages
         movers = []
@@ -913,21 +914,24 @@ def get_top_movers(limit: int = 5, account_id: Optional[Union[str, UUID]] = None
                     'entry_price': entry_price,
                     'current_price': current_price,
                     'change_pct': round(change_pct, 2),
-                    'signal': signal_lookup.get(ticker, 'N/A')
+                    'signal': signal_lookup.get(ticker, 'N/A'),
+                    'devstep': devstep_lookup.get(ticker),
                 })
 
-        # Split into oversold and overbought by signal
+        # Split into oversold/overbought by signal, sort by devstep (most extreme first)
+        # Most oversold = most negative devstep (below -1 SD from 50-day SMA)
+        # Most overbought = most positive devstep (above +1 SD from 50-day SMA)
         oversold_signals = {'Extreme Oversold', 'Oversold'}
         overbought_signals = {'Extreme Overbought', 'Overbought'}
 
         oversold = sorted(
-            [m for m in movers if m['signal'] in oversold_signals],
-            key=lambda x: x['change_pct']
+            [m for m in movers if m['signal'] in oversold_signals and m['devstep'] is not None],
+            key=lambda x: x['devstep']
         )[:limit]
 
         overbought = sorted(
-            [m for m in movers if m['signal'] in overbought_signals],
-            key=lambda x: x['change_pct'], reverse=True
+            [m for m in movers if m['signal'] in overbought_signals and m['devstep'] is not None],
+            key=lambda x: x['devstep'], reverse=True
         )[:limit]
 
         return {'oversold': oversold, 'overbought': overbought, 'is_user_data': is_user_data}
