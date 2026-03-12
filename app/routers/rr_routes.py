@@ -431,7 +431,7 @@ async def get_rr_options_chain(ticker: str, expiration: str):
     put_min = current_stock_price * 0.90
     put_max = current_stock_price * 2.00
     call_min = current_stock_price * 0.50
-    call_max = current_stock_price * 1.50
+    call_max = current_stock_price * 2.00
 
     puts = []
     for opt in chain.puts:
