@@ -211,3 +211,6 @@ arthos.db
 *.db
 *.sqlite
 *.sqlite3
+
+# Test screenshot artifacts
+test_*.png
