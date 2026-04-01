@@ -185,3 +185,74 @@ class TestOptionQuoteEndpoint:
 
         assert response.status_code == 200
         assert response.json()["symbol"] == "NFLX281215P00105000"
+
+
+class TestSimpleMode:
+
+    def test_simple_returns_plain_text_last_price(self, client):
+        quote = _make_quote(last_price=2.55)
+        with patch("app.services.option_quote_service.ProviderFactory") as mock_factory, \
+             patch("app.services.option_quote_service._quote_cache", {}):
+            provider = MagicMock()
+            provider.fetch_option_quote.return_value = quote
+            provider.get_provider_name.return_value = "MarketData.app"
+            mock_factory.get_options_provider.return_value = provider
+
+            response = client.get("/optionquote/NFLX281215P00105000?simple=true")
+
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/plain")
+        assert response.text == "2.55"
+
+    def test_simple_falls_back_to_mid_when_no_last_price(self, client):
+        quote = _make_quote(last_price=None, bid=2.50, ask=2.70)
+        with patch("app.services.option_quote_service.ProviderFactory") as mock_factory, \
+             patch("app.services.option_quote_service._quote_cache", {}):
+            provider = MagicMock()
+            provider.fetch_option_quote.return_value = quote
+            provider.get_provider_name.return_value = "MarketData.app"
+            mock_factory.get_options_provider.return_value = provider
+
+            response = client.get("/optionquote/NFLX281215P00105000?simple=true")
+
+        assert response.status_code == 200
+        assert response.text == "2.60"
+
+    def test_simple_returns_404_when_no_price_at_all(self, client):
+        quote = _make_quote(last_price=None, bid=None, ask=None)
+        with patch("app.services.option_quote_service.ProviderFactory") as mock_factory, \
+             patch("app.services.option_quote_service._quote_cache", {}):
+            provider = MagicMock()
+            provider.fetch_option_quote.return_value = quote
+            provider.get_provider_name.return_value = "MarketData.app"
+            mock_factory.get_options_provider.return_value = provider
+
+            response = client.get("/optionquote/NFLX281215P00105000?simple=true")
+
+        assert response.status_code == 404
+
+    def test_simple_price_always_2_decimal_places(self, client):
+        quote = _make_quote(last_price=10.0)
+        with patch("app.services.option_quote_service.ProviderFactory") as mock_factory, \
+             patch("app.services.option_quote_service._quote_cache", {}):
+            provider = MagicMock()
+            provider.fetch_option_quote.return_value = quote
+            provider.get_provider_name.return_value = "MarketData.app"
+            mock_factory.get_options_provider.return_value = provider
+
+            response = client.get("/optionquote/NFLX281215P00105000?simple=true")
+
+        assert response.text == "10.00"
+
+    def test_without_simple_param_returns_json(self, client):
+        quote = _make_quote()
+        with patch("app.services.option_quote_service.ProviderFactory") as mock_factory, \
+             patch("app.services.option_quote_service._quote_cache", {}):
+            provider = MagicMock()
+            provider.fetch_option_quote.return_value = quote
+            provider.get_provider_name.return_value = "MarketData.app"
+            mock_factory.get_options_provider.return_value = provider
+
+            response = client.get("/optionquote/NFLX281215P00105000")
+
+        assert response.headers["content-type"].startswith("application/json")

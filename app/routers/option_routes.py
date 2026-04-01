@@ -1,6 +1,7 @@
 """Router for individual option quote lookups."""
 import logging
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi.responses import PlainTextResponse
 
 from app.utils.option_symbol import parse_option_symbol
 from app.services.option_quote_service import get_option_quote
@@ -12,12 +13,17 @@ router = APIRouter()
 
 
 @router.get("/optionquote/{option_symbol}")
-async def option_quote(option_symbol: str = Path(..., description="OCC option symbol, e.g. NFLX281215P00105000")):
+async def option_quote(
+    option_symbol: str = Path(..., description="OCC option symbol, e.g. NFLX281215P00105000"),
+    simple: bool = Query(False, description="Return plain-text price only (for use with IMPORTDATA in Google Sheets)"),
+):
     """
     Fetch a single option quote by OCC symbol.
 
     Returns bid, ask, mid, last price, IV, and Greeks (when available).
-    Data is cached for 20 minutes. Past expirations return 404.
+    Data is cached for 20 minutes. Past expirations return 422.
+
+    With ?simple=true returns plain text: last_price if available, otherwise mid.
     """
     try:
         parsed = parse_option_symbol(option_symbol)
@@ -32,5 +38,11 @@ async def option_quote(option_symbol: str = Path(..., description="OCC option sy
 
     if result is None:
         raise HTTPException(status_code=404, detail=f"Option quote not found: {option_symbol}")
+
+    if simple:
+        price = result["last_price"] if result["last_price"] is not None else result["mid"]
+        if price is None:
+            raise HTTPException(status_code=404, detail=f"No price available for {option_symbol}")
+        return PlainTextResponse(f"{price:.2f}")
 
     return result
