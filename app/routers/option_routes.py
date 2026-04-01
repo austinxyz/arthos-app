@@ -40,7 +40,7 @@ async def option_quote(
         raise HTTPException(status_code=404, detail=f"Option quote not found: {option_symbol}")
 
     if simple:
-        price = result["last_price"] if result["last_price"] is not None else result["mid"]
+        price = result["mid"]
         if price is None:
             raise HTTPException(status_code=404, detail=f"No price available for {option_symbol}")
         return PlainTextResponse(f"{price:.2f}")

@@ -189,8 +189,8 @@ class TestOptionQuoteEndpoint:
 
 class TestSimpleMode:
 
-    def test_simple_returns_plain_text_last_price(self, client):
-        quote = _make_quote(last_price=2.55)
+    def test_simple_returns_plain_text_mid(self, client):
+        quote = _make_quote(bid=2.50, ask=2.70, last_price=2.55)
         with patch("app.services.option_quote_service.ProviderFactory") as mock_factory, \
              patch("app.services.option_quote_service._quote_cache", {}):
             provider = MagicMock()
@@ -202,10 +202,10 @@ class TestSimpleMode:
 
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/plain")
-        assert response.text == "2.55"
+        assert response.text == "2.60"  # mid, not last_price
 
-    def test_simple_falls_back_to_mid_when_no_last_price(self, client):
-        quote = _make_quote(last_price=None, bid=2.50, ask=2.70)
+    def test_simple_returns_mid_even_when_last_price_present(self, client):
+        quote = _make_quote(bid=3.00, ask=4.00, last_price=2.00)
         with patch("app.services.option_quote_service.ProviderFactory") as mock_factory, \
              patch("app.services.option_quote_service._quote_cache", {}):
             provider = MagicMock()
@@ -216,7 +216,7 @@ class TestSimpleMode:
             response = client.get("/optionquote/NFLX281215P00105000?simple=true")
 
         assert response.status_code == 200
-        assert response.text == "2.60"
+        assert response.text == "3.50"  # (3.00 + 4.00) / 2
 
     def test_simple_returns_404_when_no_price_at_all(self, client):
         quote = _make_quote(last_price=None, bid=None, ask=None)
@@ -232,7 +232,7 @@ class TestSimpleMode:
         assert response.status_code == 404
 
     def test_simple_price_always_2_decimal_places(self, client):
-        quote = _make_quote(last_price=10.0)
+        quote = _make_quote(bid=10.0, ask=10.0)  # mid = 10.00
         with patch("app.services.option_quote_service.ProviderFactory") as mock_factory, \
              patch("app.services.option_quote_service._quote_cache", {}):
             provider = MagicMock()
