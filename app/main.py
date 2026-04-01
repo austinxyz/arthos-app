@@ -182,6 +182,7 @@ from app.routers import insights_routes
 from app.routers import stock_routes
 from app.routers import rr_routes
 from app.routers import debug_routes
+from app.routers import option_routes
 
 app.include_router(auth.router)
 app.include_router(watchlist_routes.router)
@@ -190,6 +191,7 @@ app.include_router(insights_routes.router)
 app.include_router(stock_routes.router)
 app.include_router(rr_routes.router)
 app.include_router(debug_routes.router)
+app.include_router(option_routes.router)
 
 # Set up templates directory
 templates_dir = Path(__file__).parent / "templates"

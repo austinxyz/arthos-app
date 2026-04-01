@@ -176,10 +176,23 @@ class StockDataProvider(ABC):
         """
         pass
     
+    @abstractmethod
+    def fetch_option_quote(self, option_symbol: str) -> Optional["OptionQuote"]:
+        """
+        Fetch a single option quote by OCC symbol.
+
+        Args:
+            option_symbol: OCC option symbol (e.g. 'NFLX281215P00105000')
+
+        Returns:
+            OptionQuote or None if not found / not supported by provider
+        """
+        pass
+
     def get_provider_name(self) -> str:
         """
         Return provider name for logging/debugging.
-        
+
         Returns:
             Provider name string
         """

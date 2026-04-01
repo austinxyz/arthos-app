@@ -358,3 +358,42 @@ class YFinanceProvider(StockDataProvider):
             raise DataNotAvailableError(
                 f"Failed to fetch options chain for {ticker_upper} expiration {expiration}: {str(e)}"
             )
+
+    def fetch_option_quote(self, option_symbol: str) -> Optional[OptionQuote]:
+        """
+        Fetch a single option quote by OCC symbol via a full chain lookup.
+
+        yfinance does not support single-contract endpoints, so this fetches
+        the entire options chain for the contract's expiration and returns the
+        matching contract. Greeks will always be None (yfinance does not supply them).
+
+        Args:
+            option_symbol: OCC option symbol (e.g. 'NFLX281215P00105000')
+
+        Returns:
+            OptionQuote or None if no matching contract is found
+        """
+        from app.utils.option_symbol import parse_option_symbol
+
+        try:
+            parsed = parse_option_symbol(option_symbol)
+        except ValueError as e:
+            logger.error(f"Invalid option symbol '{option_symbol}': {e}")
+            return None
+
+        expiration_str = parsed["expiration"].strftime("%Y-%m-%d")
+        option_type = parsed["option_type"]  # 'call' or 'put'
+
+        try:
+            chain = self.fetch_options_chain(parsed["ticker"], expiration_str)
+        except Exception as e:
+            logger.error(f"Could not fetch chain for {option_symbol}: {e}")
+            return None
+
+        contracts = chain.calls if option_type == "call" else chain.puts
+        for quote in contracts:
+            if quote.contract_symbol == option_symbol:
+                return quote
+
+        logger.warning(f"Contract '{option_symbol}' not found in yfinance chain for {expiration_str}")
+        return None
