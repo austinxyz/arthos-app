@@ -1,7 +1,9 @@
 """Risk reversal strategy calculation service."""
 from typing import Dict, Any, List
-from datetime import datetime
+from datetime import datetime, date
 import logging
+from app.providers.factory import ProviderFactory
+from app.providers.exceptions import DataNotAvailableError
 from app.services.options_data_service import get_leaps_expirations
 
 logger = logging.getLogger(__name__)

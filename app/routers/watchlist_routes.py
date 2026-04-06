@@ -394,6 +394,30 @@ async def add_stocks_to_watchlist(request: Request, watchlist_id: UUID = FPath(.
             "invalid_tickers": invalid_tickers
         }
 
+        # Kick off background options cache for newly added tickers so options
+        # data appears on the stock detail page immediately rather than waiting
+        # up to 60 minutes for the next scheduled run.
+        if added_stocks:
+            import threading
+            from app.services.options_strategy_cache_service import cache_options_strategies_for_ticker
+            import logging as _logging
+            _bg_logger = _logging.getLogger(__name__)
+
+            def _seed_options_cache(tickers):
+                for ticker in tickers:
+                    try:
+                        result = cache_options_strategies_for_ticker(ticker)
+                        _bg_logger.info(
+                            f"Background options seed for {ticker}: "
+                            f"{result['covered_calls']} CC, {result['risk_reversals']} RR"
+                        )
+                    except Exception as exc:
+                        _bg_logger.warning(f"Background options seed failed for {ticker}: {exc}")
+
+            new_tickers = [s.ticker for s in added_stocks]
+            t = threading.Thread(target=_seed_options_cache, args=(new_tickers,), daemon=True)
+            t.start()
+
         return response
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
