@@ -74,17 +74,18 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
         try:
             from app.services.options_strategy_cache_service import (
                 get_cached_covered_calls,
-                get_cached_risk_reversals
+                get_cached_risk_reversals,
+                cache_options_strategies_for_ticker,
             )
 
-            # Try to get cached covered calls (no auto-compute on cache miss to save API calls)
+            # Fetch covered calls from cache; compute inline on first visit (cache miss).
             try:
                 covered_calls = get_cached_covered_calls(ticker)
 
-                if covered_calls:
-                    print(f"Using {len(covered_calls)} cached covered calls for {ticker}")
-                else:
-                    print(f"No cached covered calls for {ticker} - use Force Refresh or wait for scheduled update")
+                if not covered_calls:
+                    logger.info(f"No cached options for {ticker} — computing inline")
+                    cache_options_strategies_for_ticker(ticker)
+                    covered_calls = get_cached_covered_calls(ticker)
 
             except Exception as e:
                 print(f"Error getting covered call returns for {ticker}: {str(e)}")
@@ -92,7 +93,7 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
                 traceback.print_exc()
                 covered_calls = []
 
-            # Try to get cached risk reversals (no auto-compute on cache miss to save API calls)
+            # Risk reversals are populated by the same cache_options_strategies_for_ticker call above.
             try:
                 risk_reversals = get_cached_risk_reversals(ticker)
 
