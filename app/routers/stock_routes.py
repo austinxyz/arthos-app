@@ -83,7 +83,7 @@ async def stock_detail(request: Request, ticker: str = FPath(...)):
                 covered_calls = get_cached_covered_calls(ticker)
 
                 if not covered_calls:
-                    logger.info(f"No cached options for {ticker} — computing inline")
+                    print(f"No cached options for {ticker} — computing inline")
                     cache_options_strategies_for_ticker(ticker)
                     covered_calls = get_cached_covered_calls(ticker)
 
