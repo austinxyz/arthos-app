@@ -63,7 +63,7 @@
                         </div>
                         <div class="col-md-6 d-flex align-items-end">
                             <button type="submit" class="btn btn-primary me-2">View Data</button>
-                            <button type="button" class="btn btn-success" onclick="fetchData()">Force Refresh</button>
+                            <button type="button" class="btn btn-success" id="refreshBtn" onclick="fetchData()">Force Refresh</button>
                         </div>
                     </div>
                     <div class="error-message" id="errorMessage"></div>
@@ -184,38 +184,44 @@
             const ticker = document.getElementById('tickerInput').value.trim().toUpperCase();
             const errorMessage = document.getElementById('errorMessage');
             const successMessage = document.getElementById('successMessage');
-            
+            const refreshBtn = document.getElementById('refreshBtn');
+
             if (!ticker) {
                 errorMessage.textContent = 'Please enter a ticker symbol';
                 errorMessage.style.display = 'block';
                 successMessage.style.display = 'none';
                 return;
             }
-            
+
             errorMessage.style.display = 'none';
             successMessage.style.display = 'none';
-            
+
+            // Show loading state
+            refreshBtn.disabled = true;
+            refreshBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Refreshing…';
+
             try {
                 const response = await fetch(`/debug/stock-price/fetch?ticker=${ticker}`, {
                     method: 'POST'
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (!response.ok) {
                     throw new Error(data.detail || 'Failed to fetch data');
                 }
-                
+
+                refreshBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Reloading…';
                 successMessage.textContent = data.message;
                 successMessage.style.display = 'block';
-                
-                // Reload page after a short delay to show new data
-                setTimeout(() => {
-                    window.location.href = `/debug/stock-price?ticker=${ticker}`;
-                }, 1500);
+
+                // Reload page to show new data
+                window.location.href = `/debug/stock-price?ticker=${ticker}`;
             } catch (error) {
                 errorMessage.textContent = error.message;
                 errorMessage.style.display = 'block';
+                refreshBtn.disabled = false;
+                refreshBtn.innerHTML = 'Force Refresh';
             }
         }
         
