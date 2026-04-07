@@ -472,7 +472,7 @@ class TestRefreshStockData:
         def fake_clear_options_cache(ticker=None):
             call_log["clear_cache_ticker"] = ticker
 
-        def fake_fetch_and_save_stock_prices(ticker, include_options_iv=True):
+        def fake_fetch_and_save_stock_prices(ticker, include_options_iv=True, force_purge=False):
             call_log["include_options_iv_on_price_fetch"] = include_options_iv
             return pd.DataFrame({"Close": [160.0]}), 1
 
@@ -528,7 +528,7 @@ class TestRefreshStockData:
             "get_all_options_data_calls": 0,
         }
 
-        def fake_fetch_and_save_stock_prices(ticker, include_options_iv=True):
+        def fake_fetch_and_save_stock_prices(ticker, include_options_iv=True, force_purge=False):
             call_log["include_options_iv_on_price_fetch"] = include_options_iv
             return pd.DataFrame({"Close": [100.0]}), 1
 

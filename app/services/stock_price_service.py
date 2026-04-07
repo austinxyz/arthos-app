@@ -297,37 +297,105 @@ def save_stock_prices(ticker: str, price_data: pd.DataFrame, iv_data: Optional[D
                 # after dividend information is fetched
 
 
-def fetch_and_save_stock_prices(ticker: str, include_options_iv: bool = True) -> Tuple[pd.DataFrame, int]:
+def purge_stock_prices(ticker: str) -> int:
+    """
+    Delete all stored price rows for a ticker and reset stock_attributes date range.
+
+    Used before a full re-fetch (force refresh or split detected) so that all
+    historical data is replaced with fresh split-adjusted values from the provider.
+
+    Args:
+        ticker: Stock ticker symbol
+
+    Returns:
+        Number of price rows deleted
+    """
+    ticker_upper = ticker.upper()
+    with Session(engine) as session:
+        rows = session.exec(select(StockPrice).where(StockPrice.ticker == ticker_upper)).all()
+        count = len(rows)
+        for row in rows:
+            session.delete(row)
+
+        # Reset date range on stock_attributes so fetch_and_save falls into the
+        # "new stock" branch and re-fetches 2 years of history.
+        attributes = session.get(StockAttributes, ticker_upper)
+        if attributes:
+            session.delete(attributes)
+
+        session.commit()
+
+    logger.info(f"Purged {count} price rows and stock_attributes for {ticker_upper}")
+    return count
+
+
+def check_for_splits(ticker: str, since_date: date) -> bool:
+    """
+    Check whether yfinance reports any stock splits for ticker after since_date.
+
+    Args:
+        ticker: Stock ticker symbol
+        since_date: Only splits strictly after this date are considered
+
+    Returns:
+        True if at least one split occurred after since_date, False otherwise
+    """
+    try:
+        import yfinance as yf
+        splits = yf.Ticker(ticker.upper()).splits
+        if splits is None or splits.empty:
+            return False
+        # splits index is tz-aware; normalise to date for comparison
+        for split_ts in splits.index:
+            split_date = split_ts.date() if hasattr(split_ts, 'date') else split_ts
+            if split_date > since_date:
+                logger.info(f"Split detected for {ticker}: ratio={splits[split_ts]:.4g} on {split_date}")
+                return True
+        return False
+    except Exception as e:
+        logger.warning(f"Could not check splits for {ticker}: {e}")
+        return False
+
+
+def fetch_and_save_stock_prices(
+    ticker: str,
+    include_options_iv: bool = True,
+    force_purge: bool = False,
+) -> Tuple[pd.DataFrame, int]:
     """
     Fetch stock price data from data provider and save to database.
     Also updates stock attributes (dividend_amt, dividend_yield).
-    
-    Simplified two-step process:
-    1. Fetch historical data if there's a gap (today > latest_date + 1)
-    2. Always fetch intraday data for today
-    
+
+    Process:
+    1. If force_purge=True, or a stock split is detected since latest_date,
+       purge all existing price rows so a full 2-year re-fetch is performed.
+    2. Fetch historical data if there's a gap (today > latest_date + 1)
+    3. Always fetch intraday data for today
+
     Args:
         ticker: Stock ticker symbol
         include_options_iv: If True, fetch options data to compute/update ATM IV metrics.
-        
+        force_purge: If True, delete all stored prices before fetching (used by Force
+                     Refresh on the debug page to guarantee split-adjusted history).
+
     Returns:
         Tuple of (DataFrame with fetched data, number of new records saved)
-        
+
     Raises:
         ValueError: If ticker is invalid or data cannot be fetched
     """
     ticker_upper = ticker.upper()
     today = datetime.now(ET_TIMEZONE).date()
-    
+
     logger.info(f"="*60)
     logger.info(f"FETCH_AND_SAVE_STOCK_PRICES: Starting for {ticker_upper}")
-    logger.info(f"  Today (ET): {today}")
+    logger.info(f"  Today (ET): {today}, force_purge={force_purge}")
     logger.info(f"="*60)
-    
+
     # Get data provider
     provider = ProviderFactory.get_default_provider()
     logger.debug(f"  Provider: {type(provider).__name__}")
-    
+
     # Check stock attributes to determine if we have existing data
     attributes = get_stock_attributes(ticker_upper)
     if attributes:
@@ -339,14 +407,27 @@ def fetch_and_save_stock_prices(ticker: str, include_options_iv: bool = True) ->
         logger.info(f"    - gap_days: {(today - attributes.latest_date).days}")
     else:
         logger.info("  Stock attributes: none")
-    
+
+    # ========================================================================
+    # STEP 0: Purge existing data if requested or a split is detected
+    # ========================================================================
+    if attributes is not None:
+        if force_purge:
+            logger.info(f"  force_purge=True — purging all price data for {ticker_upper}")
+            purge_stock_prices(ticker_upper)
+            attributes = None  # treat as new stock so full history is re-fetched
+        elif check_for_splits(ticker_upper, attributes.latest_date):
+            logger.info(f"  Split detected — purging stale pre-split prices for {ticker_upper}")
+            purge_stock_prices(ticker_upper)
+            attributes = None
+
     all_price_data = []
-    
+
     # ========================================================================
     # STEP 1: Fetch historical data if there's a gap
     # ========================================================================
     logger.info(f"--- STEP 1: Historical Data Fetch ---")
-    
+
     if attributes is None:
         # New stock - fetch 2 years of historical data
         start_date = today - timedelta(days=730)
@@ -890,7 +971,8 @@ def refresh_stock_data(
     ticker: str,
     clear_cache: bool = False,
     refresh_options_strategies: bool = True,
-    include_options_iv: bool = True
+    include_options_iv: bool = True,
+    force_purge: bool = False,
 ) -> Dict[str, Any]:
     """
     Unified function to refresh all stock data for a ticker.
@@ -902,7 +984,8 @@ def refresh_stock_data(
 
     The function performs these steps in order:
     1. (Optional) Clear options cache for the ticker
-    2. Fetch and save fresh stock price data
+    2. Fetch and save fresh stock price data (purging first if force_purge=True or
+       a stock split is detected since the last stored date)
     3. Compute and save trading metrics (SMAs, signals, IV)
     4. Compute and cache option strategies (Risk Reversal, Covered Calls)
 
@@ -912,6 +995,8 @@ def refresh_stock_data(
                      Use True for force refresh scenarios.
         refresh_options_strategies: If True, compute/cache RR and covered call strategies.
         include_options_iv: If True, compute/update ATM IV during price refresh.
+        force_purge: If True, delete all stored price rows before re-fetching so the
+                     full history is replaced with fresh split-adjusted data.
 
     Returns:
         Dict with refresh results:
@@ -952,7 +1037,8 @@ def refresh_stock_data(
             include_options_iv_on_price_fetch = include_options_iv and not refresh_options_strategies
             price_data, new_records = fetch_and_save_stock_prices(
                 ticker_upper,
-                include_options_iv=include_options_iv_on_price_fetch
+                include_options_iv=include_options_iv_on_price_fetch,
+                force_purge=force_purge,
             )
             result["price_records"] = new_records
 

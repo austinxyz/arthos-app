@@ -86,8 +86,8 @@ class TestRROptionsChainAPI:
         """Returns puts and calls filtered by range, with stock price from DB.
 
         Stock price = 200.0 (1 day of data, no drift).
-        put range: 90%-140% = $180-$280
-        call range: 50%-150% = $100-$300
+        put range:  90%-200% = $180-$400
+        call range: 50%-200% = $100-$400
         """
         from tests.conftest import populate_test_stock_prices
         populate_test_stock_prices("TSLA", num_days=1, base_price=200.0)
@@ -95,13 +95,13 @@ class TestRROptionsChainAPI:
 
         puts = [
             make_mock_option(185.0, 5.0, 5.5),   # in range (92.5%)
-            make_mock_option(220.0, 3.0, 3.5),   # in range (110%)
-            make_mock_option(290.0, 1.0, 1.5),   # out of range (145% > 140%)
+            make_mock_option(290.0, 1.0, 1.5),   # in range (145%)
+            make_mock_option(450.0, 0.1, 0.2),   # out of range (225% > 200%)
         ]
         calls = [
             make_mock_option(110.0, 8.0, 8.5),   # in range (55%)
-            make_mock_option(240.0, 4.0, 4.5),   # in range (120%)
-            make_mock_option(320.0, 0.5, 0.8),   # out of range (160% > 150%)
+            make_mock_option(350.0, 0.3, 0.4),   # in range (175%)
+            make_mock_option(450.0, 0.1, 0.2),   # out of range (225% > 200%)
         ]
 
         mock_factory = self._mock_provider(puts, calls)
@@ -113,17 +113,17 @@ class TestRROptionsChainAPI:
         assert "stock_price" in data
         assert data["stock_price"] == pytest.approx(200.0, abs=1.0)
 
-        # Puts: 185 and 220 in range; 290 out of range
+        # Puts: 185 and 290 in range; 450 out of range
         put_strikes = [p["strike"] for p in data["puts"]]
         assert 185.0 in put_strikes
-        assert 220.0 in put_strikes
-        assert 290.0 not in put_strikes
+        assert 290.0 in put_strikes
+        assert 450.0 not in put_strikes
 
-        # Calls: 110 and 240 in range; 320 out of range
+        # Calls: 110 and 350 in range; 450 out of range
         call_strikes = [c["strike"] for c in data["calls"]]
         assert 110.0 in call_strikes
-        assert 240.0 in call_strikes
-        assert 320.0 not in call_strikes
+        assert 350.0 in call_strikes
+        assert 450.0 not in call_strikes
 
     def test_options_sorted_by_strike(self, client, setup_database):
         """Puts and calls are returned sorted by strike price ascending."""

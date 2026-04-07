@@ -146,8 +146,9 @@ async def fetch_stock_price_data(ticker: str = Query(..., description="Stock tic
     try:
         ticker = ticker.strip().upper()
 
-        # Use unified refresh function with cache clearing enabled
-        result = refresh_stock_data(ticker, clear_cache=True)
+        # Use unified refresh function with full purge: deletes all stored price rows
+        # and re-fetches 2 years of split-adjusted history from yfinance.
+        result = refresh_stock_data(ticker, clear_cache=True, force_purge=True)
 
         if not result.get("success"):
             raise HTTPException(
